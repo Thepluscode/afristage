@@ -1,0 +1,80 @@
+name: API CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "scripts/**"
+      - ".github/workflows/api-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: afristage
+          POSTGRES_PASSWORD: afristage
+          POSTGRES_DB: afristage_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://afristage:afristage@localhost:5432/afristage_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci_access_secret
+      JWT_REFRESH_SECRET: ci_refresh_secret
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: ci_livekit_secret
+      LIVEKIT_URL: ws://localhost:7880
+      PAYSTACK_SECRET_KEY: sk_test_phase4_secret # validate-hardening signs webhooks with this
+      API_BASE: http://localhost:3000/api
+      WS_BASE: http://localhost:3000/chat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run prisma:generate -w apps/api
+      - run: npm run lint -w apps/api # typecheck
+      - run: npm run test -w apps/api # unit (ledger invariants)
+      - run: npm run build -w apps/api
+      - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+      - run: npm run seed -w apps/api
+
+      - name: E2E — functional suites (rate limiting off)
+        run: |
+          THROTTLE_DISABLED=true node apps/api/dist/src/main.js & echo $! > /tmp/api.pid
+          for i in $(seq 1 30); do curl -fsS "$API_BASE/health" >/dev/null 2>&1 && break; sleep 2; done
+          set -e
+          npm run validate:money
+          npm run validate:moderation
+          npm run validate:moderation-ops
+          npm run validate:security
+          npm run validate:observability-fraud
+          npm run validate:beta
+          npm run validate:admin-backend
+          npm run validate:ranking
+          npm run validate:room-events
+          npm run validate:ux-readiness
+          npm run smoke:closed-beta
+          npm run validate:ux-timing
+          kill "$(cat /tmp/api.pid)" || true
+
+      - name: E2E — hardening suite (rate limiting on)
+        run: |
+          node apps/api/dist/src/main.js & echo $! > /tmp/api.pid
+          for i in $(seq 1 30); do curl -fsS "$API_BASE/health" >/dev/null 2>&1 && break; sleep 2; done
+          set -e
+          npm run validate:hardening
+          kill "$(cat /tmp/api.pid)" || true

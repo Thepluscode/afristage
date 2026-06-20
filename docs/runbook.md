@@ -1,0 +1,86 @@
+# Runbook
+
+## Local startup
+
+```bash
+cp apps/api/.env.example apps/api/.env
+docker compose up -d postgres redis livekit
+npm install
+npm run prisma:generate -w apps/api
+npm run prisma:migrate -w apps/api
+npm run seed -w apps/api
+npm run start:dev -w apps/api
+```
+
+## Health check
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+## Closed beta launch gate
+
+Run the non-live gate before every beta build handoff:
+
+```bash
+npm run launch:beta
+```
+
+Run the live-stack gate before inviting or expanding a beta wave:
+
+```bash
+npm run launch:beta:live
+```
+
+Run the production gate before a production launch or production deploy approval:
+
+```bash
+npm run launch:production
+```
+
+The live gate expects the API, Postgres, Redis, LiveKit, and seeded beta accounts to be available.
+The production gate also expects production environment variables to be present and safe.
+
+## Daily beta operations
+
+1. Run `npm run launch:beta:live`.
+2. Check Admin → Dashboard for reports, failed payments, payout pressure, and support load.
+3. Check Admin → Live Rooms during scheduled creator sessions.
+4. Check Admin → Reports for Critical or High moderation work.
+5. Check Admin → Payouts and Ledger Integrity before any payout approval.
+6. Check Admin → Support and assign every open payment, payout, moderation, or creator ticket.
+7. Record Critical/High issues before approving the next invite wave.
+
+## Common failures
+
+### Prisma cannot connect
+
+Check `DATABASE_URL` and confirm Postgres is healthy.
+
+### LiveKit token fails
+
+Check `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and `LIVEKIT_URL`.
+
+### Gift fails with insufficient balance
+
+Use mock payment intent and complete the mock payment.
+
+### Ledger imbalance
+
+Do not patch data manually. Investigate the failed transaction and reverse with a new transaction if needed.
+
+### Payment issue
+
+Check Admin → Payments, then wallet history. Do not manually credit coins until the provider reference and ledger transaction path are understood.
+
+### Payout issue
+
+Hold the payout with a reason, check Ledger Integrity, then approve/reject/mark paid only after the external transfer state is clear.
+
+### Live room abuse
+
+Use Admin → Reports and Admin → Live Rooms. Suspend the room first when immediate risk exists, then record the moderation reason and audit trail.
+
+### Support backlog
+
+Prioritise payment, payout, and moderation tickets. Internal notes must remain private; user-facing replies should be safe and specific.

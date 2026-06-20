@@ -1,0 +1,17 @@
+node_modules
+.next
+dist
+coverage
+.env
+.env.local
+.DS_Store
+*.log
+postgres_data
+apps/api/generated
+apps/mobile/build
+.dart_tool
+.pub-cache
+.playwright-mcp
+*.tsbuildinfo
+tmp/
+phase30-dashboard.png

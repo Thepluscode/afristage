@@ -1,0 +1,43 @@
+name: Web & Mobile CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "apps/admin-web/**"
+      - "apps/mobile/**"
+      - ".github/workflows/web-mobile-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  admin-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Build admin web (Next.js production build = typecheck + compile)
+        run: npm run build -w apps/admin-web
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+      - working-directory: apps/mobile
+        run: flutter pub get
+      - name: Analyze (static analysis, fails on any issue)
+        working-directory: apps/mobile
+        run: flutter analyze
+      - name: Widget tests
+        working-directory: apps/mobile
+        run: flutter test
+      - name: Build web (full dart2js compile of the whole app)
+        working-directory: apps/mobile
+        run: flutter build web --release

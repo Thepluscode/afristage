@@ -1,0 +1,622 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["omitApi"]
+  // native = local dev; musl-openssl-3.0.x engines for the alpine Docker image (amd64 + arm64).
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  VIEWER
+  CREATOR
+  MODERATOR
+  PAYOUT_REVIEWER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+enum CreatorCategory {
+  MUSIC
+  COMEDY
+  DANCE
+  TALK
+  FAITH
+  EDUCATION
+  FOOTBALL
+  GAMING
+  DIASPORA
+  RELATIONSHIPS
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RoomStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  SUSPENDED
+}
+
+enum ChatMessageStatus {
+  VISIBLE
+  DELETED
+  HIDDEN_BY_MODERATOR
+}
+
+enum WalletAccountType {
+  COIN
+  EARNING
+  PLATFORM_REVENUE
+  PAYMENT_CLEARING
+  PAYOUT_HOLD
+  PAYOUT_CLEARING
+}
+
+enum WalletStatus {
+  ACTIVE
+  LOCKED
+  CLOSED
+}
+
+enum LedgerTransactionType {
+  COIN_PURCHASE
+  GIFT
+  PAYOUT
+  REFUND
+  CHARGEBACK
+  ADJUSTMENT
+}
+
+enum LedgerTransactionStatus {
+  PENDING
+  POSTED
+  REVERSED
+  FAILED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  REQUESTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PROCESSING
+  PAID
+  FAILED
+  HELD
+}
+
+enum ReportPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  ACTIONED
+  REJECTED
+}
+
+model User {
+  id             String     @id @default(uuid())
+  email          String?    @unique
+  phone          String?    @unique
+  passwordHash   String?    @map("password_hash")
+  role           UserRole   @default(VIEWER)
+  status         UserStatus @default(ACTIVE)
+  emailVerified  Boolean    @default(false) @map("email_verified")
+  phoneVerified  Boolean    @default(false) @map("phone_verified")
+  ageConfirmed   Boolean    @default(false) @map("age_confirmed")
+  mfaEnabled       Boolean  @default(false) @map("mfa_enabled")
+  mfaSecret        String?  @map("mfa_secret")
+  mfaRecoveryCodes String[] @map("mfa_recovery_codes")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  profile        Profile?
+  creatorProfile CreatorProfile?
+  wallets        WalletAccount[]
+  hostedRooms    LiveRoom[] @relation("HostedRooms")
+  chatMessages   ChatMessage[]
+  reportsMade    Report[] @relation("ReportsMade")
+  reportsAgainst Report[] @relation("ReportsAgainst")
+  payoutRequests PayoutRequest[] @relation("CreatorPayouts")
+  reviewedPayouts PayoutRequest[] @relation("ReviewedPayouts")
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  username    String   @unique
+  displayName String   @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  bio         String?
+  country     String?
+  city        String?
+  language    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("profiles")
+}
+
+model CreatorProfile {
+  id               String          @id @default(uuid())
+  userId           String          @unique @map("user_id")
+  stageName        String          @map("stage_name")
+  category         CreatorCategory
+  country          String
+  language         String
+  kycStatus        KycStatus       @default(NOT_STARTED) @map("kyc_status")
+  approvalStatus   CreatorApprovalStatus @default(PENDING) @map("approval_status")
+  reviewedById     String?         @map("reviewed_by_id")
+  reviewedAt       DateTime?       @map("reviewed_at")
+  rejectionReason  String?         @map("rejection_reason")
+  payoutEnabled    Boolean         @default(false) @map("payout_enabled")
+  totalFollowers   Int             @default(0) @map("total_followers")
+  totalEarnedMinor BigInt          @default(0) @map("total_earned_minor")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("creator_profiles")
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model LiveRoom {
+  id                 String     @id @default(uuid())
+  hostUserId         String     @map("host_user_id")
+  title              String
+  category           CreatorCategory
+  country            String
+  language           String
+  status             RoomStatus @default(SCHEDULED)
+  livekitRoomName    String?    @unique @map("livekit_room_name")
+  peakViewers        Int        @default(0) @map("peak_viewers")
+  totalWatchSeconds  BigInt     @default(0) @map("total_watch_seconds")
+  startedAt          DateTime?  @map("started_at")
+  endedAt            DateTime?  @map("ended_at")
+  createdAt          DateTime   @default(now()) @map("created_at")
+
+  host         User @relation("HostedRooms", fields: [hostUserId], references: [id])
+  messages     ChatMessage[]
+  gifts        GiftTransaction[]
+  reports      Report[]
+
+  @@index([status])
+  @@index([country, category])
+  @@map("live_rooms")
+}
+
+model RoomParticipant {
+  id             String    @id @default(uuid())
+  roomId         String    @map("room_id")
+  userId         String    @map("user_id")
+  joinedAt       DateTime  @default(now()) @map("joined_at")
+  leftAt         DateTime? @map("left_at")
+  watchSeconds   Int       @default(0) @map("watch_seconds")
+
+  @@unique([roomId, userId])
+  @@map("room_participants")
+}
+
+model ChatMessage {
+  id        String            @id @default(uuid())
+  roomId    String            @map("room_id")
+  senderId  String            @map("sender_id")
+  message   String
+  status    ChatMessageStatus @default(VISIBLE)
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  room   LiveRoom @relation(fields: [roomId], references: [id])
+  sender User     @relation(fields: [senderId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@map("chat_messages")
+}
+
+model Gift {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  coinPrice    Int      @map("coin_price")
+  animationUrl String?  @map("animation_url")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  transactions GiftTransaction[]
+
+  @@map("gifts")
+}
+
+model WalletAccount {
+  id          String            @id @default(uuid())
+  userId      String?           @map("user_id")
+  accountType WalletAccountType @map("account_type")
+  currency    String
+  status      WalletStatus      @default(ACTIVE)
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  user    User? @relation(fields: [userId], references: [id])
+  entries LedgerEntry[]
+
+  // One wallet per (user, type, currency). System accounts (userId NULL) are
+  // additionally guarded by a partial unique index (see migration), since
+  // Postgres treats NULLs as distinct in a normal unique constraint.
+  @@unique([userId, accountType, currency])
+  @@map("wallet_accounts")
+}
+
+model LedgerTransaction {
+  id                String                  @id @default(uuid())
+  type              LedgerTransactionType
+  status            LedgerTransactionStatus
+  idempotencyKey    String                  @unique @map("idempotency_key")
+  externalReference String?                 @map("external_reference")
+  metadata          Json?
+  createdAt         DateTime                @default(now()) @map("created_at")
+
+  entries LedgerEntry[]
+  gifts   GiftTransaction[]
+
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id            String          @id @default(uuid())
+  transactionId String          @map("transaction_id")
+  accountId     String          @map("account_id")
+  direction     LedgerDirection
+  amountMinor   BigInt          @map("amount_minor")
+  currency      String
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  transaction LedgerTransaction @relation(fields: [transactionId], references: [id])
+  account     WalletAccount     @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+model GiftTransaction {
+  id                  String   @id @default(uuid())
+  roomId              String   @map("room_id")
+  viewerId            String   @map("viewer_id")
+  creatorId           String   @map("creator_id")
+  giftId              String   @map("gift_id")
+  ledgerTransactionId String   @unique @map("ledger_transaction_id")
+  quantity            Int
+  totalCoinAmount     Int      @map("total_coin_amount")
+  creatorEarningMinor BigInt   @map("creator_earning_minor")
+  platformFeeMinor    BigInt   @map("platform_fee_minor")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  room              LiveRoom          @relation(fields: [roomId], references: [id])
+  gift              Gift              @relation(fields: [giftId], references: [id])
+  ledgerTransaction LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@index([viewerId])
+  @@index([creatorId])
+  @@map("gift_transactions")
+}
+
+model PaymentIntent {
+  id                String        @id @default(uuid())
+  userId            String        @map("user_id")
+  provider          String
+  amountMinor       BigInt        @map("amount_minor")
+  currency          String
+  coinAmount        Int           @map("coin_amount")
+  status            PaymentStatus @default(PENDING)
+  providerReference String?       @unique @map("provider_reference")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@map("payment_intents")
+}
+
+model PaymentWebhook {
+  id          String   @id @default(uuid())
+  provider    String
+  eventType   String   @map("event_type")
+  reference   String?
+  rawPayload  Json     @map("raw_payload")
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("payment_webhooks")
+}
+
+model PayoutMethod {
+  id                   String   @id @default(uuid())
+  userId               String   @map("user_id")
+  provider             String
+  country              String
+  currency             String
+  destinationReference String   @map("destination_reference")
+  label                String
+  isDefault            Boolean  @default(false) @map("is_default")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@map("payout_methods")
+}
+
+model PayoutRequest {
+  id                  String       @id @default(uuid())
+  creatorUserId       String       @map("creator_user_id")
+  // Coins are the authoritative withdrawal unit (matches the COIN earning ledger).
+  // Fiat fields are an explicit settlement snapshot — never mixed with the coin amount.
+  coinAmount          BigInt       @map("coin_amount")
+  fiatCurrency        String       @map("fiat_currency")
+  fiatMinor           BigInt       @map("fiat_minor")
+  coinToFiatMinorRate Int          @map("coin_to_fiat_minor_rate")
+  idempotencyKey      String       @unique @map("idempotency_key")
+  holdLedgerTransactionId String?  @map("hold_ledger_transaction_id")
+  status              PayoutStatus
+  payoutMethodId      String?      @map("payout_method_id")
+  reviewedBy          String?      @map("reviewed_by")
+  rejectionReason     String?      @map("rejection_reason")
+  providerReference   String?      @map("provider_reference")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  reviewedAt          DateTime?    @map("reviewed_at")
+  paidAt              DateTime?    @map("paid_at")
+
+  creator User  @relation("CreatorPayouts", fields: [creatorUserId], references: [id])
+  reviewer User? @relation("ReviewedPayouts", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@map("payout_requests")
+}
+
+model Report {
+  id           String         @id @default(uuid())
+  reporterId   String         @map("reporter_id")
+  targetUserId String?        @map("target_user_id")
+  roomId       String?        @map("room_id")
+  reason       ReportReason
+  details      String?
+  priority     ReportPriority
+  status       ReportStatus   @default(OPEN)
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  reporter   User      @relation("ReportsMade", fields: [reporterId], references: [id])
+  targetUser User?     @relation("ReportsAgainst", fields: [targetUserId], references: [id])
+  room       LiveRoom? @relation(fields: [roomId], references: [id])
+
+  @@index([status, priority])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id           String   @id @default(uuid())
+  moderatorId  String   @map("moderator_id")
+  reportId     String?  @map("report_id")
+  targetUserId String?  @map("target_user_id")
+  roomId       String?  @map("room_id")
+  action       String
+  reason       String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("moderation_actions")
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  actorId   String   @map("actor_id")
+  action    String
+  target    String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@map("admin_audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  body      String
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model CreatorStreamStat {
+  id                   String   @id @default(uuid())
+  creatorUserId         String   @map("creator_user_id")
+  roomId                String   @map("room_id")
+  viewersPeak           Int      @default(0) @map("viewers_peak")
+  totalWatchSeconds     BigInt   @default(0) @map("total_watch_seconds")
+  totalGiftCoinAmount   Int      @default(0) @map("total_gift_coin_amount")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@map("creator_stream_stats")
+}
+
+model RoomMute {
+  id         String   @id @default(uuid())
+  roomId     String   @map("room_id")
+  userId     String   @map("user_id")
+  mutedUntil DateTime @map("muted_until")
+  mutedBy    String   @map("muted_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([roomId, userId])
+  @@map("room_mutes")
+}
+
+enum CreatorApprovalStatus {
+  NOT_APPLIED
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ReportReason {
+  NUDITY
+  HARASSMENT
+  HATE
+  SCAM
+  UNDERAGE_RISK
+  SELF_HARM
+  VIOLENCE
+  SPAM
+  COPYRIGHT
+  IMPERSONATION
+  PAYMENT_FRAUD
+  OTHER
+}
+
+enum BetaInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum BetaInviteType {
+  VIEWER
+  CREATOR
+  ADMIN
+}
+
+model BetaInvite {
+  id           String           @id @default(uuid())
+  email        String?
+  phone        String?
+  codeHash     String           @map("code_hash")
+  type         BetaInviteType
+  status       BetaInviteStatus @default(PENDING)
+  invitedById  String?          @map("invited_by_id")
+  acceptedById String?          @map("accepted_by_id")
+  expiresAt    DateTime         @map("expires_at")
+  acceptedAt   DateTime?        @map("accepted_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@map("beta_invites")
+}
+
+enum SupportTicketType {
+  GENERAL
+  PAYMENT
+  PAYOUT
+  MODERATION
+  ACCOUNT
+  CREATOR_APPLICATION
+  TECHNICAL
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_REVIEW
+  WAITING_ON_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id               String                @id @default(uuid())
+  requesterId      String                @map("requester_id")
+  assignedAdminId  String?               @map("assigned_admin_id")
+  type             SupportTicketType
+  status           SupportTicketStatus   @default(OPEN)
+  priority         SupportTicketPriority @default(MEDIUM)
+  subject          String
+  description      String
+  relatedPaymentId String?               @map("related_payment_id")
+  relatedPayoutId  String?               @map("related_payout_id")
+  relatedRoomId    String?               @map("related_room_id")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  resolvedAt       DateTime?             @map("resolved_at")
+
+  messages SupportTicketMessage[]
+
+  @@index([requesterId])
+  @@index([status, priority])
+  @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  senderId  String   @map("sender_id")
+  message   String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_messages")
+}

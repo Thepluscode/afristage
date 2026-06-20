@@ -1,0 +1,83 @@
+### Health
+GET http://localhost:3000/api/health
+
+### Login viewer
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "viewer@afristage.local",
+  "password": "Viewer123!"
+}
+
+### Login creator
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "creator@afristage.local",
+  "password": "Creator123!"
+}
+
+### Create coin purchase intent
+POST http://localhost:3000/api/payments/coin-purchase-intents
+Authorization: Bearer {{viewer_access_token}}
+Content-Type: application/json
+
+{
+  "amountMinor": 100000,
+  "currency": "NGN",
+  "coinAmount": 1000
+}
+
+### Complete mock payment
+POST http://localhost:3000/api/payments/mock/{{payment_intent_id}}/complete
+Authorization: Bearer {{viewer_access_token}}
+
+### Create live room
+POST http://localhost:3000/api/live-rooms
+Authorization: Bearer {{creator_access_token}}
+Content-Type: application/json
+
+{
+  "title": "Friday Night Afrobeats",
+  "category": "MUSIC",
+  "country": "NG",
+  "language": "pidgin"
+}
+
+### Start room
+POST http://localhost:3000/api/live-rooms/{{room_id}}/start
+Authorization: Bearer {{creator_access_token}}
+
+### Join room
+POST http://localhost:3000/api/live-rooms/{{room_id}}/join-token
+Authorization: Bearer {{viewer_access_token}}
+
+### List gifts
+GET http://localhost:3000/api/gifts
+
+### Send gift
+POST http://localhost:3000/api/live-rooms/{{room_id}}/gifts
+Authorization: Bearer {{viewer_access_token}}
+Content-Type: application/json
+
+{
+  "giftId": "{{gift_id}}",
+  "quantity": 1,
+  "idempotencyKey": "gift-test-001"
+}
+
+### Creator dashboard
+GET http://localhost:3000/api/creators/me/dashboard
+Authorization: Bearer {{creator_access_token}}
+
+### Request payout
+POST http://localhost:3000/api/payouts/request
+Authorization: Bearer {{creator_access_token}}
+Content-Type: application/json
+
+{
+  "amountMinor": 500000,
+  "currency": "NGN"
+}

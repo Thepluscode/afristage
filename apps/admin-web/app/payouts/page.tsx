@@ -1,0 +1,127 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { adminGet, adminPost } from '../../lib/api';
+import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
+
+type Payout = {
+  id: string;
+  coinAmount: string | number;
+  fiatMinor: string | number;
+  fiatCurrency: string;
+  status: string;
+  creatorUserId: string;
+  createdAt: string;
+  creator?: { email?: string; profile?: { displayName?: string; username?: string }; creatorProfile?: { stageName?: string } };
+};
+type Integrity = { ok: boolean; unbalancedTransactions: number };
+type Risk = { riskScore: number; recommendedAction: 'NONE' | 'SOFT_FLAG' | 'MANUAL_REVIEW' | 'PAYOUT_HOLD' };
+
+export default function PayoutsPage() {
+  const [rows, setRows] = useState<Payout[]>([]);
+  const [integrity, setIntegrity] = useState<Integrity | null>(null);
+  const [risk, setRisk] = useState<Record<string, Risk>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const data = await adminGet<Payout[]>('/admin/payouts');
+      setRows(data);
+      // Fraud assessment per creator with an actionable payout — surfaces risk
+      // right where the money decision is made. ponytail: one fetch per distinct
+      // pending creator; fine at beta volume, batch server-side if it grows.
+      const ids = [...new Set(data.filter((p) => ['UNDER_REVIEW', 'HELD'].includes(p.status)).map((p) => p.creatorUserId))];
+      const entries = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return [id, await adminGet<Risk>(`/admin/fraud/creators/${id}`)] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      setRisk(Object.fromEntries(entries.filter(Boolean) as (readonly [string, Risk])[]));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+    adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => {});
+  }, []);
+
+  async function action(id: string, verb: string, body?: unknown) {
+    await adminPost(`/admin/payouts/${id}/${verb}`, body);
+    await load();
+  }
+
+  if (error) return <ErrorState error={error} />;
+  const ledgerBlocked = integrity?.ok === false;
+
+  return (
+    <>
+      <PageHeader title="Payouts" kicker="Strict payout queue for review, hold, approval, rejection, and paid confirmation." />
+      {ledgerBlocked ? (
+        <WarningBanner>Ledger imbalance detected. Do not approve payouts until integrity is resolved.</WarningBanner>
+      ) : null}
+      <div className="command-grid">
+        <section>
+          <DataTable columns={['Creator', 'Coins', 'Fiat', 'Status', 'Requested', 'Method', 'Risk flags', 'Hold', 'Reviewer', 'Actions']} empty={<EmptyState>No payout requests yet.</EmptyState>}>
+            {rows.map((p) => (
+              <tr key={p.id}>
+                <td><UserCell name={p.creator?.creatorProfile?.stageName || p.creator?.profile?.displayName || p.creator?.email} sub={p.creatorUserId} /></td>
+                <td>{p.coinAmount}</td>
+                <td><MoneyAmount minor={p.fiatMinor} currency={p.fiatCurrency} /></td>
+                <td><StatusBadge status={p.status} /></td>
+                <td>{new Date(p.createdAt).toLocaleString()}</td>
+                <td>Bank transfer</td>
+                <td>
+                  {risk[p.creatorUserId] ? (
+                    <>
+                      <StatusBadge status={risk[p.creatorUserId].recommendedAction} />{' '}
+                      <span className="pill">{risk[p.creatorUserId].riskScore.toFixed(2)}</span>
+                    </>
+                  ) : ledgerBlocked ? (
+                    <span className="pill danger">LEDGER BLOCK</span>
+                  ) : (
+                    <span className="pill balanced">NORMAL</span>
+                  )}
+                </td>
+                <td>0</td>
+                <td>Unassigned</td>
+                <td>
+                  <ActionMenu>
+                  {p.status === 'HELD' ? (
+                    <button className="button secondary" onClick={() => action(p.id, 'release')}>Release Hold</button>
+                  ) : null}
+                  <button className="button secondary" disabled={p.status !== 'UNDER_REVIEW'} onClick={() => action(p.id, 'hold', { reason: prompt('Hold reason') || 'admin hold' })}>Hold Payout</button>
+                  <button
+                    className="button"
+                    disabled={ledgerBlocked || !['UNDER_REVIEW', 'HELD'].includes(p.status)}
+                    onClick={() =>
+                      window.confirm(
+                        `Approve payout of ${p.coinAmount} coins (${p.fiatMinor} ${p.fiatCurrency} minor)?\n\nThis authorises a real money transfer and cannot be casually undone.`
+                      ) && action(p.id, 'approve')
+                    }
+                  >
+                    Approve Payout
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={!['UNDER_REVIEW', 'HELD'].includes(p.status)}
+                    onClick={() => action(p.id, 'reject', { reason: prompt('Rejection reason') || 'Rejected by admin' })}
+                  >
+                    Reject Payout
+                  </button>
+                  <ConfirmDialog title="Mark payout paid" body="Only mark paid after confirming the external transfer." confirmLabel="Mark Paid" disabled={p.status !== 'APPROVED'} onConfirm={() => action(p.id, 'mark-paid')} />
+                  </ActionMenu>
+                </td>
+              </tr>
+            ))}
+          </DataTable>
+        </section>
+        <PayoutActionPanel blocked={ledgerBlocked} />
+      </div>
+    </>
+  );
+}

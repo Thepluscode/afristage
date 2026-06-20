@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: afristage
+      POSTGRES_PASSWORD: afristage
+      POSTGRES_DB: afristage
+    ports:
+      - "5440:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afristage -d afristage"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file:
+      - apps/api/.env
+    environment:
+      # Override host-oriented URLs from .env: inside the network, reach deps by service name.
+      DATABASE_URL: postgresql://afristage:afristage@postgres:5432/afristage?schema=public
+      REDIS_URL: redis://redis:6379
+      LIVEKIT_URL: ws://livekit:7880
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 3s
+      start_period: 25s
+      retries: 5
+
+volumes:
+  postgres_data:

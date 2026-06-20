@@ -1,0 +1,37 @@
+{
+  "name": "afristage",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/admin-web"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev -w apps/api",
+    "dev:admin": "npm run dev -w apps/admin-web",
+    "lint": "npm run lint -w apps/api && npm run lint -w apps/admin-web",
+    "test": "npm run test -w apps/api",
+    "validate:money": "node scripts/validate-money-loop.mjs",
+    "validate:moderation": "node scripts/validate-moderation.mjs",
+    "validate:moderation-ops": "node scripts/validate-moderation-ops.mjs",
+    "validate:security": "node scripts/validate-security.mjs",
+    "validate:observability-fraud": "node scripts/validate-observability-fraud.mjs",
+    "demo": "bash scripts/phase-2-3-e2e.sh",
+    "validate:beta": "node scripts/validate-beta.mjs",
+    "validate:admin-backend": "node scripts/validate-admin-backend.mjs",
+    "validate:hardening": "node scripts/validate-hardening.mjs",
+    "validate:ranking": "node scripts/validate-ranking.mjs",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "validate:room-events": "node scripts/validate-room-events.mjs",
+    "validate:ux-readiness": "node scripts/validate-ux-readiness.mjs",
+    "validate:production-readiness": "node scripts/validate-production-readiness.mjs",
+    "smoke:closed-beta": "node scripts/closed-beta-smoke-test.mjs",
+    "launch:beta": "node scripts/beta-launch-gate.mjs",
+    "launch:beta:live": "node scripts/beta-launch-gate.mjs --live",
+    "launch:production": "node scripts/validate-production-readiness.mjs --env && node scripts/beta-launch-gate.mjs --live --full",
+    "validate:ux-timing": "node scripts/validate-ux-timing.mjs"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "socket.io-client": "^4.7.5"
+  }
+}

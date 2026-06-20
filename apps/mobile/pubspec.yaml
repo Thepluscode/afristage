@@ -1,0 +1,25 @@
+name: afristage_mobile
+description: Africa-first live creator platform mobile app.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  provider: ^6.1.2
+  socket_io_client: ^2.0.3+1
+  flutter_secure_storage: ^9.2.2
+  url_launcher: ^6.3.0
+  livekit_client: ^2.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

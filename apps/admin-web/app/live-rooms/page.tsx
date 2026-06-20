@@ -1,0 +1,90 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { adminGet, adminPost } from '../../lib/api';
+import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, PageHeader, RoomCell, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
+
+type Room = {
+  id: string;
+  title: string;
+  status: string;
+  category: string;
+  country?: string;
+  language?: string;
+  reportsCount?: number;
+  peakViewers: number;
+  startedAt?: string | null;
+  host?: { profile?: { displayName?: string }; creatorProfile?: { stageName?: string } };
+};
+
+export default function LiveRoomsPage() {
+  const [rows, setRows] = useState<Room[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      setRows(await adminGet<Room[]>('/admin/live-rooms'));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function suspend(id: string) {
+    await adminPost(`/admin/live-rooms/${id}/suspend`, { reason: 'admin takedown' });
+    await load();
+  }
+  async function end(id: string) {
+    await adminPost(`/admin/live-rooms/${id}/end`);
+    await load();
+  }
+
+  if (error) return <ErrorState error={error} />;
+  const ordered = [...rows].sort((a, b) => Number(b.status === 'LIVE') - Number(a.status === 'LIVE') || (b.reportsCount ?? 0) - (a.reportsCount ?? 0));
+
+  return (
+    <>
+      <PageHeader title="Live Rooms" kicker="Monitor active rooms first, then take bounded moderation actions with confirmation." />
+      {ordered.some((r) => (r.reportsCount ?? 0) > 0) ? (
+        <WarningBanner>Reported live rooms are prioritised at the top of the queue.</WarningBanner>
+      ) : null}
+      <DataTable columns={['Room', 'Host', 'Status', 'Viewers', 'Category', 'Region', 'Reports', 'Started', 'Actions']} empty={<EmptyState>No live rooms need operator attention.</EmptyState>}>
+            {ordered.map((r) => (
+              <tr key={r.id}>
+                <td><RoomCell title={r.title} sub={r.id.slice(0, 8)} /></td>
+                <td><UserCell name={r.host?.creatorProfile?.stageName || r.host?.profile?.displayName} /></td>
+                <td><StatusBadge status={r.status} /></td>
+                <td>{r.peakViewers}</td>
+                <td>{r.category || '—'}</td>
+                <td>{r.country || '—'} · {r.language || '—'}</td>
+                <td><span className={`pill ${(r.reportsCount ?? 0) > 0 ? 'warning' : ''}`}>{r.reportsCount ?? 0}</span></td>
+                <td>{r.startedAt ? new Date(r.startedAt).toLocaleString() : '—'}</td>
+                <td>
+                  <ActionMenu>
+                    <button className="button secondary">View Details</button>
+                    <button className="button secondary">View Reports</button>
+                    <button className="button secondary">Audit Trail</button>
+                    <ConfirmDialog
+                      title="Suspend room"
+                      body={`Suspend "${r.title}" immediately? This removes the room from live operation.`}
+                      confirmLabel="Suspend"
+                      disabled={r.status === 'SUSPENDED'}
+                      onConfirm={() => suspend(r.id)}
+                    />
+                    <ConfirmDialog
+                      title="End room"
+                      body={`Force-end "${r.title}"? This stops the stream for every viewer.`}
+                      confirmLabel="End"
+                      disabled={r.status !== 'LIVE'}
+                      onConfirm={() => end(r.id)}
+                    />
+                  </ActionMenu>
+                </td>
+              </tr>
+            ))}
+      </DataTable>
+    </>
+  );
+}
