@@ -286,6 +286,25 @@ class _RoomScreenState extends State<RoomScreen> {
     _input.clear();
   }
 
+  // Follow/unfollow the room's creator. Optimistic toggle with rollback so the
+  // button reflects the real backend state, not just a local flip.
+  Future<void> _toggleFollow() async {
+    final hostId = widget.room.hostId;
+    if (hostId == null) return;
+    final next = !_following;
+    setState(() => _following = next);
+    try {
+      if (next) {
+        await _state.api.post('/users/$hostId/follow');
+      } else {
+        await _state.api.delete('/users/$hostId/follow');
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _following = !next); // rollback
+      _toast(e.message);
+    }
+  }
+
   void _addReaction(String reaction, {bool emitSocket = true}) {
     if (_roomEnded || _roomSuspended || _userBanned) return;
     setState(() => _reactions.add(reaction));
@@ -504,15 +523,16 @@ class _RoomScreenState extends State<RoomScreen> {
           following: _following,
           viewerCount: _viewerCount,
           onClose: () => Navigator.pop(context),
-          onFollow:
-              blocked ? null : () => setState(() => _following = !_following),
+          onFollow: blocked ? null : _toggleFollow,
           onReport: widget.isHost
               ? null
               : () => Navigator.push(
                     context,
                     MaterialPageRoute(
                         builder: (_) => ReportScreen(
-                            roomId: widget.room.id, label: 'room')),
+                            roomId: widget.room.id,
+                            targetUserId: widget.room.hostId,
+                            label: 'room')),
                   ),
         ),
         banner: bannerState == AfriRoomState.connected

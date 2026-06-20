@@ -39,7 +39,8 @@ const navGroups: { heading: string; links: [string, string][] }[] = [
     heading: 'System',
     links: [
       ['Fraud', '/fraud'],
-      ['Audit Logs', '/audit-logs']
+      ['Audit Logs', '/audit-logs'],
+      ['Security', '/security']
     ]
   }
 ];

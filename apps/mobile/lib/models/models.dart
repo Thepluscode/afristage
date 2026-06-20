@@ -9,6 +9,7 @@ class LiveRoom {
     required this.language,
     required this.status,
     this.hostName,
+    this.hostId,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class LiveRoom {
   final String language;
   final String status;
   final String? hostName;
+  final String? hostId;
 
   factory LiveRoom.fromJson(Map<String, dynamic> json) {
     final host = json['host'] as Map<String, dynamic>?;
@@ -32,6 +34,7 @@ class LiveRoom {
       status: json['status'] as String? ?? 'ENDED',
       hostName: creator?['stageName'] as String? ??
           profile?['displayName'] as String?,
+      hostId: (host?['id'] as String?) ?? (json['hostUserId'] as String?),
     );
   }
 }

@@ -81,6 +81,32 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  Future<void> _block() async {
+    final target = widget.targetUserId;
+    if (target == null) return;
+    final api = context.read<AppState>().api;
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Block this user?'),
+        content: const Text(
+            "You won't see their rooms and they can't interact with you. You can unblock later."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await api.post('/users/$target/block');
+      messenger.showSnackBar(const SnackBar(content: Text('User blocked.')));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AfriScaffold(
@@ -136,6 +162,14 @@ class _ReportScreenState extends State<ReportScreen> {
           icon: const Icon(Icons.flag),
           label: Text(_busy ? 'Submitting…' : 'Submit Report'),
         ),
+        if (widget.targetUserId != null) ...[
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _block,
+            icon: const Icon(Icons.block),
+            label: const Text('Block this user'),
+          ),
+        ],
       ],
     );
   }

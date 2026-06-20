@@ -22,6 +22,12 @@ export class UsersService {
     });
   }
 
+  // Idempotent: deleteMany so unfollowing when not following is a no-op, not an error.
+  async unfollow(followerId: string, followingId: string) {
+    await this.prisma.follow.deleteMany({ where: { followerId, followingId } });
+    return { ok: true };
+  }
+
   block(blockerId: string, blockedId: string) {
     return this.prisma.block.upsert({
       where: { blockerId_blockedId: { blockerId, blockedId } },

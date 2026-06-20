@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, Param, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -22,6 +22,11 @@ export class UsersController {
   @Post(':id/follow')
   follow(@CurrentUser() user: any, @Param('id') id: string) {
     return this.users.follow(user.sub, id);
+  }
+
+  @Delete(':id/follow')
+  unfollow(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.users.unfollow(user.sub, id);
   }
 
   @Post(':id/block')

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_ui.dart';
+import 'notifications_screen.dart';
 import 'room_screen.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -61,7 +62,10 @@ class _FeedScreenState extends State<FeedScreen> {
               icon: const Icon(Icons.search)),
           IconButton(
               tooltip: 'Notifications',
-              onPressed: () {},
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen())),
               icon: const Icon(Icons.notifications_none)),
         ],
       ),

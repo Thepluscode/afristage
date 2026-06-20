@@ -106,4 +106,7 @@ class ApiClient {
   Future<Map<String, dynamic>> patch(String path,
           [Map<String, dynamic>? body]) async =>
       (await _send('PATCH', path, body: body)) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> delete(String path) async =>
+      (await _send('DELETE', path)) as Map<String, dynamic>;
 }
