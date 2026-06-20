@@ -559,6 +559,27 @@ model BetaInvite {
   @@map("beta_invites")
 }
 
+enum BetaRequestStatus {
+  PENDING
+  INVITED
+  DECLINED
+}
+
+// Public waitlist: prospective creators/viewers asking for a beta invite from
+// the landing page (no account yet). Admins review these and issue BetaInvites.
+model BetaRequest {
+  id          String            @id @default(uuid())
+  email       String            @unique
+  displayName String?           @map("display_name")
+  category    String?
+  country     String?
+  status      BetaRequestStatus @default(PENDING)
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@map("beta_requests")
+}
+
 enum SupportTicketType {
   GENERAL
   PAYMENT

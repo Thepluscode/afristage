@@ -8,6 +8,10 @@ function build() {
       create: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'i1', codeHash: 'h', ...data }))
+    },
+    betaRequest: {
+      upsert: jest.fn().mockResolvedValue({ id: 'r1' }),
+      findMany: jest.fn().mockResolvedValue([])
     }
   };
   return { service: new BetaService(prisma), prisma };
@@ -48,5 +52,27 @@ describe('BetaService.accept', () => {
       { id: 'i1', codeHash: await bcrypt.hash('the-real-code', 10), status: 'PENDING', expiresAt: future }
     ]);
     await expect(service.accept('u', 'wrong-code')).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('BetaService.requestInvite (public waitlist)', () => {
+  it('captures a request and normalises the email', async () => {
+    const { service, prisma } = build();
+    const res = await service.requestInvite({ email: '  Ada@Example.COM ', displayName: 'Ada', category: 'MUSIC', country: 'NG' });
+    expect(res).toEqual({ ok: true, status: 'received' });
+    expect(prisma.betaRequest.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: 'ada@example.com' },
+        create: expect.objectContaining({ email: 'ada@example.com', displayName: 'Ada', category: 'MUSIC', country: 'NG' }),
+        update: {}
+      })
+    );
+  });
+
+  it('is idempotent: a repeat email leaves the original request untouched (empty update)', async () => {
+    const { service, prisma } = build();
+    await service.requestInvite({ email: 'ada@example.com' });
+    const call = prisma.betaRequest.upsert.mock.calls[0][0];
+    expect(call.update).toEqual({}); // no overwrite of the existing row
   });
 });

@@ -4,10 +4,34 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateBetaInviteDto } from './dto/create-beta-invite.dto';
+import { RequestBetaInviteDto } from './dto/request-beta-invite.dto';
 
 @Injectable()
 export class BetaService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // Public waitlist capture from the landing page. Idempotent on email so a
+  // double-submit (or a return visitor) never duplicates or errors — the caller
+  // always gets the same neutral confirmation, which also avoids leaking whether
+  // an email is already on the list.
+  async requestInvite(dto: RequestBetaInviteDto) {
+    const email = dto.email.trim().toLowerCase();
+    await this.prisma.betaRequest.upsert({
+      where: { email },
+      create: { email, displayName: dto.displayName, category: dto.category, country: dto.country },
+      update: {} // already on the list: leave the original request untouched
+    });
+    return { ok: true, status: 'received' as const };
+  }
+
+  // Admin review queue for the waitlist.
+  listRequests(status?: string) {
+    return this.prisma.betaRequest.findMany({
+      where: status ? { status: status as any } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: 200
+    });
+  }
 
   // Codes are returned once in plaintext and stored only as a bcrypt hash.
   async create(invitedById: string, dto: CreateBetaInviteDto) {

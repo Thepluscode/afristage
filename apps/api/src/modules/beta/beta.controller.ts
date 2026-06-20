@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
@@ -25,6 +25,14 @@ export class BetaController {
   @Get('admin/beta-invites')
   list() {
     return this.beta.list();
+  }
+
+  // Waitlist review queue (requests captured from the public landing form).
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/beta-requests')
+  requests(@Query('status') status?: string) {
+    return this.beta.listRequests(status);
   }
 
   @UseGuards(RolesGuard)

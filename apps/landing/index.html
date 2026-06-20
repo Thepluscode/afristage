@@ -251,6 +251,23 @@
   .foot a { color: var(--muted); }
   .foot a:hover { color: var(--gold); }
 
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .waitlist { display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 480px; }
+  .waitlist input {
+    flex: 1 1 240px; min-width: 0;
+    background: var(--ink-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 999px; padding: 0.95rem 1.3rem; font-family: var(--body); font-size: var(--step-0);
+    transition: border-color 0.2s;
+  }
+  .waitlist input::placeholder { color: var(--faint); }
+  .waitlist input:focus-visible { border-color: var(--gold); outline: none; }
+  .waitlist input[aria-invalid="true"] { border-color: var(--orange); }
+  .waitlist button { flex: 0 0 auto; }
+  .waitlist.is-done input, .waitlist.is-done button { display: none; }
+  .waitlist-note { color: var(--faint); font-size: var(--step--1); margin-top: 1rem; }
+  .waitlist-note.is-error { color: var(--orange); }
+  .waitlist-note.is-success { color: var(--teal); font-weight: 500; }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto; }
     .spotlight { --mx: 50%; --my: 30%; }
@@ -404,7 +421,12 @@
       <span class="eyebrow"><span class="pulse"></span> Closed beta · Nigeria first</span>
       <h2>The stage is set.<br /><span class="lit" style="background:linear-gradient(180deg,var(--gold),var(--orange));-webkit-background-clip:text;background-clip:text;color:transparent;">Step up.</span></h2>
       <p>We're onboarding the first 100 creators. Bring your talent — we'll bring the audience, the gifts, and the payouts.</p>
-      <a class="btn btn-gold btn-lg" href="#">Request your invite</a>
+      <form class="waitlist" id="waitlist" novalidate>
+        <label class="sr-only" for="wl-email">Email address</label>
+        <input id="wl-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="you@example.com" />
+        <button class="btn btn-gold btn-lg" type="submit">Request your invite</button>
+      </form>
+      <p class="waitlist-note" id="wl-note" role="status" aria-live="polite">Creators first. No spam — just your invite when a spot opens.</p>
     </div>
   </section>
 </main>
@@ -461,6 +483,46 @@
         setTimeout(showGift, 2200);
       }
       showGift();
+    }
+
+    // Waitlist: capture the email into the beta backend (public, rate-limited).
+    // Override the API origin for production via window.AFRISTAGE_API.
+    var API_BASE = window.AFRISTAGE_API || "http://localhost:3000/api";
+    var form = document.getElementById("waitlist");
+    var note = document.getElementById("wl-note");
+    if (form) {
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var input = document.getElementById("wl-email");
+        var btn = form.querySelector("button");
+        var email = input.value.trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          input.setAttribute("aria-invalid", "true");
+          note.className = "waitlist-note is-error";
+          note.textContent = "Enter a valid email so we can send your invite.";
+          input.focus();
+          return;
+        }
+        input.removeAttribute("aria-invalid");
+        btn.disabled = true;
+        note.className = "waitlist-note";
+        note.textContent = "Adding you to the list…";
+        try {
+          var res = await fetch(API_BASE + "/beta/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email })
+          });
+          if (!res.ok) throw new Error("status " + res.status);
+          form.classList.add("is-done");
+          note.className = "waitlist-note is-success";
+          note.textContent = "You're on the list. We'll email your invite when a spot opens.";
+        } catch (err) {
+          btn.disabled = false;
+          note.className = "waitlist-note is-error";
+          note.textContent = "Couldn't reach the stage door — try again, or email beta@afristage.live.";
+        }
+      });
     }
   })();
 </script>
