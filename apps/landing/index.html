@@ -3,8 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Defense-in-depth CSP. Self-contained page (inline style/script) so script/style
+     allow 'unsafe-inline'; no user-supplied HTML is rendered. frame-ancestors,
+     HSTS, and X-Frame-Options are ignored in <meta> — set those as host headers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:3000 https:; form-action 'self'" />
 <title>AfriStage Live — Your stage is live</title>
 <meta name="description" content="AfriStage is where African creators perform, battle, and earn — from fans at home and across the diaspora, in real time." />
+<!-- Inline SVG favicon (gold "A") — avoids a 404 with no extra request. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23FF7A00'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='900' text-anchor='middle' fill='%23120a00'%3EA%3C/text%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -452,7 +458,7 @@
         tx = ((e.clientX - r.left) / r.width) * 100;
         ty = ((e.clientY - r.top) / r.height) * 100;
         if (!raf) raf = requestAnimationFrame(loop);
-      });
+      }, { passive: true });
       function loop() {
         cx += (tx - cx) * 0.12; cy += (ty - cy) * 0.12;
         sl.style.setProperty("--mx", cx.toFixed(2) + "%");
@@ -477,7 +483,10 @@
         var g = gifts[i % gifts.length]; i++;
         var el = document.createElement("div");
         el.className = "gift";
-        el.innerHTML = '<span class="ic">' + g[0] + "</span> " + g[1];
+        var ic = document.createElement("span");
+        ic.className = "ic";
+        ic.textContent = g[0];
+        el.append(ic, " " + g[1]); // textContent-only; no HTML injection sink
         ticker.appendChild(el);
         while (ticker.children.length > 3) ticker.removeChild(ticker.firstChild);
         setTimeout(showGift, 2200);
@@ -486,7 +495,8 @@
     }
 
     // Waitlist: capture the email into the beta backend (public, rate-limited).
-    // Override the API origin for production via window.AFRISTAGE_API.
+    // PRODUCTION: set window.AFRISTAGE_API to your HTTPS API origin — the http
+    // localhost default is dev-only and would be blocked as mixed content on https.
     var API_BASE = window.AFRISTAGE_API || "http://localhost:3000/api";
     var form = document.getElementById("waitlist");
     var note = document.getElementById("wl-note");
