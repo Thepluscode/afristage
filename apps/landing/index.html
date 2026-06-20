@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AfriStage Live — Your stage is live</title>
+<meta name="description" content="AfriStage is where African creators perform, battle, and earn — from fans at home and across the diaspora, in real time." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #07070a;
+    --ink-2: #0e0e14;
+    --surface: #14141c;
+    --surface-2: #1c1c27;
+    --border: #2a2a38;
+    --gold: #ffc857;
+    --orange: #ff7a00;
+    --violet: #7c3aed;
+    --teal: #14b8a6;
+    --text: #faf9f7;
+    --muted: #9a9aa6;
+    --faint: #6b6b78;
+
+    --display: "Unbounded", system-ui, sans-serif;
+    --body: "Inter", system-ui, sans-serif;
+
+    --step--1: clamp(0.8rem, 0.76rem + 0.18vw, 0.9rem);
+    --step-0: clamp(1rem, 0.95rem + 0.25vw, 1.15rem);
+    --step-1: clamp(1.3rem, 1.1rem + 0.9vw, 1.85rem);
+    --step-2: clamp(1.9rem, 1.4rem + 2.2vw, 3rem);
+    --step-hero: clamp(3.1rem, 1.6rem + 7vw, 8.5rem);
+
+    --space: clamp(5rem, 3rem + 8vw, 9rem);
+    --maxw: 1200px;
+    --r: 18px;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection { background: var(--gold); color: var(--ink); }
+
+  a { color: inherit; text-decoration: none; }
+
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .wrap { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: clamp(1.1rem, 0.5rem + 3vw, 2.5rem); }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: var(--step--1); letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500;
+  }
+  .eyebrow .pulse {
+    width: 8px; height: 8px; border-radius: 999px; background: var(--teal);
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.6);
+    animation: pulse 2.4s infinite var(--ease);
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.55); }
+    70% { box-shadow: 0 0 0 10px rgba(20, 184, 166, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+  }
+
+  /* ---- Nav ---- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--ink) 72%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--display); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em; }
+  .brand .mark {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--orange), var(--gold));
+    color: var(--ink); font-weight: 900; font-size: 1rem;
+  }
+  .nav-links { display: flex; align-items: center; gap: 2rem; }
+  .nav-links a { color: var(--muted); font-size: var(--step--1); font-weight: 500; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--text); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    font-family: var(--body); font-weight: 600; font-size: var(--step--1);
+    padding: 0.7rem 1.25rem; border-radius: 999px; border: 1px solid transparent;
+    cursor: pointer; transition: transform 0.2s var(--ease), box-shadow 0.2s, background 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+  .btn-gold { background: linear-gradient(135deg, var(--orange), var(--gold)); color: #1a0f00; box-shadow: 0 6px 24px -8px rgba(255, 122, 0, 0.6); }
+  .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 12px 34px -8px rgba(255, 122, 0, 0.7); }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-lg { padding: 0.95rem 1.7rem; font-size: var(--step-0); }
+
+  .nav .btn-mobile-hide { display: inline-flex; }
+  @media (max-width: 720px) { .nav-links { display: none; } }
+
+  /* ---- Hero ---- */
+  .hero { position: relative; padding-top: clamp(3rem, 1rem + 8vw, 7rem); padding-bottom: var(--space); overflow: hidden; }
+  /* the spotlight: a soft gold radial that follows the cursor */
+  .spotlight {
+    position: absolute; inset: -20% -10% auto -10%; height: 130%;
+    pointer-events: none; z-index: 0;
+    background: radial-gradient(620px 620px at var(--mx, 50%) var(--my, 32%),
+        rgba(255, 200, 87, 0.20) 0%,
+        rgba(255, 122, 0, 0.10) 28%,
+        rgba(124, 58, 237, 0.06) 48%,
+        transparent 70%);
+    transition: background 0.18s linear;
+  }
+  .hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(2rem, 1rem + 4vw, 4.5rem); align-items: center; }
+  @media (max-width: 920px) { .hero-grid { grid-template-columns: 1fr; gap: 3rem; } }
+
+  h1.hero-title {
+    font-family: var(--display); font-weight: 900; font-size: var(--step-hero);
+    line-height: 0.92; letter-spacing: -0.03em; margin: 1.4rem 0 0;
+    text-wrap: balance;
+  }
+  h1.hero-title .lit {
+    background: linear-gradient(180deg, var(--gold), var(--orange));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero-sub { color: var(--muted); font-size: var(--step-1); line-height: 1.4; max-width: 30ch; margin-top: 1.5rem; font-weight: 400; }
+  .hero-cta { display: flex; flex-wrap: wrap; gap: 0.9rem; margin-top: 2.2rem; }
+  .hero-meta { margin-top: 2.2rem; display: flex; gap: 2rem; flex-wrap: wrap; }
+  .hero-meta div { display: flex; flex-direction: column; }
+  .hero-meta b { font-family: var(--display); font-weight: 700; font-size: var(--step-1); }
+  .hero-meta span { color: var(--faint); font-size: var(--step--1); }
+
+  /* ---- Live room card ---- */
+  .room {
+    position: relative; border-radius: 24px; border: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--surface-2), var(--surface));
+    overflow: hidden; box-shadow: 0 40px 90px -50px rgba(0,0,0,0.9);
+    transform: rotate(0.6deg);
+  }
+  .room-stage {
+    aspect-ratio: 4 / 3.1; position: relative;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(124,58,237,0.35), transparent 60%),
+      radial-gradient(90% 70% at 70% 110%, rgba(255,122,0,0.28), transparent 60%),
+      #100a18;
+    display: grid; place-items: end stretch;
+  }
+  .room-stage::before {
+    content: ""; position: absolute; left: 50%; top: -6%; width: 64%; height: 90%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at top, rgba(255,200,87,0.35), transparent 62%);
+    filter: blur(4px);
+  }
+  .silhouette {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 46%; height: 64%;
+    background: linear-gradient(180deg, #2a1840, #07070a);
+    border-radius: 50% 50% 8% 8% / 70% 70% 8% 8%;
+    box-shadow: 0 0 60px -10px rgba(124,58,237,0.5);
+  }
+  .live-tag {
+    position: absolute; top: 14px; left: 14px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    background: rgba(7,7,10,0.7); border: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
+    padding: 0.32rem 0.7rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em;
+  }
+  .live-tag .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--teal); animation: pulse 2s infinite; }
+  .viewers {
+    position: absolute; top: 14px; right: 14px; z-index: 3;
+    background: rgba(7,7,10,0.7); border: 1px solid var(--border);
+    padding: 0.32rem 0.7rem; border-radius: 999px; font-size: 0.72rem; color: var(--muted);
+  }
+  .room-foot { display: flex; align-items: center; gap: 0.75rem; padding: 0.95rem 1.05rem; border-top: 1px solid var(--border); }
+  .avatar { width: 40px; height: 40px; border-radius: 999px; background: linear-gradient(135deg, var(--violet), var(--teal)); display: grid; place-items: center; font-family: var(--display); font-weight: 700; flex-shrink: 0; }
+  .room-foot .who { line-height: 1.25; }
+  .room-foot .who b { font-size: 0.95rem; }
+  .room-foot .who span { color: var(--faint); font-size: 0.78rem; }
+  .room-foot .coins { margin-left: auto; text-align: right; }
+  .room-foot .coins b { color: var(--gold); font-family: var(--display); font-weight: 700; }
+  .room-foot .coins span { display: block; color: var(--faint); font-size: 0.72rem; }
+
+  /* gift ticker */
+  .ticker { position: absolute; right: 12px; bottom: 84px; z-index: 4; display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-end; }
+  .gift {
+    background: rgba(7,7,10,0.78); border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.34rem 0.7rem; font-size: 0.74rem; display: inline-flex; gap: 0.4rem; align-items: center;
+    animation: rise 0.5s var(--ease) both;
+  }
+  .gift .ic { color: var(--gold); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ---- Sections ---- */
+  section { padding-block: var(--space); position: relative; }
+  .section-head { max-width: 56ch; }
+  .section-head .eyebrow { margin-bottom: 1rem; }
+  h2 { font-family: var(--display); font-weight: 800; font-size: var(--step-2); line-height: 1.02; letter-spacing: -0.02em; text-wrap: balance; }
+  .lead { color: var(--muted); font-size: var(--step-1); margin-top: 1.1rem; line-height: 1.4; }
+
+  /* ---- Money loop (a real sequence -> numbered) ---- */
+  .loop { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 3rem; }
+  @media (max-width: 860px) { .loop { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .loop { grid-template-columns: 1fr; } }
+  .step { position: relative; border: 1px solid var(--border); border-radius: var(--r); padding: 1.5rem 1.3rem; background: var(--ink-2); overflow: hidden; transition: border-color 0.25s, transform 0.25s var(--ease); }
+  .step:hover { border-color: color-mix(in srgb, var(--gold) 50%, var(--border)); transform: translateY(-4px); }
+  .step .n { font-family: var(--display); font-weight: 800; font-size: 0.85rem; color: var(--ink); background: var(--gold); width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; }
+  .step h3 { font-family: var(--display); font-weight: 700; font-size: 1.15rem; margin: 1.1rem 0 0.5rem; }
+  .step p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
+  .step .arc { position: absolute; right: -30px; bottom: -30px; width: 90px; height: 90px; border-radius: 999px; opacity: 0.5; filter: blur(20px); }
+
+  /* ---- Diaspora bridge ---- */
+  .bridge { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: clamp(1rem, 4vw, 3rem); margin-top: 3rem; border: 1px solid var(--border); border-radius: 28px; padding: clamp(1.6rem, 4vw, 3rem); background: radial-gradient(120% 140% at 50% 0%, rgba(124,58,237,0.14), var(--ink-2)); }
+  @media (max-width: 700px) { .bridge { grid-template-columns: 1fr; text-align: center; } }
+  .city b { font-family: var(--display); font-weight: 800; font-size: var(--step-1); display: block; }
+  .city span { color: var(--faint); font-size: var(--step--1); }
+  .city .flow { color: var(--gold); font-weight: 600; font-size: var(--step--1); margin-top: 0.5rem; display: inline-block; }
+  .arrow { color: var(--gold); font-size: 1.6rem; }
+  @media (max-width: 700px) { .arrow { transform: rotate(90deg); } }
+
+  /* ---- Trust ---- */
+  .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 3rem; }
+  @media (max-width: 820px) { .trust-grid { grid-template-columns: 1fr; } }
+  .trust { border: 1px solid var(--border); border-radius: var(--r); padding: 1.6rem 1.4rem; background: var(--ink-2); }
+  .trust .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 1.2rem; background: color-mix(in srgb, var(--teal) 16%, transparent); border: 1px solid color-mix(in srgb, var(--teal) 30%, transparent); }
+  .trust h3 { font-family: var(--display); font-weight: 700; font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+  .trust p { color: var(--muted); font-size: var(--step--1); line-height: 1.5; }
+
+  /* ---- Final CTA ---- */
+  .finale { text-align: center; }
+  .finale .wrap { display: grid; place-items: center; }
+  .finale h2 { font-size: var(--step-hero); line-height: 0.95; }
+  .finale p { color: var(--muted); font-size: var(--step-1); margin: 1.2rem 0 2rem; max-width: 40ch; }
+
+  footer { border-top: 1px solid var(--border); padding-block: 2.5rem; }
+  .foot { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; color: var(--faint); font-size: var(--step--1); }
+  .foot a { color: var(--muted); }
+  .foot a:hover { color: var(--gold); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto; }
+    .spotlight { --mx: 50%; --my: 30%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top" aria-label="AfriStage Live home">
+      <span class="mark">A</span> AfriStage
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#loop">How it pays</a>
+      <a href="#diaspora">Diaspora</a>
+      <a href="#trust">Trust</a>
+    </nav>
+    <a class="btn btn-gold btn-mobile-hide" href="#join">Join the beta</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero">
+    <div class="spotlight" id="spotlight" aria-hidden="true"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><span class="pulse"></span> Live now across Africa</span>
+        <h1 class="hero-title">Your stage<br />is <span class="lit">live.</span></h1>
+        <p class="hero-sub">Where African creators perform, battle, and earn — from fans at home and across the diaspora, in real time.</p>
+        <div class="hero-cta">
+          <a class="btn btn-gold btn-lg" href="#join">Join the beta</a>
+          <a class="btn btn-ghost btn-lg" href="#loop">See how it pays</a>
+        </div>
+        <div class="hero-meta">
+          <div><b>60%+</b><span>kept by creators</span></div>
+          <div><b>3 taps</b><span>from fan to gift</span></div>
+          <div><b>Naira · £ · $ · €</b><span>coins in, payouts home</span></div>
+        </div>
+      </div>
+
+      <div class="room" role="img" aria-label="A live music room: Sabi Singer performing Friday Night Afrobeats with 1,284 watching and gifts arriving.">
+        <div class="room-stage">
+          <span class="live-tag"><span class="dot"></span> LIVE</span>
+          <span class="viewers">1,284 watching</span>
+          <span class="silhouette"></span>
+          <div class="ticker" id="ticker" aria-hidden="true"></div>
+        </div>
+        <div class="room-foot">
+          <span class="avatar">S</span>
+          <span class="who"><b>Sabi Singer</b><br /><span>Music · NG · Pidgin</span></span>
+          <span class="coins"><b>+12,400</b><span>coins tonight</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MONEY LOOP -->
+  <section id="loop">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">The money loop</span>
+        <h2>Go live. Get gifted. Get paid.</h2>
+        <p class="lead">No ads to chase, no algorithm to game. Fans turn coins into gifts, gifts into your earnings, earnings into cash — every step on a ledger that always balances.</p>
+      </div>
+      <div class="loop">
+        <article class="step">
+          <span class="n">1</span>
+          <h3>Go live</h3>
+          <p>Open a music, comedy, or talk room in seconds. Set the title, pick a language, hit start.</p>
+          <span class="arc" style="background: var(--gold);"></span>
+        </article>
+        <article class="step">
+          <span class="n">2</span>
+          <h3>Fans send gifts</h3>
+          <p>Viewers buy coins and send them live — a Crown, a Golden Mic, a Spotlight. The room sees every one.</p>
+          <span class="arc" style="background: var(--orange);"></span>
+        </article>
+        <article class="step">
+          <span class="n">3</span>
+          <h3>You earn coins</h3>
+          <p>Most of every gift lands in your earnings instantly. Watch the top-gifter board climb in real time.</p>
+          <span class="arc" style="background: var(--violet);"></span>
+        </article>
+        <article class="step">
+          <span class="n">4</span>
+          <h3>Cash out</h3>
+          <p>Request a payout to your bank or mobile money. Reviewed, tracked, and paid — with a receipt.</p>
+          <span class="arc" style="background: var(--teal);"></span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIASPORA -->
+  <section id="diaspora">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Built for the diaspora</span>
+        <h2>Lagos to London, in real time.</h2>
+        <p class="lead">Your biggest supporters left home but never left the culture. AfriStage lets them back you live tonight, in their currency — and lands it as earnings you cash out in yours.</p>
+      </div>
+      <div class="bridge">
+        <div class="city">
+          <b>London · 9:14pm</b>
+          <span>Ada buys £20 of coins</span>
+          <span class="flow">→ sends a Golden Stage</span>
+        </div>
+        <div class="arrow" aria-hidden="true">⟶</div>
+        <div class="city">
+          <b>Lagos · 10:14pm</b>
+          <span>Sabi Singer earns the gift live</span>
+          <span class="flow">→ payout to GTBank</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUST -->
+  <section id="trust">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Money you can trust</span>
+        <h2>A creator economy that adds up.</h2>
+        <p class="lead">A platform that handles real money has to be honest about it. Here's how we keep yours safe.</p>
+      </div>
+      <div class="trust-grid">
+        <article class="trust">
+          <span class="ic" aria-hidden="true">▦</span>
+          <h3>Every coin accounted for</h3>
+          <p>A double-entry ledger sits under every gift and payout — debits always equal credits, checked continuously. Your earnings are never a guess.</p>
+        </article>
+        <article class="trust">
+          <span class="ic" aria-hidden="true">◷</span>
+          <h3>Payouts you can see</h3>
+          <p>Track each request from review to paid. Some earnings are held briefly for fraud and payment checks — and we tell you exactly why.</p>
+        </article>
+        <article class="trust">
+          <span class="ic" aria-hidden="true">⚇</span>
+          <h3>Moderation from day one</h3>
+          <p>Real review of reports, fast room takedowns, and fraud signals on the payout queue — so the stage stays safe to perform on.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINALE -->
+  <section class="finale" id="join">
+    <div class="wrap">
+      <span class="eyebrow"><span class="pulse"></span> Closed beta · Nigeria first</span>
+      <h2>The stage is set.<br /><span class="lit" style="background:linear-gradient(180deg,var(--gold),var(--orange));-webkit-background-clip:text;background-clip:text;color:transparent;">Step up.</span></h2>
+      <p>We're onboarding the first 100 creators. Bring your talent — we'll bring the audience, the gifts, and the payouts.</p>
+      <a class="btn btn-gold btn-lg" href="#">Request your invite</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand" style="font-size:1rem;"><span class="mark" style="width:24px;height:24px;font-size:0.85rem;">A</span> AfriStage Live</span>
+    <span>Africa's live stage for talent, culture &amp; community.</span>
+    <span><a href="#top">Back to top ↑</a></span>
+  </div>
+</footer>
+
+<script>
+  // Signature: gold spotlight tracks the cursor across the hero, eased.
+  (function () {
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var sl = document.getElementById("spotlight");
+    var hero = sl && sl.closest(".hero");
+    if (sl && hero && !reduce && window.matchMedia("(pointer:fine)").matches) {
+      var tx = 50, ty = 32, cx = 50, cy = 32, raf = null;
+      hero.addEventListener("pointermove", function (e) {
+        var r = hero.getBoundingClientRect();
+        tx = ((e.clientX - r.left) / r.width) * 100;
+        ty = ((e.clientY - r.top) / r.height) * 100;
+        if (!raf) raf = requestAnimationFrame(loop);
+      });
+      function loop() {
+        cx += (tx - cx) * 0.12; cy += (ty - cy) * 0.12;
+        sl.style.setProperty("--mx", cx.toFixed(2) + "%");
+        sl.style.setProperty("--my", cy.toFixed(2) + "%");
+        if (Math.abs(tx - cx) > 0.1 || Math.abs(ty - cy) > 0.1) { raf = requestAnimationFrame(loop); }
+        else { raf = null; }
+      }
+    }
+
+    // Supporting: a quiet, looping gift ticker in the live room.
+    var ticker = document.getElementById("ticker");
+    if (ticker && !reduce) {
+      var gifts = [
+        ["♛", "Ada sent Crown"],
+        ["★", "Kofi sent Spotlight"],
+        ["♪", "Zola sent Golden Mic"],
+        ["✦", "Tunde sent Fire ×3"],
+        ["♛", "Amara sent Golden Stage"],
+      ];
+      var i = 0;
+      function showGift() {
+        var g = gifts[i % gifts.length]; i++;
+        var el = document.createElement("div");
+        el.className = "gift";
+        el.innerHTML = '<span class="ic">' + g[0] + "</span> " + g[1];
+        ticker.appendChild(el);
+        while (ticker.children.length > 3) ticker.removeChild(ticker.firstChild);
+        setTimeout(showGift, 2200);
+      }
+      showGift();
+    }
+  })();
+</script>
+</body>
+</html>
