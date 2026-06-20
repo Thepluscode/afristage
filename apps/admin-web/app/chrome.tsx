@@ -21,6 +21,7 @@ const navGroups: { heading: string; links: [string, string][] }[] = [
     links: [
       ['Users', '/users'],
       ['Creators', '/creators'],
+      ['Waitlist', '/beta-requests'],
       ['Beta Invites', '/beta-invites']
     ]
   },
