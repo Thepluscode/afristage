@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { BetaInviteType, UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { Roles } from '../../common/roles.decorator';
@@ -33,6 +33,14 @@ export class BetaController {
   @Get('admin/beta-requests')
   requests(@Query('status') status?: string) {
     return this.beta.listRequests(status);
+  }
+
+  // Issue an invite for a waitlisted request (defaults to a CREATOR invite).
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('admin/beta-requests/:id/invite')
+  inviteFromRequest(@CurrentUser() user: any, @Param('id') id: string, @Body('type') type?: BetaInviteType) {
+    return this.beta.inviteFromRequest(user.sub, id, type ?? undefined);
   }
 
   @UseGuards(RolesGuard)

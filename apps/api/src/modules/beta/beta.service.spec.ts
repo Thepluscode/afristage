@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { BetaService } from './beta.service';
 
@@ -11,7 +11,9 @@ function build() {
     },
     betaRequest: {
       upsert: jest.fn().mockResolvedValue({ id: 'r1' }),
-      findMany: jest.fn().mockResolvedValue([])
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'r1', ...data }))
     }
   };
   return { service: new BetaService(prisma), prisma };
@@ -74,5 +76,30 @@ describe('BetaService.requestInvite (public waitlist)', () => {
     await service.requestInvite({ email: 'ada@example.com' });
     const call = prisma.betaRequest.upsert.mock.calls[0][0];
     expect(call.update).toEqual({}); // no overwrite of the existing row
+  });
+});
+
+describe('BetaService.inviteFromRequest', () => {
+  it('issues an invite for the request email and marks it INVITED', async () => {
+    const { service, prisma } = build();
+    prisma.betaRequest.findUnique.mockResolvedValue({ id: 'r1', email: 'ada@example.com', status: 'PENDING' });
+    prisma.betaInvite.create.mockResolvedValue({ id: 'i9', email: 'ada@example.com', codeHash: 'h', type: 'CREATOR', status: 'PENDING', expiresAt: future });
+    const res = await service.inviteFromRequest('admin1', 'r1');
+    expect(typeof res.code).toBe('string');
+    expect(prisma.betaInvite.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: 'ada@example.com', type: 'CREATOR' }) }));
+    expect(prisma.betaRequest.update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { status: 'INVITED' } });
+  });
+
+  it('throws when the request does not exist', async () => {
+    const { service, prisma } = build();
+    prisma.betaRequest.findUnique.mockResolvedValue(null);
+    await expect(service.inviteFromRequest('admin1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('refuses to re-invite an already-invited request', async () => {
+    const { service, prisma } = build();
+    prisma.betaRequest.findUnique.mockResolvedValue({ id: 'r1', email: 'ada@example.com', status: 'INVITED' });
+    await expect(service.inviteFromRequest('admin1', 'r1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.betaInvite.create).not.toHaveBeenCalled();
   });
 });

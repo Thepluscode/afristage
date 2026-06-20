@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { BetaInvite, BetaInviteStatus } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BetaInvite, BetaInviteStatus, BetaInviteType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
@@ -31,6 +31,18 @@ export class BetaService {
       orderBy: { createdAt: 'desc' },
       take: 200
     });
+  }
+
+  // Convert a waitlist request into a real invite: issue a BetaInvite for the
+  // request's email and mark the request INVITED. Returns the one-time code.
+  async inviteFromRequest(adminId: string, requestId: string, type: BetaInviteType = BetaInviteType.CREATOR) {
+    const request = await this.prisma.betaRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Waitlist request not found');
+    if (request.status === 'INVITED') throw new BadRequestException('This request has already been invited');
+
+    const result = await this.create(adminId, { email: request.email, type });
+    await this.prisma.betaRequest.update({ where: { id: requestId }, data: { status: 'INVITED' } });
+    return result; // { invite, code } — code shown once
   }
 
   // Codes are returned once in plaintext and stored only as a bcrypt hash.

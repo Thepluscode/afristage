@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminGet } from "../../lib/api";
-import { DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge } from "../admin-ui";
+import { adminGet, adminPost } from "../../lib/api";
+import { ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, SuccessBanner } from "../admin-ui";
 
 type BetaRequest = {
   id: string;
@@ -17,6 +17,7 @@ type BetaRequest = {
 export default function BetaRequestsPage() {
   const [rows, setRows] = useState<BetaRequest[]>([]);
   const [status, setStatus] = useState("");
+  const [lastCode, setLastCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -32,11 +33,22 @@ export default function BetaRequestsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  async function issueInvite(id: string) {
+    const res = await adminPost<{ code: string }>(`/admin/beta-requests/${id}/invite`, { type: "CREATOR" });
+    setLastCode(res.code); // shown once
+    await load();
+  }
+
   if (error) return <ErrorState error={error} />;
 
   return (
     <>
-      <PageHeader title="Waitlist" kicker="Creators and viewers who requested an invite from the landing page. Review, then issue invites from Beta Invites." />
+      <PageHeader title="Waitlist" kicker="Creators and viewers who requested an invite from the landing page. Issue an invite to bring them into the beta." />
+      {lastCode ? (
+        <SuccessBanner>
+          Invite code (copy now, shown once): <code>{lastCode}</code>
+        </SuccessBanner>
+      ) : null}
       <FilterBar onSubmit={(e) => e.preventDefault()}>
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
@@ -46,7 +58,7 @@ export default function BetaRequestsPage() {
         </select>
       </FilterBar>
       <DataTable
-        columns={["Email", "Name", "Category", "Country", "Status", "Requested"]}
+        columns={["Email", "Name", "Category", "Country", "Status", "Requested", "Actions"]}
         empty={<EmptyState>No invite requests yet. They'll appear here as people sign up from the landing page.</EmptyState>}
       >
         {rows.map((r) => (
@@ -57,6 +69,15 @@ export default function BetaRequestsPage() {
             <td>{r.country || "—"}</td>
             <td><StatusBadge status={r.status} /></td>
             <td>{new Date(r.createdAt).toLocaleString()}</td>
+            <td className="actions">
+              <ConfirmDialog
+                title="Issue invite"
+                body={`Issue a creator beta invite for ${r.email}? They'll get a one-time code to join.`}
+                confirmLabel="Issue invite"
+                disabled={r.status !== "PENDING"}
+                onConfirm={() => issueInvite(r.id)}
+              />
+            </td>
           </tr>
         ))}
       </DataTable>
