@@ -31,9 +31,10 @@ export class LiveRoomsController {
     @Query('country') country?: string,
     @Query('category') category?: any,
     @Query('viewerLanguage') viewerLanguage?: string,
-    @Query('viewerCountry') viewerCountry?: string
+    @Query('viewerCountry') viewerCountry?: string,
+    @Query('q') q?: string
   ) {
-    return this.rooms.list({ country, category, viewerLanguage, viewerCountry });
+    return this.rooms.list({ country, category, viewerLanguage, viewerCountry, q });
   }
 
   @Get(':id')

@@ -91,9 +91,23 @@ export class LiveRoomsService {
   // breakdown so the feed order is auditable.
   // ponytail: per-request aggregation over a 100-room pool — fine at beta scale
   // (blueprint phase 1: ~100 live rooms). Move to cached counters if it gets hot.
-  async list(query: { country?: string; category?: any; viewerLanguage?: string; viewerCountry?: string }) {
+  async list(query: { country?: string; category?: any; viewerLanguage?: string; viewerCountry?: string; q?: string }) {
+    const q = query.q?.trim();
     const rooms = await this.prisma.liveRoom.findMany({
-      where: { status: RoomStatus.LIVE, country: query.country, category: query.category },
+      where: {
+        status: RoomStatus.LIVE,
+        country: query.country,
+        category: query.category,
+        // Text search across room title and the creator's stage name.
+        ...(q
+          ? {
+              OR: [
+                { title: { contains: q, mode: 'insensitive' as const } },
+                { host: { creatorProfile: { stageName: { contains: q, mode: 'insensitive' as const } } } }
+              ]
+            }
+          : {})
+      },
       orderBy: [{ peakViewers: 'desc' }, { startedAt: 'desc' }],
       take: RANK_CANDIDATE_POOL,
       include: PUBLIC_HOST_INCLUDE

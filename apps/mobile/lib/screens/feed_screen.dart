@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../widgets/afri_ui.dart';
 import 'notifications_screen.dart';
 import 'room_screen.dart';
+import 'search_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -58,7 +59,8 @@ class _FeedScreenState extends State<FeedScreen> {
         actions: [
           IconButton(
               tooltip: 'Search creators',
-              onPressed: () {},
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SearchScreen())),
               icon: const Icon(Icons.search)),
           IconButton(
               tooltip: 'Notifications',
