@@ -1098,11 +1098,17 @@ class AfriProfileHeader extends StatelessWidget {
     required this.role,
     required this.userId,
     required this.isCreator,
+    this.avatarUrl,
+    this.onEditAvatar,
+    this.uploading = false,
   });
 
   final String? role;
   final String? userId;
   final bool isCreator;
+  final String? avatarUrl;
+  final VoidCallback? onEditAvatar;
+  final bool uploading;
 
   @override
   Widget build(BuildContext context) {
@@ -1113,8 +1119,8 @@ class AfriProfileHeader extends StatelessWidget {
       colors: const [Color(0xFF211135), Color(0xFF17171F)],
       child: Row(
         children: [
-          const AfriIconBadge(
-              icon: Icons.person, accent: AfriColors.purple, size: 58),
+          _Avatar(
+              url: avatarUrl, onEdit: onEditAvatar, uploading: uploading),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1141,6 +1147,59 @@ class AfriProfileHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({this.url, this.onEdit, this.uploading = false});
+  final String? url;
+  final VoidCallback? onEdit;
+  final bool uploading;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 58.0;
+    Widget face;
+    if (uploading) {
+      face = const Center(
+          child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AfriColors.gold)));
+    } else if (url != null && url!.isNotEmpty) {
+      face = ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Image.network(url!, width: size, height: size, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                const AfriIconBadge(icon: Icons.person, accent: AfriColors.purple, size: size)),
+      );
+    } else {
+      face = const AfriIconBadge(icon: Icons.person, accent: AfriColors.purple, size: size);
+    }
+
+    return GestureDetector(
+      onTap: uploading ? null : onEdit,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            SizedBox(width: size, height: size, child: face),
+            if (onEdit != null && !uploading)
+              Positioned(
+                right: -4,
+                bottom: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: const BoxDecoration(color: AfriColors.gold, shape: BoxShape.circle),
+                  child: const Icon(Icons.edit, size: 13, color: Color(0xFF170B02)),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -109,4 +109,15 @@ class ApiClient {
 
   Future<Map<String, dynamic>> delete(String path) async =>
       (await _send('DELETE', path)) as Map<String, dynamic>;
+
+  /// Raw PUT to an absolute URL (e.g. a presigned upload URL). No base URL, no
+  /// bearer token — the presigned URL carries its own signature.
+  Future<void> putBytes(String url, List<int> bytes, String contentType) async {
+    final res = await http
+        .put(Uri.parse(url), headers: {'Content-Type': contentType}, body: bytes)
+        .timeout(const Duration(seconds: 30));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException(res.statusCode, 'Upload failed');
+    }
+  }
 }
