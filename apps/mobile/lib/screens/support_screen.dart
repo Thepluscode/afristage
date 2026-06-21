@@ -5,6 +5,7 @@ import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
+import 'support_ticket_screen.dart';
 
 const _types = <(String, String)>[
   ('PAYMENT', 'Payment issue'),
@@ -185,7 +186,16 @@ class _SupportScreenState extends State<SupportScreen> {
         for (final t in _tickets.cast<Map<String, dynamic>>())
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: AfriSupportTicketCard(ticket: t),
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SupportTicketScreen(
+                      ticketId: t['id'] as String, subject: t['subject'] as String?),
+                ),
+              ),
+              child: AfriSupportTicketCard(ticket: t),
+            ),
           ),
       ],
     );

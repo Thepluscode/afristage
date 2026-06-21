@@ -10,6 +10,7 @@ const navGroups: { heading: string; links: [string, string][] }[] = [
     heading: 'Operations',
     links: [
       ['Dashboard', '/'],
+      ['Analytics', '/analytics'],
       ['Beta Ops', '/beta-ops'],
       ['Live Rooms', '/live-rooms'],
       ['Reports', '/reports'],

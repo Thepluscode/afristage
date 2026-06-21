@@ -6,6 +6,7 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
 import 'go_live_setup_screen.dart';
+import 'payout_history_screen.dart';
 
 class CreatorScreen extends StatefulWidget {
   const CreatorScreen({super.key});
@@ -190,6 +191,15 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 body: 'Move cleared creator earnings into payout review.',
                 accent: AfriColors.success,
                 onTap: _requestPayout,
+              ),
+              const SizedBox(height: 10),
+              AfriActionRow(
+                icon: Icons.history,
+                title: 'Payout history',
+                body: 'Track every payout request from review to paid.',
+                accent: AfriColors.gold,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PayoutHistoryScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
