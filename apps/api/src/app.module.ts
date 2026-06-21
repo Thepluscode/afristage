@@ -22,6 +22,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BetaModule } from './modules/beta/beta.module';
 import { SupportModule } from './modules/support/support.module';
 import { FraudModule } from './modules/fraud/fraud.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -46,7 +47,8 @@ import { FraudModule } from './modules/fraud/fraud.module';
     AnalyticsModule,
     BetaModule,
     SupportModule,
-    FraudModule
+    FraudModule,
+    UploadsModule
   ],
   controllers: [HealthController],
   providers: [

@@ -33,6 +33,30 @@ services:
       - "7881:7881"
       - "7882:7882/udp"
 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: afristage
+      MINIO_ROOT_PASSWORD: afristage123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  # One-shot: create the media bucket and make objects publicly readable (CDN-style).
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 afristage afristage123; do sleep 1; done &&
+      mc mb --ignore-existing local/afristage-media &&
+      mc anonymous set download local/afristage-media
+      "
+
   api:
     build:
       context: .
@@ -44,6 +68,14 @@ services:
       DATABASE_URL: postgresql://afristage:afristage@postgres:5432/afristage?schema=public
       REDIS_URL: redis://redis:6379
       LIVEKIT_URL: ws://livekit:7880
+      # Object storage: reach MinIO by service name in-network; public URLs use localhost.
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: afristage-media
+      S3_ACCESS_KEY_ID: afristage
+      S3_SECRET_ACCESS_KEY: afristage123
+      S3_FORCE_PATH_STYLE: "true"
+      CDN_BASE_URL: http://localhost:9000/afristage-media
     ports:
       - "3000:3000"
     depends_on:
@@ -52,6 +84,8 @@ services:
       redis:
         condition: service_healthy
       livekit:
+        condition: service_started
+      minio:
         condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
@@ -62,3 +96,4 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:
