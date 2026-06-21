@@ -84,3 +84,21 @@ Use Admin → Reports and Admin → Live Rooms. Suspend the room first when imme
 ### Support backlog
 
 Prioritise payment, payout, and moderation tickets. Internal notes must remain private; user-facing replies should be safe and specific.
+
+## Security scanning (DAST)
+
+Two stages, not competitors:
+
+- **OWASP ZAP (free) — every release.** Catch the obvious HTTP-level issues
+  (missing security headers, info disclosure, common misconfig) against the
+  running API. With the stack up:
+  ```
+  docker run --rm zaproxy/zap-stable zap-baseline.py -t http://host.docker.internal:3000/api -I
+  ```
+  Current baseline: 0 FAIL. Security headers are set via `helmet` + a
+  `Cache-Control: no-store` default in `apps/api/src/main.ts` (X-Powered-By
+  removed; nosniff / X-Frame-Options / HSTS / Referrer-Policy added). Rule 10049
+  "Non-Storable Content" is expected/benign — it confirms `no-store`.
+- **Burp Suite Professional (paid) — quarterly / pre-major-launch.** Deep,
+  authenticated, active penetration testing beyond automated baseline coverage.
+  This is what third-party assessors use; budget for it before enterprise deals.
