@@ -8,6 +8,11 @@ import { WalletService } from '../wallet/wallet.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
+// Accept the adjacent 30s steps (±1) when verifying TOTP. Tolerates real-world
+// clock skew between the user's device and the server, and removes a window-
+// boundary race where a just-generated code lands in the next step on verify.
+authenticator.options = { window: 1 };
+
 const PRIVILEGED_ROLES: UserRole[] = [UserRole.MODERATOR, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.PAYOUT_REVIEWER];
 const SEEDED_PRODUCTION_IDENTIFIERS = new Set([
   'admin@afristage.local',
