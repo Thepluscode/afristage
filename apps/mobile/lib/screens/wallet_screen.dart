@@ -128,18 +128,31 @@ class _WalletScreenState extends State<WalletScreen> {
           coinBalance: wallet.coinBalance,
           modeLabel: _useCard ? 'Paystack ready' : 'Dev wallet',
         ),
+        const SizedBox(height: 20),
+        const AfriSectionHeader(
+          title: 'Earnings summary',
+          subtitle: 'Coins earned from gifts, and what is held for checks',
+        ),
         const SizedBox(height: 12),
-        AfriStatCard(
-            label: 'Creator earnings',
-            value: '${wallet.earningBalance}',
-            icon: Icons.payments_outlined,
-            accent: AfriColors.success),
-        const SizedBox(height: 12),
-        AfriStatCard(
-            label: 'Payout hold',
-            value: '${wallet.payoutHoldBalance}',
-            icon: Icons.lock_clock_outlined,
-            accent: AfriColors.warning),
+        Row(
+          children: [
+            Expanded(
+              child: AfriStatCard(
+                  label: 'Creator earnings',
+                  value: '${wallet.earningBalance}',
+                  icon: Icons.payments_outlined,
+                  accent: AfriColors.success),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AfriStatCard(
+                  label: 'Payout hold',
+                  value: '${wallet.payoutHoldBalance}',
+                  icon: Icons.lock_clock_outlined,
+                  accent: AfriColors.warning),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         AfriPayoutStatusCard(
           available: wallet.earningBalance,
