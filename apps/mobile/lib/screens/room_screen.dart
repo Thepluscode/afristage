@@ -40,6 +40,7 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _micOn = true;
   bool _ending = false;
   String? _lastGift;
+  String? _lastGiftImage;
   bool _following = false;
   bool _lowData = false;
   bool _poorNetwork = false;
@@ -145,7 +146,7 @@ class _RoomScreenState extends State<RoomScreen> {
         if (data is Map) {
           final name = data['giftName'] as String? ?? 'a gift';
           final qty = int.tryParse('${data['quantity'] ?? 1}') ?? 1;
-          _flashGift('$name x$qty');
+          _flashGift('$name x$qty', data['animationUrl'] as String?);
           _addSystem('$name x$qty');
           if (mounted) {
             setState(() {
@@ -224,14 +225,22 @@ class _RoomScreenState extends State<RoomScreen> {
     _scrollToEnd();
   }
 
-  void _flashGift(String text) {
+  void _flashGift(String text, [String? animationUrl]) {
     if (!mounted) {
       return;
     }
-    setState(() => _lastGift = text);
-    Future<void>.delayed(const Duration(milliseconds: 1800), () {
+    setState(() {
+      _lastGift = text;
+      _lastGiftImage = (animationUrl != null && animationUrl.isNotEmpty)
+          ? animationUrl
+          : null;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 3200), () {
       if (mounted && _lastGift == text) {
-        setState(() => _lastGift = null);
+        setState(() {
+          _lastGift = null;
+          _lastGiftImage = null;
+        });
       }
     });
   }
@@ -540,7 +549,8 @@ class _RoomScreenState extends State<RoomScreen> {
             ? null
             : AfriRoomStateBanner(state: bannerState, message: bannerMessage),
         reactionLayer: AfriReactionLayer(reactions: _reactions),
-        giftAnimationLayer: AfriGiftAnimationLayer(giftLabel: _lastGift),
+        giftAnimationLayer: AfriGiftAnimationLayer(
+            giftLabel: _lastGift, imageUrl: _lastGiftImage),
       ),
       bottomMeta: Column(
         mainAxisSize: MainAxisSize.min,

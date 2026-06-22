@@ -1447,8 +1447,10 @@ class AfriVideoStage extends StatelessWidget {
           if (reactionLayer != null)
             Positioned.fill(child: IgnorePointer(child: reactionLayer!)),
           if (giftAnimationLayer != null)
-            Positioned(
-                left: 16, right: 16, bottom: 16, child: giftAnimationLayer!),
+            // Centered over the stage so it stays visible above the immersive
+            // viewer's bottom chat/input overlay (a bottom-anchored layer is
+            // hidden behind it). The layer centers its own content.
+            Positioned.fill(child: IgnorePointer(child: giftAnimationLayer!)),
           if (roomEnded)
             Positioned.fill(
               child: Container(
@@ -1890,30 +1892,47 @@ class AfriReactionLayer extends StatelessWidget {
 }
 
 class AfriGiftAnimationLayer extends StatelessWidget {
-  const AfriGiftAnimationLayer({super.key, this.giftLabel});
+  const AfriGiftAnimationLayer({super.key, this.giftLabel, this.imageUrl});
 
   final String? giftLabel;
+  final String? imageUrl; // admin-uploaded gift animation/image, when configured
 
   @override
   Widget build(BuildContext context) {
     final label = giftLabel;
     if (label == null) return const SizedBox.shrink();
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AfriColors.gold,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(color: AfriColors.gold.withValues(alpha: 0.28), blurRadius: 22)
+        ],
+      ),
+      child: Text(
+        'Gift sent · $label',
+        style: const TextStyle(
+            color: Color(0xFF170B02), fontWeight: FontWeight.w900),
+      ),
+    );
+    final url = imageUrl;
+    if (url == null || url.isEmpty) return Center(child: pill);
+    // Show the configured gift artwork above the label.
     return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: AfriColors.gold,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [
-            BoxShadow(
-                color: AfriColors.gold.withValues(alpha: 0.28), blurRadius: 22)
-          ],
-        ),
-        child: Text(
-          'Gift sent · $label',
-          style: const TextStyle(
-              color: Color(0xFF170B02), fontWeight: FontWeight.w900),
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.network(
+            url,
+            width: 140,
+            height: 140,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 10),
+          pill,
+        ],
       ),
     );
   }

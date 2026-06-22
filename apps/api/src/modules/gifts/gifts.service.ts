@@ -129,6 +129,7 @@ export class GiftsService {
       roomId,
       giftId: gift.id,
       giftName: gift.name,
+      animationUrl: gift.animationUrl ?? null,
       senderId: viewerId,
       quantity: dto.quantity,
       totalCoinAmount: total,
