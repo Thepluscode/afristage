@@ -60,10 +60,37 @@ export class CreatorsService {
 
   async dashboard(userId: string) {
     const creator = await this.getMe(userId);
-    const earnings = await this.wallet.balance(userId, 'EARNING', 'COIN');
-    const gifts = await this.prisma.giftTransaction.count({ where: { creatorId: userId } });
-    const rooms = await this.prisma.liveRoom.count({ where: { hostUserId: userId } });
-    return { creator, earnings, totalGiftTransactions: gifts, totalRooms: rooms };
+    const [earnings, gifts, rooms, followers, supporterAgg] = await Promise.all([
+      this.wallet.balance(userId, 'EARNING', 'COIN'),
+      this.prisma.giftTransaction.count({ where: { creatorId: userId } }),
+      this.prisma.liveRoom.count({ where: { hostUserId: userId } }),
+      this.prisma.follow.count({ where: { followingId: userId } }),
+      // Top supporters across all of this creator's rooms, by coins gifted.
+      this.prisma.giftTransaction.groupBy({
+        by: ['viewerId'],
+        where: { creatorId: userId },
+        _sum: { totalCoinAmount: true },
+        orderBy: { _sum: { totalCoinAmount: 'desc' } },
+        take: 3
+      })
+    ]);
+    // GiftTransaction has no relation to the supporter's profile — resolve names
+    // in a second query and expose only safe public fields.
+    const supporterIds = supporterAgg.map((s) => s.viewerId);
+    const profiles = supporterIds.length
+      ? await this.prisma.profile.findMany({
+          where: { userId: { in: supporterIds } },
+          select: { userId: true, displayName: true, avatarUrl: true }
+        })
+      : [];
+    const byId = new Map(profiles.map((p) => [p.userId, p]));
+    const topSupporters = supporterAgg.map((s) => ({
+      userId: s.viewerId,
+      displayName: byId.get(s.viewerId)?.displayName ?? 'Supporter',
+      avatarUrl: byId.get(s.viewerId)?.avatarUrl ?? null,
+      coins: s._sum.totalCoinAmount ?? 0
+    }));
+    return { creator, earnings, totalGiftTransactions: gifts, totalRooms: rooms, followers, topSupporters };
   }
 
   getPublic(id: string) {
