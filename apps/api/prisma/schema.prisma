@@ -204,6 +204,9 @@ model Follow {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@unique([followerId, followingId])
+  // Follower counts query by followingId; the composite unique above is ordered
+  // by followerId and can't serve it efficiently.
+  @@index([followingId])
   @@map("follows")
 }
 
@@ -352,6 +355,8 @@ model GiftTransaction {
   @@index([roomId, createdAt])
   @@index([viewerId])
   @@index([creatorId])
+  // Top-supporter aggregate groups gifts by (creatorId, viewerId).
+  @@index([creatorId, viewerId])
   @@map("gift_transactions")
 }
 

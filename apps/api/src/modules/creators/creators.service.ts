@@ -70,7 +70,8 @@ export class CreatorsService {
         by: ['viewerId'],
         where: { creatorId: userId },
         _sum: { totalCoinAmount: true },
-        orderBy: { _sum: { totalCoinAmount: 'desc' } },
+        // Stable order: coins desc, then viewerId for a deterministic tie-break.
+        orderBy: [{ _sum: { totalCoinAmount: 'desc' } }, { viewerId: 'asc' }],
         take: 3
       })
     ]);
