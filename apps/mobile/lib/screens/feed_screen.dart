@@ -51,6 +51,17 @@ class _FeedScreenState extends State<FeedScreen> {
     await rooms;
   }
 
+  void _openRoom(LiveRoom room) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => RoomScreen(room: room)),
+      );
+
+  List<LiveRoom> _filter(List<LiveRoom> rooms) => _category == 'For You'
+      ? rooms
+      : rooms
+          .where((r) => r.category.toLowerCase() == _category.toLowerCase())
+          .toList();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,36 +108,27 @@ class _FeedScreenState extends State<FeedScreen> {
               );
             }
             final rooms = snapshot.data ?? const <LiveRoom>[];
-            final visibleRooms = _category == 'For You'
-                ? rooms
-                : rooms
-                    .where((room) =>
-                        room.category.toLowerCase() == _category.toLowerCase())
-                    .toList();
+            final hero = rooms.isEmpty ? null : rooms.first;
+            final live = _filter(rooms);
+            // "Creators to watch": creators live right now (deduped by host).
+            final creators = <String, LiveRoom>{};
+            for (final r in rooms) {
+              if (r.hostId != null) creators.putIfAbsent(r.hostId!, () => r);
+            }
+
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
                 AfriHeroEventCard(
-                  onJoin: rooms.isEmpty
-                      ? _refresh
-                      : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => RoomScreen(room: rooms.first)),
-                          ),
+                  room: hero,
+                  onJoin: hero == null ? _refresh : () => _openRoom(hero),
                 ),
-                const SizedBox(height: 16),
-                AfriCategoryChips(
-                  items: _categories,
-                  selected: _category,
-                  onSelected: (value) => setState(() => _category = value),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 22),
                 AfriSectionHeader(
                   title: 'Live now',
-                  subtitle: visibleRooms.isEmpty
+                  subtitle: live.isEmpty
                       ? 'No rooms broadcasting yet'
-                      : '${visibleRooms.length} stages broadcasting',
+                      : '${live.length} ${live.length == 1 ? 'stage' : 'stages'} broadcasting',
                   trailing: IconButton(
                     tooltip: 'Refresh live rooms',
                     onPressed: _refresh,
@@ -134,7 +136,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (visibleRooms.isEmpty)
+                if (live.isEmpty)
                   AfriEmptyState(
                     icon: Icons.live_tv,
                     title: _category == 'For You'
@@ -147,18 +149,50 @@ class _FeedScreenState extends State<FeedScreen> {
                         child: const Text('Refresh live rooms')),
                   )
                 else
-                  for (final room in visibleRooms) ...[
-                    AfriLiveRoomCard(
-                      room: room,
-                      viewerCount: room.viewerCount,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => RoomScreen(room: room)),
-                      ),
+                  SizedBox(
+                    height: 250,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: live.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (_, i) =>
+                          AfriLiveTile(room: live[i], onTap: () => _openRoom(live[i])),
                     ),
-                    const SizedBox(height: 12),
-                  ],
+                  ),
+                const SizedBox(height: 22),
+                Text('Browse by category',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                AfriCategoryChips(
+                  items: _categories,
+                  selected: _category,
+                  onSelected: (value) => setState(() => _category = value),
+                ),
+                if (creators.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  const AfriSectionHeader(
+                    title: 'Creators to watch',
+                    subtitle: 'On stage right now',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 116,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: creators.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 14),
+                      itemBuilder: (_, i) {
+                        final r = creators.values.elementAt(i);
+                        return AfriCreatorAvatar(
+                          name: r.hostName ?? 'Creator',
+                          viewerCount: r.viewerCount,
+                          avatarUrl: r.hostAvatarUrl,
+                          onTap: () => _openRoom(r),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ],
             );
           },

@@ -470,49 +470,123 @@ class AfriErrorState extends StatelessWidget {
   }
 }
 
+/// Cinematic hero for the top live room. Full-bleed cover from the host avatar
+/// (dark scrim for legibility), falling back to a branded gradient. When [room]
+/// is null it shows an inviting "no rooms live" promo that still drives [onJoin]
+/// (used as a refresh).
 class AfriHeroEventCard extends StatelessWidget {
-  const AfriHeroEventCard({super.key, required this.onJoin});
+  const AfriHeroEventCard({super.key, required this.onJoin, this.room});
 
   final VoidCallback onJoin;
+  final LiveRoom? room;
 
   @override
   Widget build(BuildContext context) {
-    return AfriGradientPanel(
-      colors: const [Color(0xFF2B1606), Color(0xFF171126), Color(0xFF092321)],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final r = room;
+    final avatar = r?.hostAvatarUrl;
+    final hasCover = avatar != null && avatar.isNotEmpty;
+    final title = r?.title ?? 'AfriStage is warming up';
+    final subtitle = r != null
+        ? 'With ${r.hostName ?? 'a creator'}'
+        : 'Be the first on stage — tap to refresh the live feed.';
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: Stack(
         children: [
-          Row(
-            children: [
-              const AfriLiveBadge(),
-              const Spacer(),
-              Text('1.2k watching',
-                  style: Theme.of(context).textTheme.labelMedium),
-            ],
+          Positioned.fill(
+            child: hasCover
+                ? Image.network(avatar, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const _HeroGradient())
+                : const _HeroGradient(),
           ),
-          const SizedBox(height: 26),
-          Text('Friday Afrobeats Live',
-              style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text(
-            'Music, comedy, talk, and diaspora support rooms from creators on stage now.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onJoin,
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Join now'),
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [Color(0x33000000), Color(0xF2000000)],
                 ),
               ),
-              const SizedBox(width: 10),
-              const AfriIconBadge(icon: Icons.card_giftcard),
-            ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (r != null) const AfriLiveBadge(),
+                    const Spacer(),
+                    if (r != null)
+                      Row(
+                        children: [
+                          const Icon(Icons.visibility, color: Colors.white, size: 15),
+                          const SizedBox(width: 4),
+                          Text('${afriCompactCount(r.viewerCount)} watching',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 64),
+                Text(title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 27,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1)),
+                const SizedBox(height: 6),
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Color(0xFFE4E4E7), fontSize: 13)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onJoin,
+                        icon: Icon(r != null ? Icons.play_arrow : Icons.refresh),
+                        label: Text(r != null ? 'Join now' : 'Refresh'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const AfriIconBadge(icon: Icons.card_giftcard),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeroGradient extends StatelessWidget {
+  const _HeroGradient();
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2B1606), Color(0xFF171126), Color(0xFF092321)],
+        ),
+      ),
+      child: Center(
+        child: Icon(Icons.music_note,
+            size: 150, color: AfriColors.gold.withValues(alpha: 0.14)),
       ),
     );
   }
@@ -2013,25 +2087,227 @@ class AfriLegalLinks extends StatelessWidget {
 }
 
 class _AfriAvatar extends StatelessWidget {
-  const _AfriAvatar({required this.label});
+  const _AfriAvatar({
+    required this.label,
+    this.avatarUrl,
+    this.size = 48,
+    this.circle = false,
+  });
 
   final String label;
+  final String? avatarUrl;
+  final double size;
+  final bool circle;
 
   @override
   Widget build(BuildContext context) {
     final initial = label.trim().isEmpty ? 'A' : label.trim()[0].toUpperCase();
-    return Container(
-      width: 48,
-      height: 48,
+    final radius = BorderRadius.circular(circle ? size : size / 3);
+    final fallback = Container(
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
             colors: [AfriColors.purple, AfriColors.orange]),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: radius,
       ),
       child: Center(
         child: Text(initial,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w900)),
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: size * 0.4)),
+      ),
+    );
+    if (avatarUrl == null || avatarUrl!.isEmpty) return fallback;
+    return ClipRRect(
+      borderRadius: radius,
+      child: Image.network(
+        avatarUrl!,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      ),
+    );
+  }
+}
+
+/// Compact human-readable count: 1200 -> "1.2K", 2_500_000 -> "2.5M".
+String afriCompactCount(int n) {
+  if (n < 1000) return '$n';
+  if (n < 1000000) {
+    final k = n / 1000;
+    return '${k.toStringAsFixed(k >= 10 ? 0 : 1)}K';
+  }
+  final m = n / 1000000;
+  return '${m.toStringAsFixed(m >= 10 ? 0 : 1)}M';
+}
+
+/// Circular creator avatar + name + live viewer count, for the "Creators to
+/// watch" rail. Honest data: these are creators live right now.
+class AfriCreatorAvatar extends StatelessWidget {
+  const AfriCreatorAvatar({
+    super.key,
+    required this.name,
+    required this.viewerCount,
+    this.avatarUrl,
+    this.onTap,
+  });
+
+  final String name;
+  final int viewerCount;
+  final String? avatarUrl;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 76,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [AfriColors.gold, AfriColors.purple]),
+              ),
+              child: _AfriAvatar(label: name, avatarUrl: avatarUrl, size: 62, circle: true),
+            ),
+            const SizedBox(height: 6),
+            Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelMedium),
+            Text('${afriCompactCount(viewerCount)} live',
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: AfriColors.mutedText)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact live-room tile for the horizontal "Live now" rail. Cinematic cover
+/// from the host avatar with a dark scrim, falling back to a branded gradient.
+class AfriLiveTile extends StatelessWidget {
+  const AfriLiveTile({super.key, required this.room, required this.onTap});
+
+  final LiveRoom room;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = room.hostAvatarUrl;
+    final hasCover = avatar != null && avatar.isNotEmpty;
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 188,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: hasCover
+                    ? Image.network(avatar, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const _TileGradient())
+                    : const _TileGradient(),
+              ),
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x11000000), Color(0xE6000000)],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 10,
+                top: 10,
+                right: 10,
+                child: Row(
+                  children: [
+                    const AfriLiveBadge(),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.visibility, color: Colors.white, size: 13),
+                          const SizedBox(width: 3),
+                          Text(afriCompactCount(room.viewerCount),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(room.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${room.hostName ?? 'Creator'}'
+                      '${room.country.isNotEmpty ? '  ·  ${room.country}' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Color(0xFFD4D4D8), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TileGradient extends StatelessWidget {
+  const _TileGradient();
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF3A1D6E), Color(0xFF1A1030), Color(0xFF2B1606)],
+        ),
+      ),
+      child: Center(
+        child: Icon(Icons.graphic_eq,
+            size: 96, color: AfriColors.gold.withValues(alpha: 0.18)),
       ),
     );
   }
