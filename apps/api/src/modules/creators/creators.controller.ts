@@ -25,7 +25,7 @@ export class CreatorsController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.creators.getPublic(id);
+  get(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.creators.getPublic(id, user.sub);
   }
 }

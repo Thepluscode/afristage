@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_ui.dart';
+import 'creator_profile_screen.dart';
 import 'notifications_screen.dart';
 import 'room_screen.dart';
 import 'search_screen.dart';
@@ -187,7 +188,15 @@ class _FeedScreenState extends State<FeedScreen> {
                           name: r.hostName ?? 'Creator',
                           viewerCount: r.viewerCount,
                           avatarUrl: r.hostAvatarUrl,
-                          onTap: () => _openRoom(r),
+                          onTap: r.hostId == null
+                              ? () => _openRoom(r)
+                              : () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => CreatorProfileScreen(
+                                          creatorId: r.hostId!),
+                                    ),
+                                  ),
                         );
                       },
                     ),

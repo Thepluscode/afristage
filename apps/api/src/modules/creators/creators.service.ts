@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CreatorApprovalStatus, UserRole } from '@prisma/client';
+import { CreatorApprovalStatus, RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ApplyCreatorDto } from './dto/apply-creator.dto';
@@ -94,7 +94,27 @@ export class CreatorsService {
     return { creator, earnings, totalGiftTransactions: gifts, totalRooms: rooms, followers, topSupporters };
   }
 
-  getPublic(id: string) {
-    return this.prisma.creatorProfile.findFirst({ where: { OR: [{ id }, { userId: id }] }, include: { user: { include: { profile: true } } } });
+  // Public creator profile. Accepts either the creatorProfile id or the userId.
+  // Enriched for the profile screen: follower count, whether the viewer follows
+  // them, their current live room (if any), and total sessions hosted.
+  async getPublic(id: string, viewerId?: string) {
+    const creator = await this.prisma.creatorProfile.findFirst({
+      where: { OR: [{ id }, { userId: id }] },
+      include: { user: { include: { profile: true } } }
+    });
+    if (!creator) return null;
+    const creatorUserId = creator.userId;
+    const [followers, totalRooms, liveRoom, followCount] = await Promise.all([
+      this.prisma.follow.count({ where: { followingId: creatorUserId } }),
+      this.prisma.liveRoom.count({ where: { hostUserId: creatorUserId } }),
+      this.prisma.liveRoom.findFirst({
+        where: { hostUserId: creatorUserId, status: RoomStatus.LIVE },
+        select: { id: true, title: true, category: true, country: true, language: true }
+      }),
+      viewerId && viewerId !== creatorUserId
+        ? this.prisma.follow.count({ where: { followerId: viewerId, followingId: creatorUserId } })
+        : Promise.resolve(0)
+    ]);
+    return { ...creator, followers, totalRooms, liveRoom, isFollowing: followCount > 0 };
   }
 }
