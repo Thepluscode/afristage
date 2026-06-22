@@ -26,7 +26,7 @@ function excludes(file, needles, label) {
 
 console.log('\n=== VIEWER UX ===');
 contains('apps/mobile/lib/main.dart', ['Home', 'Create', 'Wallet', 'Support', 'Profile'], 'bottom navigation exposes core beta journeys');
-contains('apps/mobile/lib/screens/feed_screen.dart', ['Live now', 'No live rooms yet', 'Retry live feed', 'AfriLiveRoomCard'], 'home feed identifies live rooms and recoverable empty state');
+contains('apps/mobile/lib/screens/feed_screen.dart', ['Live now', 'No live rooms yet', 'Retry live feed', 'AfriLiveTile'], 'home feed identifies live rooms and recoverable empty state');
 excludes('apps/mobile/lib/screens/feed_screen.dart', ['snapshot.error'], 'home feed does not expose raw technical errors');
 contains('apps/mobile/lib/screens/room_screen.dart', ['Connect Video', 'Chat is reconnecting', 'Insufficient coins', 'ReportScreen', 'room.ended'], 'viewer live room covers video, chat, gift, report, and ended states');
 contains('apps/mobile/lib/widgets/afri_ui.dart', ['Send Gift', 'Buy coins', 'No gifts configured', 'Gift sent', 'Room ended'], 'gift drawer and live room feedback states are visible');
