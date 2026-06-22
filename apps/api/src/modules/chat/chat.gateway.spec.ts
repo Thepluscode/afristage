@@ -3,7 +3,8 @@ import { ChatGateway } from './chat.gateway';
 // Minimal fakes — presence logic doesn't touch chat/jwt/config.
 function makeGateway() {
   const emits: Array<{ room: string; event: string; payload: any }> = [];
-  const gateway = new ChatGateway({} as any, {} as any, {} as any);
+  const prisma = { liveRoom: { updateMany: () => Promise.resolve({ count: 0 }) } };
+  const gateway = new ChatGateway({} as any, {} as any, {} as any, prisma as any);
   (gateway as any).server = {
     to: (room: string) => ({ emit: (event: string, payload: any) => emits.push({ room, event, payload }) })
   };

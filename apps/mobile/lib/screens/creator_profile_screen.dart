@@ -217,6 +217,14 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                   icon: Icons.mic,
                   accent: AfriColors.purple),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AfriStatCard(
+                  label: 'Peak viewers',
+                  value: '${(d['peakViewers'] as num?)?.toInt() ?? 0}',
+                  icon: Icons.trending_up,
+                  accent: AfriColors.gold),
+            ),
           ],
         ),
         if (bio != null && bio.isNotEmpty) ...[

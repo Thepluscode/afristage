@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { PrismaService } from '../../database/prisma.service';
 import { ChatService } from './chat.service';
 
 @WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
@@ -16,7 +17,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // move to a Redis adapter / dedupe by userId when the API scales horizontally.
   private readonly viewers = new Map<string, Set<string>>();
 
-  constructor(private readonly chat: ChatService, private readonly jwt: JwtService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly chat: ChatService,
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService
+  ) {}
 
   // Current live viewer count for one room.
   countFor(roomId: string): number {
@@ -76,7 +82,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     await client.join(body.roomId);
     this.addViewer(body.roomId, client.id);
     this.broadcastCount(body.roomId);
-    return { ok: true, count: this.countFor(body.roomId) };
+    const count = this.countFor(body.roomId);
+    // Record a new concurrent-viewer peak when it grows. Conditional updateMany
+    // is race-safe and needs no read — and survives restarts (in-memory presence
+    // resets to 0, but the stored peak only ever moves up). Non-critical: a
+    // failure must not break joining.
+    this.prisma.liveRoom
+      .updateMany({ where: { id: body.roomId, peakViewers: { lt: count } }, data: { peakViewers: count } })
+      .catch(() => {});
+    return { ok: true, count };
   }
 
   @SubscribeMessage('room.leave')

@@ -104,7 +104,7 @@ export class CreatorsService {
     });
     if (!creator) return null;
     const creatorUserId = creator.userId;
-    const [followers, totalRooms, liveRoom, followCount] = await Promise.all([
+    const [followers, totalRooms, liveRoom, followCount, peakAgg] = await Promise.all([
       this.prisma.follow.count({ where: { followingId: creatorUserId } }),
       this.prisma.liveRoom.count({ where: { hostUserId: creatorUserId } }),
       this.prisma.liveRoom.findFirst({
@@ -113,8 +113,9 @@ export class CreatorsService {
       }),
       viewerId && viewerId !== creatorUserId
         ? this.prisma.follow.count({ where: { followerId: viewerId, followingId: creatorUserId } })
-        : Promise.resolve(0)
+        : Promise.resolve(0),
+      this.prisma.liveRoom.aggregate({ where: { hostUserId: creatorUserId }, _max: { peakViewers: true } })
     ]);
-    return { ...creator, followers, totalRooms, liveRoom, isFollowing: followCount > 0 };
+    return { ...creator, followers, totalRooms, liveRoom, isFollowing: followCount > 0, peakViewers: peakAgg._max.peakViewers ?? 0 };
   }
 }
