@@ -101,6 +101,33 @@ describe('PayoutsService', () => {
     expect(ledger.postTransaction).toHaveBeenCalled();
   });
 
+  it('snapshots the destination onto the payout request', async () => {
+    const { service, prisma } = build();
+    prisma.payoutMethod = {
+      findFirst: jest.fn().mockResolvedValue({
+        provider: 'PAYSTACK_BANK',
+        label: 'GTB Savings',
+        destinationReference: '0123456789',
+        country: 'NG'
+      })
+    };
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() });
+    prisma.payoutRequest.create.mockResolvedValue({ id: 'p1' });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW' });
+    await service.request('c1', { coinAmount: 1000, idempotencyKey: 'snap-1', payoutMethodId: 'm1' });
+    expect(prisma.payoutRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payoutProvider: 'PAYSTACK_BANK',
+          payoutDestinationLabel: 'GTB Savings',
+          payoutDestinationReference: '0123456789',
+          payoutCountry: 'NG'
+        })
+      })
+    );
+  });
+
   it('reject returns funds from hold to earnings', async () => {
     const { service, prisma, ledger } = build();
     prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });

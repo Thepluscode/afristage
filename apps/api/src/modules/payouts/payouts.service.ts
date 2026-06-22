@@ -96,10 +96,18 @@ export class PayoutsService {
     if (earningBalance < BigInt(dto.coinAmount)) throw new BadRequestException('Insufficient earnings');
 
     // A supplied payout method must belong to the requesting creator — never
-    // settle to someone else's destination.
+    // settle to someone else's destination. Snapshot its destination so the
+    // reviewer can disburse even if the method is later deleted.
+    let destinationSnapshot: Prisma.PayoutRequestCreateInput | {} = {};
     if (dto.payoutMethodId) {
       const method = await this.prisma.payoutMethod.findFirst({ where: { id: dto.payoutMethodId, userId: creatorUserId } });
       if (!method) throw new BadRequestException('Invalid payout method');
+      destinationSnapshot = {
+        payoutProvider: method.provider,
+        payoutDestinationLabel: method.label,
+        payoutDestinationReference: method.destinationReference,
+        payoutCountry: method.country
+      };
     }
 
     // Explicit, snapshotted coin -> fiat conversion. Coins move on the ledger;
@@ -129,7 +137,8 @@ export class PayoutsService {
           coinToFiatMinorRate: rate,
           idempotencyKey: dto.idempotencyKey,
           status: PayoutStatus.REQUESTED,
-          payoutMethodId: dto.payoutMethodId
+          payoutMethodId: dto.payoutMethodId,
+          ...destinationSnapshot
         }
       });
     } catch (e) {

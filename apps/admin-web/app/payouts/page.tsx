@@ -12,8 +12,17 @@ type Payout = {
   status: string;
   creatorUserId: string;
   createdAt: string;
+  payoutProvider?: string | null;
+  payoutDestinationLabel?: string | null;
+  payoutDestinationReference?: string | null;
+  payoutCountry?: string | null;
   creator?: { email?: string; profile?: { displayName?: string; username?: string }; creatorProfile?: { stageName?: string } };
 };
+// Mask the destination so reviewers can match it without exposing full account numbers.
+function maskRef(ref?: string | null) {
+  if (!ref) return '';
+  return ref.length <= 4 ? ref : `•••• ${ref.slice(-4)}`;
+}
 type Integrity = { ok: boolean; unbalancedTransactions: number };
 type Risk = { riskScore: number; recommendedAction: 'NONE' | 'SOFT_FLAG' | 'MANUAL_REVIEW' | 'PAYOUT_HOLD' };
 
@@ -74,7 +83,16 @@ export default function PayoutsPage() {
                 <td><MoneyAmount minor={p.fiatMinor} currency={p.fiatCurrency} /></td>
                 <td><StatusBadge status={p.status} /></td>
                 <td>{new Date(p.createdAt).toLocaleString()}</td>
-                <td>Bank transfer</td>
+                <td>
+                  {p.payoutProvider ? (
+                    <>
+                      <div>{p.payoutDestinationLabel || p.payoutProvider}</div>
+                      <span className="pill">{p.payoutProvider}{p.payoutCountry ? ` · ${p.payoutCountry}` : ''} {maskRef(p.payoutDestinationReference)}</span>
+                    </>
+                  ) : (
+                    <span className="pill danger">No destination</span>
+                  )}
+                </td>
                 <td>
                   {risk[p.creatorUserId] ? (
                     <>
