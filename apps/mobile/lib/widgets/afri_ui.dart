@@ -747,6 +747,24 @@ class AfriLiveRoomCard extends StatelessWidget {
   }
 }
 
+/// Maps a gift's name to a recognisable icon. Keyword-based so new gifts get a
+/// sensible glyph without a code change; unknown names fall back to a gift box.
+IconData afriGiftIcon(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('rose') || n.contains('flower')) return Icons.local_florist;
+  if (n.contains('fire') || n.contains('flame')) return Icons.local_fire_department;
+  if (n.contains('mic')) return Icons.mic;
+  if (n.contains('drum') || n.contains('music')) return Icons.music_note;
+  if (n.contains('crown') || n.contains('king') || n.contains('royal')) return Icons.workspace_premium;
+  if (n.contains('spotlight') || n.contains('light')) return Icons.flashlight_on;
+  if (n.contains('star')) return Icons.star;
+  if (n.contains('stage') || n.contains('concert')) return Icons.stadium;
+  if (n.contains('heart') || n.contains('love')) return Icons.favorite;
+  if (n.contains('diamond') || n.contains('gem')) return Icons.diamond;
+  if (n.contains('rocket')) return Icons.rocket_launch;
+  return Icons.card_giftcard;
+}
+
 class AfriGiftTile extends StatelessWidget {
   const AfriGiftTile({super.key, required this.gift, required this.onTap});
 
@@ -761,8 +779,8 @@ class AfriGiftTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AfriIconBadge(
-              icon: Icons.card_giftcard, accent: AfriColors.gold, size: 38),
+          AfriIconBadge(
+              icon: afriGiftIcon(gift.name), accent: AfriColors.gold, size: 38),
           const Spacer(),
           Text(gift.name,
               maxLines: 1,
@@ -1311,19 +1329,62 @@ class AfriLiveRoomShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Hosts keep the paneled layout — they need their controls panel visible
+    // alongside the stage. Viewers get the immersive mockup layout: full-bleed
+    // video with chat + input floating over a bottom scrim.
+    if (hostControls != null) {
+      return Scaffold(
+        backgroundColor: AfriColors.stage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Expanded(flex: 6, child: stage),
+              if (bottomMeta != null) bottomMeta!,
+              hostControls!,
+              Expanded(flex: 3, child: chat),
+              input,
+            ],
+          ),
+        ),
+      );
+    }
+
+    final chatMaxHeight = MediaQuery.of(context).size.height * 0.38;
     return Scaffold(
       backgroundColor: AfriColors.stage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(flex: 6, child: stage),
-            if (bottomMeta != null) bottomMeta!,
-            if (hostControls != null) hostControls!,
-            Expanded(flex: 3, child: chat),
-            input,
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: stage),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00000000), Color(0xB3000000), Color(0xF2000000)],
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (bottomMeta != null) bottomMeta!,
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: chatMaxHeight),
+                      child: chat,
+                    ),
+                    input,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
