@@ -3,6 +3,14 @@ import * as crypto from 'crypto';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 const INIT_TIMEOUT_MS = 10_000;
+// Outbound resilience: Paystack can return 429 (rate limit) or transient 5xx.
+// Retry those (and network errors) with bounded exponential backoff + jitter so
+// a brief blip doesn't fail a checkout. 4xx (other than 429) is a real rejection
+// and is NOT retried. Money is still only credited by the verified webhook.
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = Number(process.env.PAYSTACK_BACKOFF_BASE_MS ?? 200);
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface PaystackInit {
   authorizationUrl: string;
@@ -27,6 +35,48 @@ export class PaystackProvider {
     return !!this.secret && this.secret !== 'replace_me';
   }
 
+  // Single outbound HTTP path with per-attempt timeout + bounded backoff. Retries
+  // 429/5xx and network/abort errors; returns the Response otherwise (callers do
+  // their own body validation). Honours Retry-After when Paystack sends it.
+  private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), INIT_TIMEOUT_MS);
+      try {
+        const res = await fetch(url, { ...init, signal: ctrl.signal });
+        const retryable = res.status === 429 || res.status >= 500;
+        if (retryable && attempt < MAX_ATTEMPTS - 1) {
+          const wait = this.backoffMs(attempt, res.headers.get('retry-after'));
+          this.logger.warn(`Paystack ${res.status}; retry ${attempt + 1}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
+          await sleep(wait);
+          continue;
+        }
+        return res;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < MAX_ATTEMPTS - 1) {
+          const wait = this.backoffMs(attempt, null);
+          this.logger.warn(`Paystack network error; retry ${attempt + 1}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
+          await sleep(wait);
+          continue;
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    throw lastErr ?? new Error('Paystack request failed');
+  }
+
+  // Exponential (base * 2^attempt) + full jitter, capped at 5s. A numeric
+  // Retry-After (seconds) from Paystack overrides the computed delay.
+  private backoffMs(attempt: number, retryAfter: string | null): number {
+    const headerSec = retryAfter ? Number(retryAfter) : NaN;
+    if (Number.isFinite(headerSec) && headerSec >= 0) return Math.min(headerSec * 1000, 5_000);
+    const exp = BASE_BACKOFF_MS * 2 ** attempt;
+    return Math.min(Math.round(exp * (0.5 + Math.random() * 0.5)), 5_000);
+  }
+
   // Server-side checkout initialization. We pass our own reference so it matches
   // the intent we record; Paystack echoes it back in the verified webhook. Money
   // is only credited by the webhook after amount/currency/signature checks — this
@@ -37,10 +87,8 @@ export class PaystackProvider {
     currency: string;
     reference: string;
   }): Promise<PaystackInit> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), INIT_TIMEOUT_MS);
     try {
-      const res = await fetch(`${PAYSTACK_BASE}/transaction/initialize`, {
+      const res = await this.fetchWithRetry(`${PAYSTACK_BASE}/transaction/initialize`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.secret}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -48,8 +96,7 @@ export class PaystackProvider {
           amount: params.amountMinor,
           currency: params.currency,
           reference: params.reference
-        }),
-        signal: ctrl.signal
+        })
       });
       const json: any = await res.json().catch(() => ({}));
       if (!res.ok || !json?.status || !json?.data?.authorization_url) {
@@ -61,8 +108,6 @@ export class PaystackProvider {
       if (err instanceof BadGatewayException) throw err;
       this.logger.error(`Paystack init error: ${err instanceof Error ? err.message : String(err)}`);
       throw new BadGatewayException('Payment provider unavailable');
-    } finally {
-      clearTimeout(timer);
     }
   }
 
@@ -71,13 +116,10 @@ export class PaystackProvider {
   // straight from Paystack; the caller still re-checks amount/currency before
   // crediting, exactly like the webhook path.
   async verifyTransaction(reference: string): Promise<PaystackVerification> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), INIT_TIMEOUT_MS);
     try {
-      const res = await fetch(`${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`, {
+      const res = await this.fetchWithRetry(`${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${this.secret}` },
-        signal: ctrl.signal
+        headers: { Authorization: `Bearer ${this.secret}` }
       });
       const json: any = await res.json().catch(() => ({}));
       if (!res.ok || !json?.status || !json?.data) {
@@ -93,8 +135,6 @@ export class PaystackProvider {
       if (err instanceof BadGatewayException) throw err;
       this.logger.error(`Paystack verify error: ${err instanceof Error ? err.message : String(err)}`);
       throw new BadGatewayException('Payment provider unavailable');
-    } finally {
-      clearTimeout(timer);
     }
   }
 
