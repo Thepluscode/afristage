@@ -1,6 +1,22 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:http/http.dart' as http;
+
+/// Resolves the API base URL. An explicit --dart-define=API_BASE always wins
+/// (use it for physical devices: http://<your-LAN-IP>:3000/api). Otherwise we
+/// pick a host that actually reaches a locally-running API per platform:
+///  - Android emulator: 10.0.2.2 is the host loopback alias (localhost = the
+///    emulator itself, so localhost would never reach the dev server).
+///  - iOS simulator + web + desktop: localhost maps to the host machine.
+String _defaultApiBase() {
+  const fromEnv = String.fromEnvironment('API_BASE');
+  if (fromEnv.isNotEmpty) return fromEnv;
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.0.2.2:3000/api';
+  }
+  return 'http://localhost:3000/api';
+}
 
 /// Thrown when the API returns a non-2xx response. [message] is safe to surface.
 class ApiException implements Exception {
@@ -18,12 +34,7 @@ class ApiException implements Exception {
 /// once and retries the original request, so normal access-token expiry never
 /// bounces the user to login.
 class ApiClient {
-  ApiClient({String? baseUrl})
-      : baseUrl = baseUrl ??
-            const String.fromEnvironment(
-              'API_BASE',
-              defaultValue: 'http://localhost:3000/api',
-            );
+  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? _defaultApiBase();
 
   final String baseUrl;
   String? token;
