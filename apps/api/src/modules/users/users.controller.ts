@@ -29,8 +29,18 @@ export class UsersController {
     return this.users.unfollow(user.sub, id);
   }
 
+  @Get('me/blocks')
+  blocked(@CurrentUser() user: any) {
+    return this.users.listBlocked(user.sub);
+  }
+
   @Post(':id/block')
   block(@CurrentUser() user: any, @Param('id') id: string) {
     return this.users.block(user.sub, id);
+  }
+
+  @Delete(':id/block')
+  unblock(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.users.unblock(user.sub, id);
   }
 }

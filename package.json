@@ -23,6 +23,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
     "validate:room-events": "node scripts/validate-room-events.mjs",
     "validate:viewers": "node scripts/validate-viewers.mjs",
+    "validate:blocks": "node scripts/validate-blocks.mjs",
     "validate:ux-readiness": "node scripts/validate-ux-readiness.mjs",
     "validate:production-readiness": "node scripts/validate-production-readiness.mjs",
     "smoke:closed-beta": "node scripts/closed-beta-smoke-test.mjs",

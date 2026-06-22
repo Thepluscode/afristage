@@ -7,6 +7,7 @@ import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
 import 'beta_accept_screen.dart';
+import 'blocked_users_screen.dart';
 import 'creator_apply_screen.dart';
 import 'history_screen.dart';
 import 'support_screen.dart';
@@ -165,10 +166,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'Blocked users',
           body: 'Manage accounts you do not want to interact with.',
           accent: AfriColors.warning,
-          onTap: () =>
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Blocked users management is coming soon.'),
-          )),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+          ),
         ),
         const SizedBox(height: 10),
         AfriActionRow(
