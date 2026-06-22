@@ -47,7 +47,7 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _userMuted = false;
   bool _userBanned = false;
   bool _roomSuspended = false;
-  int _viewerCount = 128;
+  late int _viewerCount = widget.room.viewerCount;
   int _giftCount = 0;
   int _earningsEstimate = 0;
   final _reactions = <String>[];
@@ -161,8 +161,9 @@ class _RoomScreenState extends State<RoomScreen> {
               emitSocket: false);
         }
       })
-      ..on('room.viewer_count_updated', (_) {
-        if (mounted) setState(() => _viewerCount += 1);
+      ..on('room.viewer_count_updated', (data) {
+        final count = data is Map ? (data['count'] as num?)?.toInt() : null;
+        if (count != null && mounted) setState(() => _viewerCount = count);
       })
       ..on('user.muted', (data) {
         final userId = data is Map ? data['userId'] as String? : null;

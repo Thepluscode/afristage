@@ -150,7 +150,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   for (final room in visibleRooms) ...[
                     AfriLiveRoomCard(
                       room: room,
-                      viewerCount: 96 + visibleRooms.indexOf(room) * 37,
+                      viewerCount: room.viewerCount,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(

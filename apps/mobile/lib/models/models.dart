@@ -10,6 +10,7 @@ class LiveRoom {
     required this.status,
     this.hostName,
     this.hostId,
+    this.viewerCount = 0,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class LiveRoom {
   final String status;
   final String? hostName;
   final String? hostId;
+  final int viewerCount;
 
   factory LiveRoom.fromJson(Map<String, dynamic> json) {
     final host = json['host'] as Map<String, dynamic>?;
@@ -35,6 +37,7 @@ class LiveRoom {
       hostName: creator?['stageName'] as String? ??
           profile?['displayName'] as String?,
       hostId: (host?['id'] as String?) ?? (json['hostUserId'] as String?),
+      viewerCount: (json['viewerCount'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -1,15 +1,50 @@
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ConnectedSocket, MessageBody, OnGatewayConnection, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 
 @WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayConnection {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
+  // Live presence: who is watching each room RIGHT NOW, keyed by socket id.
+  // This is the display source of truth — it self-heals on disconnect (no ghost
+  // viewers), unlike the RoomParticipant table (historical watch-time/ranking).
+  // ponytail: in-memory, single-instance + counts connections not unique users;
+  // move to a Redis adapter / dedupe by userId when the API scales horizontally.
+  private readonly viewers = new Map<string, Set<string>>();
+
   constructor(private readonly chat: ChatService, private readonly jwt: JwtService, private readonly config: ConfigService) {}
+
+  // Current live viewer count for one room.
+  countFor(roomId: string): number {
+    return this.viewers.get(roomId)?.size ?? 0;
+  }
+
+  // Counts for many rooms at once (feed/search). Rooms with no viewers are 0.
+  countsFor(roomIds: string[]): Map<string, number> {
+    return new Map(roomIds.map((id) => [id, this.countFor(id)]));
+  }
+
+  private addViewer(roomId: string, socketId: string) {
+    const set = this.viewers.get(roomId) ?? new Set<string>();
+    set.add(socketId);
+    this.viewers.set(roomId, set);
+  }
+
+  // Removes a socket from a room; returns true if the room's count changed.
+  private removeViewer(roomId: string, socketId: string): boolean {
+    const set = this.viewers.get(roomId);
+    if (!set || !set.delete(socketId)) return false;
+    if (set.size === 0) this.viewers.delete(roomId);
+    return true;
+  }
+
+  private broadcastCount(roomId: string) {
+    this.server?.to(roomId).emit('room.viewer_count_updated', { roomId, count: this.countFor(roomId) });
+  }
 
   // Lets HTTP services/controllers (gifts, room-end, mute/delete) push events
   // into a live room. Realtime is an optional layer: if the socket server isn't
@@ -28,17 +63,27 @@ export class ChatGateway implements OnGatewayConnection {
     }
   }
 
+  // Socket.IO clears room membership on disconnect, but our presence map is
+  // separate — sweep this socket out of every room it was counted in.
+  handleDisconnect(client: Socket) {
+    for (const roomId of [...this.viewers.keys()]) {
+      if (this.removeViewer(roomId, client.id)) this.broadcastCount(roomId);
+    }
+  }
+
   @SubscribeMessage('room.join')
   async join(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId: string }) {
     await client.join(body.roomId);
-    client.to(body.roomId).emit('room.viewer_count_updated', { roomId: body.roomId });
-    return { ok: true };
+    this.addViewer(body.roomId, client.id);
+    this.broadcastCount(body.roomId);
+    return { ok: true, count: this.countFor(body.roomId) };
   }
 
   @SubscribeMessage('room.leave')
   async leave(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId: string }) {
     await client.leave(body.roomId);
-    return { ok: true };
+    if (this.removeViewer(body.roomId, client.id)) this.broadcastCount(body.roomId);
+    return { ok: true, count: this.countFor(body.roomId) };
   }
 
   @SubscribeMessage('chat.message')

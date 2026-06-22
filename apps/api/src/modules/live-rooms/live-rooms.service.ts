@@ -112,7 +112,8 @@ export class LiveRoomsService {
       take: RANK_CANDIDATE_POOL,
       include: PUBLIC_HOST_INCLUDE
     });
-    if (rooms.length <= 1) return rooms.map((r) => ({ ...r, ranking: scoreRoom(this.emptyFeatures(r, query)) }));
+    if (rooms.length <= 1)
+      return rooms.map((r) => ({ ...r, viewerCount: this.chat.countFor(r.id), ranking: scoreRoom(this.emptyFeatures(r, query)) }));
 
     const roomIds = rooms.map((r) => r.id);
     const hostIds = rooms.map((r) => r.hostUserId);
@@ -166,7 +167,7 @@ export class LiveRoomsService {
           creatorAgeDays: creatorCreatedAt ? (now - creatorCreatedAt.getTime()) / DAY_MS : null,
           reportRiskPoints: (riskByRoom.get(`room:${room.id}`) ?? 0) + (riskByRoom.get(`host:${room.hostUserId}`) ?? 0)
         };
-        return { ...room, ranking: scoreRoom(features) };
+        return { ...room, viewerCount: this.chat.countFor(room.id), ranking: scoreRoom(features) };
       })
       .sort((a, b) => b.ranking.score - a.ranking.score)
       .slice(0, RANK_RETURN);
@@ -190,8 +191,9 @@ export class LiveRoomsService {
     };
   }
 
-  get(id: string) {
-    return this.prisma.liveRoom.findUnique({ where: { id }, include: PUBLIC_HOST_INCLUDE });
+  async get(id: string) {
+    const room = await this.prisma.liveRoom.findUnique({ where: { id }, include: PUBLIC_HOST_INCLUDE });
+    return room && { ...room, viewerCount: this.chat.countFor(id) };
   }
 
   async joinToken(userId: string, roomId: string) {

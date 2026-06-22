@@ -114,7 +114,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: AfriLiveRoomCard(
                       room: rooms[i],
-                      viewerCount: 0,
+                      viewerCount: rooms[i].viewerCount,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => RoomScreen(room: rooms[i])),
