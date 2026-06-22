@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
+import '../models/models.dart';
 import '../widgets/afri_ui.dart';
+import 'room_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -34,6 +36,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await context.read<AppState>().api.post('/notifications/${n['id']}/read');
     } on ApiException {
       if (mounted) setState(() => n['readAt'] = null); // rollback
+    }
+  }
+
+  // Tapping a notification marks it read and, when it points at a room (e.g. a
+  // "creator is live" alert), opens that room if it is still live.
+  Future<void> _open(Map<String, dynamic> n) async {
+    _markRead(n);
+    final roomId = n['roomId'] as String?;
+    if (roomId == null) return;
+    final api = context.read<AppState>().api;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final data = await api.get('/live-rooms/$roomId');
+      if (!mounted) return;
+      final room = LiveRoom.fromJson(data);
+      if (room.status == 'LIVE') {
+        navigator.push(MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
+      } else {
+        messenger.showSnackBar(
+            const SnackBar(content: Text('This room has ended.')));
+      }
+    } on ApiException {
+      if (!mounted) return;
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Could not open the room.')));
     }
   }
 
@@ -78,7 +106,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final n = rows[i];
                 final unread = n['readAt'] == null;
                 return AfriCard(
-                  onTap: () => _markRead(n),
+                  onTap: () => _open(n),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

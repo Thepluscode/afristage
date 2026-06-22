@@ -65,7 +65,8 @@ export class LiveRoomsService {
           userId: follow.followerId,
           type: 'CREATOR_LIVE',
           title: 'Creator is live',
-          body: updated.title
+          body: updated.title,
+          roomId: updated.id
         }))
       });
     }

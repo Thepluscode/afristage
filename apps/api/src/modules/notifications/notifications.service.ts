@@ -22,6 +22,7 @@ export class NotificationsService {
         type: 'CREATOR_LIVE',
         title: 'Creator is live',
         body: title,
+        roomId,
       }))
     });
     return { created: followers.length };
