@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { adminGet } from '../lib/api';
-import { AuditTimeline, DangerBanner, ErrorState, LoadingState, MetricCard, PageHeader, SuccessBanner, WarningBanner } from './admin-ui';
+import { AlertCard, AuditTimeline, DangerBanner, ErrorState, LoadingState, MetricCard, PageHeader, SuccessBanner, WarningBanner } from './admin-ui';
+
+type Integrity = { ok: boolean; unbalancedTransactions: number };
 
 type Dashboard = {
   activeRooms: number;
@@ -20,10 +22,13 @@ type Dashboard = {
 
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
+  const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     adminGet<Dashboard>('/admin/dashboard').then(setData).catch((e) => setError(e.message));
+    // Ledger status is non-critical for the dashboard to render; show it when ready.
+    adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => {});
   }, []);
 
   if (error) return <ErrorState error={error} />;
@@ -48,9 +53,35 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
-        title="Operations Dashboard"
+        title="Mission Control"
         kicker="Live room health, moderation pressure, payout risk, support load, and platform growth in one control surface."
       />
+      <div className="alert-row">
+        <AlertCard
+          tone={data.criticalReports > 0 ? 'danger' : 'good'}
+          title="Critical reports"
+          value={data.criticalReports}
+          note={data.criticalReports > 0 ? 'High-priority reports need review' : 'No critical reports open'}
+          href="/reports"
+          action="Review"
+        />
+        <AlertCard
+          tone={data.pendingPayouts > 0 ? 'warn' : 'good'}
+          title="Pending payouts"
+          value={data.pendingPayouts}
+          note={data.pendingPayouts > 0 ? 'Awaiting audit-friendly review' : 'No payouts awaiting review'}
+          href="/payouts"
+          action="Review"
+        />
+        <AlertCard
+          tone={integrity && !integrity.ok ? 'danger' : 'good'}
+          title={integrity && !integrity.ok ? 'Ledger imbalance' : 'Ledger balanced'}
+          value={integrity ? (integrity.ok ? 'Balanced' : `${integrity.unbalancedTransactions} off`) : '…'}
+          note={integrity && !integrity.ok ? 'Unbalanced transactions detected' : 'All transactions reconciled'}
+          href="/ledger-integrity"
+          action="View ledger"
+        />
+      </div>
       {data.criticalReports > 0 || data.failedPayments > 0 ? (
         <DangerBanner>
           {data.criticalReports} critical report(s) and {data.failedPayments} failed payment(s) need operator review.

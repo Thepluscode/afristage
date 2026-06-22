@@ -68,6 +68,34 @@ export function MetricCard({
   );
 }
 
+export function AlertCard({
+  tone,
+  title,
+  value,
+  note,
+  href,
+  action
+}: {
+  tone: 'danger' | 'warn' | 'good';
+  title: string;
+  value: string | number;
+  note: string;
+  href: string;
+  action: string;
+}) {
+  return (
+    <a className={`alert-card ${tone}`} href={href}>
+      <div className="alert-card-head">
+        <span className="alert-dot" />
+        <span className="alert-title">{title}</span>
+        <span className="alert-action">{action} →</span>
+      </div>
+      <strong>{value}</strong>
+      <small>{note}</small>
+    </a>
+  );
+}
+
 function Banner({
   className,
   children
