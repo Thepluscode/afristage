@@ -3,6 +3,7 @@ import { LedgerDirection, LedgerTransactionType, PayoutRequest, PayoutStatus, Pr
 import { PrismaService } from '../../database/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
+import { CreatePayoutMethodDto } from './dto/create-payout-method.dto';
 import { RequestPayoutDto } from './dto/request-payout.dto';
 
 // Allowed payout state transitions. Anything not listed (e.g. PAID -> REJECTED,
@@ -32,6 +33,45 @@ export class PayoutsService {
     return this.prisma.adminAuditLog.create({ data: { actorId, action, target, metadata } });
   }
 
+  // --- Payout methods (where a creator's money settles) ---
+
+  listMethods(userId: string) {
+    return this.prisma.payoutMethod.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
+    });
+  }
+
+  // The first method is forced default; an explicit isDefault demotes the others
+  // so exactly one default exists at a time.
+  async createMethod(userId: string, dto: CreatePayoutMethodDto) {
+    const existing = await this.prisma.payoutMethod.count({ where: { userId } });
+    const makeDefault = dto.isDefault === true || existing === 0;
+    return this.prisma.$transaction(async (tx) => {
+      if (makeDefault) {
+        await tx.payoutMethod.updateMany({ where: { userId, isDefault: true }, data: { isDefault: false } });
+      }
+      return tx.payoutMethod.create({
+        data: {
+          userId,
+          provider: dto.provider,
+          country: dto.country.toUpperCase(),
+          currency: dto.currency.toUpperCase(),
+          destinationReference: dto.destinationReference,
+          label: dto.label,
+          isDefault: makeDefault
+        }
+      });
+    });
+  }
+
+  // Idempotent: deleteMany scoped to the owner so deleting a missing/foreign id
+  // is a no-op, never another user's method.
+  async deleteMethod(userId: string, id: string) {
+    await this.prisma.payoutMethod.deleteMany({ where: { id, userId } });
+    return { ok: true };
+  }
+
   async request(creatorUserId: string, dto: RequestPayoutDto) {
     // Idempotency: a retried request with the same key returns the existing payout,
     // never moving funds to hold twice.
@@ -54,6 +94,13 @@ export class PayoutsService {
 
     const earningBalance = BigInt(await this.wallet.balance(creatorUserId, WalletAccountType.EARNING, 'COIN'));
     if (earningBalance < BigInt(dto.coinAmount)) throw new BadRequestException('Insufficient earnings');
+
+    // A supplied payout method must belong to the requesting creator — never
+    // settle to someone else's destination.
+    if (dto.payoutMethodId) {
+      const method = await this.prisma.payoutMethod.findFirst({ where: { id: dto.payoutMethodId, userId: creatorUserId } });
+      if (!method) throw new BadRequestException('Invalid payout method');
+    }
 
     // Explicit, snapshotted coin -> fiat conversion. Coins move on the ledger;
     // the fiat amount is recorded for the actual disbursement.

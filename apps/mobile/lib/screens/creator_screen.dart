@@ -7,6 +7,7 @@ import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
 import 'go_live_setup_screen.dart';
 import 'payout_history_screen.dart';
+import 'payout_methods_screen.dart';
 
 class CreatorScreen extends StatefulWidget {
   const CreatorScreen({super.key});
@@ -40,6 +41,20 @@ class _CreatorScreenState extends State<CreatorScreen> {
   Future<void> _requestPayout() async {
     final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    // A payout needs a destination. If the creator has none, send them to add
+    // one rather than creating a payout that can never be settled.
+    final methods = await state.api.getList('/payouts/methods');
+    if (methods.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Add a payout method first so earnings can settle.')));
+      await navigator.push(MaterialPageRoute(
+          builder: (_) => const PayoutMethodsScreen()));
+      return;
+    }
+    final defaultMethod = methods.cast<Map<String, dynamic>>().firstWhere(
+        (m) => m['isDefault'] == true,
+        orElse: () => methods.first as Map<String, dynamic>);
     final raw = await _prompt('Payout amount (coins)', '500',
         confirmLabel: 'Request Payout');
     final coins = int.tryParse(raw ?? '');
@@ -48,6 +63,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
       final res = await state.api.post('/payouts/request', {
         'coinAmount': coins,
         'idempotencyKey': 'payout-${DateTime.now().microsecondsSinceEpoch}',
+        'payoutMethodId': defaultMethod['id'],
       });
       messenger
           .showSnackBar(SnackBar(content: Text('Payout ${res['status']}')));
@@ -241,6 +257,15 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   const SizedBox(height: 8),
                 ],
               const SizedBox(height: 16),
+              AfriActionRow(
+                icon: Icons.account_balance,
+                title: 'Payout methods',
+                body: 'Add a bank or mobile-money destination for your earnings.',
+                accent: AfriColors.teal,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
+              ),
+              const SizedBox(height: 10),
               AfriActionRow(
                 icon: Icons.history,
                 title: 'Payout history',

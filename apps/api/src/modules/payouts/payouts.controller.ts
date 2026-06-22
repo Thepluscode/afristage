@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { Roles } from '../../common/roles.decorator';
 import { RolesGuard } from '../../common/roles.guard';
+import { CreatePayoutMethodDto } from './dto/create-payout-method.dto';
 import { RequestPayoutDto } from './dto/request-payout.dto';
 import { PayoutsService } from './payouts.service';
 
@@ -20,6 +21,21 @@ export class PayoutsController {
   @Get('payouts/me')
   mine(@CurrentUser() user: any) {
     return this.payouts.mine(user.sub);
+  }
+
+  @Get('payouts/methods')
+  methods(@CurrentUser() user: any) {
+    return this.payouts.listMethods(user.sub);
+  }
+
+  @Post('payouts/methods')
+  addMethod(@CurrentUser() user: any, @Body() dto: CreatePayoutMethodDto) {
+    return this.payouts.createMethod(user.sub, dto);
+  }
+
+  @Delete('payouts/methods/:id')
+  removeMethod(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.payouts.deleteMethod(user.sub, id);
   }
 
   @UseGuards(RolesGuard)
