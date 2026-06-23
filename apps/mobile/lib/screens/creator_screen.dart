@@ -144,7 +144,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _CreatorHeader(stageName: stageName, approved: status == 'APPROVED'),
+              _CreatorHeader(stageName: stageName, approved: status == 'APPROVED', avatarUrl: data?['avatarUrl'] as String?),
               const SizedBox(height: 14),
               AfriCreatorStatusBanner(
                 status: status,
@@ -324,31 +324,35 @@ class _CreatorScreenState extends State<CreatorScreen> {
 }
 
 class _CreatorHeader extends StatelessWidget {
-  const _CreatorHeader({required this.stageName, required this.approved});
+  const _CreatorHeader({required this.stageName, required this.approved, this.avatarUrl});
 
   final String stageName;
   final bool approved;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final initial =
         stageName.trim().isEmpty ? 'C' : stageName.trim()[0].toUpperCase();
+    final hasPhoto = avatarUrl != null && avatarUrl!.isNotEmpty;
     return Row(
       children: [
         Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.purple, AfriColors.orange]),
-            borderRadius: BorderRadius.circular(18),
+          width: 56,
+          height: 56,
+          padding: const EdgeInsets.all(2.5),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(colors: [AfriColors.purple, AfriColors.orange]),
           ),
-          alignment: Alignment.center,
-          child: Text(initial,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22)),
+          child: CircleAvatar(
+            backgroundColor: AfriColors.elevated,
+            backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
+            child: hasPhoto
+                ? null
+                : Text(initial,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(

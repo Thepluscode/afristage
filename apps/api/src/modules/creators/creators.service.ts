@@ -97,7 +97,8 @@ export class CreatorsService {
 
   async dashboard(userId: string) {
     const creator = await this.getMe(userId);
-    const [earnings, gifts, rooms, followers, watchAgg, supporterAgg] = await Promise.all([
+    const [profile, earnings, gifts, rooms, followers, watchAgg, supporterAgg] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId }, select: { avatarUrl: true, displayName: true } }),
       this.wallet.balance(userId, 'EARNING', 'COIN'),
       this.prisma.giftTransaction.count({ where: { creatorId: userId } }),
       this.prisma.liveRoom.count({ where: { hostUserId: userId } }),
@@ -133,6 +134,7 @@ export class CreatorsService {
     }));
     return {
       creator,
+      avatarUrl: profile?.avatarUrl ?? null,
       earnings,
       totalGiftTransactions: gifts,
       totalRooms: rooms,
