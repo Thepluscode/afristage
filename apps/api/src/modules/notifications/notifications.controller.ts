@@ -13,6 +13,16 @@ export class NotificationsController {
     return this.notifications.mine(user.sub);
   }
 
+  @Get('unread-count')
+  unreadCount(@CurrentUser() user: any) {
+    return this.notifications.unreadCount(user.sub);
+  }
+
+  @Post('read-all')
+  markAllRead(@CurrentUser() user: any) {
+    return this.notifications.markAllRead(user.sub);
+  }
+
   @Post(':id/read')
   markRead(@CurrentUser() user: any, @Param('id') id: string) {
     return this.notifications.markRead(user.sub, id);

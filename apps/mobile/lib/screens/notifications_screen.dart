@@ -65,10 +65,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  Future<void> _markAllRead() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await context.read<AppState>().api.post('/notifications/read-all');
+      _reload();
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        actions: [
+          TextButton(
+            onPressed: _markAllRead,
+            child: const Text('Mark all read'),
+          ),
+        ],
+      ),
       body: FutureBuilder<List<dynamic>>(
         future: _items,
         builder: (context, snapshot) {

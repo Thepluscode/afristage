@@ -19,6 +19,7 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> {
   late Future<List<LiveRoom>> _rooms;
   String _category = 'For You';
+  int _unread = 0;
 
   static const _categories = [
     'For You',
@@ -34,6 +35,17 @@ class _FeedScreenState extends State<FeedScreen> {
   void initState() {
     super.initState();
     _rooms = _load();
+    _loadUnread();
+  }
+
+  // Bell badge. Best-effort: a failed count must never blank the feed, so swallow.
+  Future<void> _loadUnread() async {
+    try {
+      final data = await context.read<AppState>().api.get('/notifications/unread-count');
+      if (mounted) setState(() => _unread = (data['count'] as num?)?.toInt() ?? 0);
+    } catch (_) {
+      // leave the previous count; the badge is non-critical
+    }
   }
 
   Future<List<LiveRoom>> _load() async {
@@ -76,11 +88,19 @@ class _FeedScreenState extends State<FeedScreen> {
               icon: const Icon(Icons.search)),
           IconButton(
               tooltip: 'Notifications',
-              onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const NotificationsScreen())),
-              icon: const Icon(Icons.notifications_none)),
+              onPressed: () async {
+                await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen()));
+                // Refresh the badge after the user has seen/read notifications.
+                _loadUnread();
+              },
+              icon: Badge.count(
+                count: _unread,
+                isLabelVisible: _unread > 0,
+                child: const Icon(Icons.notifications_none),
+              )),
         ],
       ),
       body: RefreshIndicator(

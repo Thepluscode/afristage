@@ -9,6 +9,18 @@ export class NotificationsService {
     return this.prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 });
   }
 
+  // Bell-badge count: unread = readAt still null.
+  async unreadCount(userId: string) {
+    const count = await this.prisma.notification.count({ where: { userId, readAt: null } });
+    return { count };
+  }
+
+  // Mark every unread notification for this user read in one call.
+  async markAllRead(userId: string) {
+    const { count } = await this.prisma.notification.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
+    return { ok: true, count };
+  }
+
   // Scoped to the owner: updateMany with userId so one user can't mark another's
   // notification read.
   async markRead(userId: string, id: string) {
