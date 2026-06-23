@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { ApplyCreatorDto } from './dto/apply-creator.dto';
@@ -22,6 +22,13 @@ export class CreatorsController {
   @Get('me/dashboard')
   dashboard(@CurrentUser() user: any) {
     return this.creators.dashboard(user.sub);
+  }
+
+  // Per-room performance for the signed-in creator. Declared before :id so
+  // "me" path segments aren't captured as a creator id.
+  @Get('me/rooms')
+  myRooms(@CurrentUser() user: any, @Query('limit') limit?: string) {
+    return this.creators.myRooms(user.sub, limit ? Number(limit) : 50);
   }
 
   @Get(':id')

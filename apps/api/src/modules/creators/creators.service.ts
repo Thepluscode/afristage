@@ -58,6 +58,43 @@ export class CreatorsService {
     return this.prisma.creatorProfile.findUnique({ where: { userId } });
   }
 
+  // Per-room performance for the creator: each of their rooms with peak viewers,
+  // watch-time, and gift volume. GiftTransaction sums are joined in a second
+  // grouped query (no per-room N+1).
+  async myRooms(userId: string, limit = 50) {
+    const take = Math.min(Math.max(Math.trunc(limit) || 50, 1), 100); // bounded: 1..100
+    const rooms = await this.prisma.liveRoom.findMany({
+      where: { hostUserId: userId },
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        status: true,
+        peakViewers: true,
+        totalWatchSeconds: true,
+        startedAt: true,
+        endedAt: true,
+        createdAt: true
+      }
+    });
+    if (!rooms.length) return [];
+
+    const giftAgg = await this.prisma.giftTransaction.groupBy({
+      by: ['roomId'],
+      where: { roomId: { in: rooms.map((r) => r.id) } },
+      _sum: { totalCoinAmount: true },
+      _count: true
+    });
+    const byRoom = new Map(giftAgg.map((g) => [g.roomId, g]));
+    return rooms.map((r) => ({
+      ...r,
+      giftVolumeCoins: byRoom.get(r.id)?._sum.totalCoinAmount ?? 0,
+      giftCount: byRoom.get(r.id)?._count ?? 0
+    }));
+  }
+
   async dashboard(userId: string) {
     const creator = await this.getMe(userId);
     const [earnings, gifts, rooms, followers, watchAgg, supporterAgg] = await Promise.all([
