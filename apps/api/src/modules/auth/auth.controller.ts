@@ -35,6 +35,13 @@ export class AuthController {
     return user;
   }
 
+  // Revoke every refresh token for the caller ("sign out everywhere").
+  @UseGuards(JwtAuthGuard)
+  @Post('logout-all')
+  logoutAll(@CurrentUser() user: any) {
+    return this.auth.logoutAll(user.sub);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('mfa/setup')
   mfaSetup(@CurrentUser() user: any) {
