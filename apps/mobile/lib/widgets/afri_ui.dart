@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/afri_theme.dart';
 import '../models/models.dart';
+import 'afri_live.dart';
 
 class AfriScaffold extends StatelessWidget {
   const AfriScaffold(
@@ -1403,6 +1404,9 @@ class AfriVideoStage extends StatelessWidget {
     this.banner,
     this.reactionLayer,
     this.giftAnimationLayer,
+    this.coverImageUrl,
+    this.coverCategory,
+    this.coverInitial,
   });
 
   final Widget video;
@@ -1415,6 +1419,11 @@ class AfriVideoStage extends StatelessWidget {
   final Widget? banner;
   final Widget? reactionLayer;
   final Widget? giftAnimationLayer;
+  // Creator cover shown full-bleed behind the waiting state, so the stage reads
+  // like a broadcast before video attaches (matches the room mockup).
+  final String? coverImageUrl;
+  final String? coverCategory;
+  final String? coverInitial;
 
   @override
   Widget build(BuildContext context) {
@@ -1433,10 +1442,17 @@ class AfriVideoStage extends StatelessWidget {
               ),
               child: videoOn
                   ? video
-                  : _VideoWaitingState(
-                      ready: ready,
-                      isHost: isHost,
-                      onStartVideo: roomEnded ? null : onStartVideo,
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (coverCategory != null || (coverImageUrl?.isNotEmpty ?? false))
+                          AfriCover(imageUrl: coverImageUrl, category: coverCategory ?? '', initial: coverInitial),
+                        _VideoWaitingState(
+                          ready: ready,
+                          isHost: isHost,
+                          onStartVideo: roomEnded ? null : onStartVideo,
+                        ),
+                      ],
                     ),
             ),
           ),
@@ -1547,6 +1563,7 @@ class AfriLiveTopBar extends StatelessWidget {
     required this.viewerCount,
     required this.onClose,
     this.onReport,
+    this.avatarUrl,
   });
 
   final String creatorName;
@@ -1555,16 +1572,19 @@ class AfriLiveTopBar extends StatelessWidget {
   final int viewerCount;
   final VoidCallback onClose;
   final VoidCallback? onReport;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final initial =
         creatorName.trim().isEmpty ? 'A' : creatorName.trim()[0].toUpperCase();
+    final hasPhoto = avatarUrl != null && avatarUrl!.isNotEmpty;
     return Row(
       children: [
         CircleAvatar(
           backgroundColor: AfriColors.purple,
-          child: Text(initial),
+          backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
+          child: hasPhoto ? null : Text(initial),
         ),
         const SizedBox(width: 10),
         Expanded(

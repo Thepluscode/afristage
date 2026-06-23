@@ -6,6 +6,7 @@ import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'livekit_room_view.dart';
 import 'report_screen.dart';
@@ -475,24 +476,24 @@ class _RoomScreenState extends State<RoomScreen> {
           url: _lkUrl!, token: _lkToken!, publish: widget.isHost);
     }
     final ready = _lkUrl != null && _lkToken != null;
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.topCenter,
-          radius: 0.9,
-          colors: [Color(0x3024B8A6), Colors.black],
+    // Full-bleed creator cover behind the connect prompt, so the stage reads like
+    // a live broadcast even before video attaches (matches the room mockup).
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AfriCover(
+          imageUrl: widget.room.hostAvatarUrl,
+          category: widget.room.category,
+          initial: widget.room.hostName,
         ),
-      ),
-      child: Center(
-        child: FilledButton.icon(
-          onPressed: ready ? () => setState(() => _videoOn = true) : null,
-          icon:
-              Icon(widget.isHost ? Icons.videocam : Icons.play_circle_outline),
-          label: Text(
-              widget.isHost ? 'Go Live with Camera + Mic' : 'Connect Video'),
+        Center(
+          child: FilledButton.icon(
+            onPressed: ready ? () => setState(() => _videoOn = true) : null,
+            icon: Icon(widget.isHost ? Icons.videocam : Icons.play_circle_outline),
+            label: Text(widget.isHost ? 'Go Live with Camera + Mic' : 'Connect Video'),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -527,9 +528,13 @@ class _RoomScreenState extends State<RoomScreen> {
         isHost: widget.isHost,
         videoOn: _videoOn,
         roomEnded: _roomEnded,
+        coverImageUrl: widget.room.hostAvatarUrl,
+        coverCategory: widget.room.category,
+        coverInitial: widget.room.hostName,
         onStartVideo: blocked ? null : () => setState(() => _videoOn = true),
         overlay: AfriLiveTopBar(
           creatorName: widget.room.hostName ?? 'Creator',
+          avatarUrl: widget.room.hostAvatarUrl,
           following: _following,
           viewerCount: _viewerCount,
           onClose: () => Navigator.pop(context),
