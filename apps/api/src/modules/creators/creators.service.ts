@@ -60,11 +60,14 @@ export class CreatorsService {
 
   async dashboard(userId: string) {
     const creator = await this.getMe(userId);
-    const [earnings, gifts, rooms, followers, supporterAgg] = await Promise.all([
+    const [earnings, gifts, rooms, followers, watchAgg, supporterAgg] = await Promise.all([
       this.wallet.balance(userId, 'EARNING', 'COIN'),
       this.prisma.giftTransaction.count({ where: { creatorId: userId } }),
       this.prisma.liveRoom.count({ where: { hostUserId: userId } }),
       this.prisma.follow.count({ where: { followingId: userId } }),
+      // Total watch-time across all of this creator's rooms (accumulated live by
+      // the chat gateway as viewers leave/disconnect).
+      this.prisma.liveRoom.aggregate({ where: { hostUserId: userId }, _sum: { totalWatchSeconds: true } }),
       // Top supporters across all of this creator's rooms, by coins gifted.
       this.prisma.giftTransaction.groupBy({
         by: ['viewerId'],
@@ -91,7 +94,15 @@ export class CreatorsService {
       avatarUrl: byId.get(s.viewerId)?.avatarUrl ?? null,
       coins: s._sum.totalCoinAmount ?? 0
     }));
-    return { creator, earnings, totalGiftTransactions: gifts, totalRooms: rooms, followers, topSupporters };
+    return {
+      creator,
+      earnings,
+      totalGiftTransactions: gifts,
+      totalRooms: rooms,
+      followers,
+      totalWatchSeconds: watchAgg._sum.totalWatchSeconds ?? 0n,
+      topSupporters
+    };
   }
 
   // Public creator profile. Accepts either the creatorProfile id or the userId.

@@ -30,6 +30,17 @@ class _CreatorScreenState extends State<CreatorScreen> {
 
   void _reload() => setState(() => _dashboard = _load());
 
+  // totalWatchSeconds is a BigInt server-side; it may arrive as a number or a
+  // string, so parse defensively. Render as the largest sensible unit.
+  String _formatWatch(dynamic raw) {
+    final secs = num.tryParse('${raw ?? 0}')?.toInt() ?? 0;
+    if (secs < 60) return '${secs}s';
+    final minutes = secs ~/ 60;
+    if (minutes < 60) return '${minutes}m';
+    final hours = minutes ~/ 60;
+    return '${hours}h ${minutes % 60}m';
+  }
+
   Future<void> _goLive() async {
     await Navigator.push(
       context,
@@ -230,6 +241,18 @@ class _CreatorScreenState extends State<CreatorScreen> {
                         label: 'Followers',
                         value: '${data?['followers'] ?? 0}',
                         icon: Icons.group_outlined,
+                        accent: AfriColors.teal),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: AfriStatCard(
+                        label: 'Watch time',
+                        value: _formatWatch(data?['totalWatchSeconds']),
+                        icon: Icons.schedule,
                         accent: AfriColors.teal),
                   ),
                 ],
