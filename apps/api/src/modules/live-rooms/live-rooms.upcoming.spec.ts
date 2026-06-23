@@ -1,8 +1,16 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LiveRoomsService } from './live-rooms.service';
 
 function build() {
-  const prisma: any = { liveRoom: { findMany: jest.fn().mockResolvedValue([]) } };
-  const service = new LiveRoomsService(prisma, {} as any, {} as any);
+  const prisma: any = {
+    liveRoom: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), update: jest.fn() },
+    roomReminder: { upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) },
+    follow: { findMany: jest.fn().mockResolvedValue([]) },
+    notification: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    user: { findUnique: jest.fn() }
+  };
+  const livekit: any = { createToken: jest.fn().mockResolvedValue('tok'), url: jest.fn().mockReturnValue('ws://lk') };
+  const service = new LiveRoomsService(prisma, livekit, {} as any);
   return { service, prisma };
 }
 
@@ -23,5 +31,59 @@ describe('LiveRoomsService.upcoming', () => {
     expect(prisma.liveRoom.findMany.mock.calls[0][0].take).toBe(100);
     await service.upcoming(0); // 0 -> default 50
     expect(prisma.liveRoom.findMany.mock.calls[1][0].take).toBe(50);
+  });
+});
+
+describe('LiveRoomsService reminders', () => {
+  it('sets a reminder for a scheduled room', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', status: 'SCHEDULED' });
+    expect(await service.setReminder('u1', 'r1')).toEqual({ roomId: 'r1', reminded: true });
+    expect(prisma.roomReminder.upsert).toHaveBeenCalled();
+  });
+
+  it('rejects a reminder for a non-scheduled (already live/ended) room', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', status: 'LIVE' });
+    await expect(service.setReminder('u1', 'r1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a reminder for a missing room', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findUnique.mockResolvedValue(null);
+    await expect(service.setReminder('u1', 'gone')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('cancel is idempotent', async () => {
+    const { service, prisma } = build();
+    expect(await service.cancelReminder('u1', 'r1')).toEqual({ roomId: 'r1', reminded: false });
+    expect(prisma.roomReminder.deleteMany).toHaveBeenCalledWith({ where: { roomId: 'r1', userId: 'u1' } });
+  });
+});
+
+describe('LiveRoomsService.start notifications', () => {
+  function startCtx() {
+    const ctx = build();
+    const { prisma } = ctx;
+    prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', hostUserId: 'host', status: 'SCHEDULED' });
+    prisma.liveRoom.update.mockResolvedValue({ id: 'r1', title: 'My Show', hostUserId: 'host' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'host', status: 'ACTIVE' });
+    return ctx;
+  }
+
+  it('notifies followers and reminder-holders, deduped, excluding the host', async () => {
+    const { service, prisma } = startCtx();
+    prisma.follow.findMany.mockResolvedValue([{ followerId: 'a' }, { followerId: 'b' }]);
+    prisma.roomReminder.findMany.mockResolvedValue([{ userId: 'b' }, { userId: 'c' }, { userId: 'host' }]);
+    await service.start('host', 'r1');
+    const recipients = prisma.notification.createMany.mock.calls[0][0].data.map((d: any) => d.userId).sort();
+    expect(recipients).toEqual(['a', 'b', 'c']); // b deduped, host excluded
+  });
+
+  it('clears the fired reminders after start', async () => {
+    const { service, prisma } = startCtx();
+    prisma.roomReminder.findMany.mockResolvedValue([{ userId: 'c' }]);
+    await service.start('host', 'r1');
+    expect(prisma.roomReminder.deleteMany).toHaveBeenCalledWith({ where: { roomId: 'r1' } });
   });
 });

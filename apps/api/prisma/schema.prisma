@@ -223,6 +223,19 @@ model Block {
   @@map("blocks")
 }
 
+// A viewer's "remind me" for a scheduled room. Fired (and cleared) when the room
+// goes live. Scalar refs only — resolved by id, like Block.
+model RoomReminder {
+  id        String   @id @default(uuid())
+  roomId    String   @map("room_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@map("room_reminders")
+}
+
 model LiveRoom {
   id                 String     @id @default(uuid())
   hostUserId         String     @map("host_user_id")

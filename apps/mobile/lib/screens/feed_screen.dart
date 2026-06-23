@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
+import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_ui.dart';
@@ -22,6 +23,7 @@ class _FeedScreenState extends State<FeedScreen> {
   String _category = 'For You';
   int _unread = 0;
   List<Map<String, dynamic>> _upcoming = const [];
+  final Set<String> _reminded = {};
 
   static const _categories = [
     'For You',
@@ -48,6 +50,19 @@ class _FeedScreenState extends State<FeedScreen> {
       if (mounted) setState(() => _upcoming = data.cast<Map<String, dynamic>>());
     } catch (_) {
       // non-critical: the live feed still renders
+    }
+  }
+
+  Future<void> _remind(String roomId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _reminded.add(roomId)); // optimistic
+    try {
+      await context.read<AppState>().api.post('/live-rooms/$roomId/remind');
+      messenger.showSnackBar(const SnackBar(
+          content: Text("Reminder set — we'll notify you when it starts.")));
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _reminded.remove(roomId)); // rollback
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -235,9 +250,29 @@ class _FeedScreenState extends State<FeedScreen> {
                               ],
                             ),
                           ),
-                          AfriChip(
-                              label: _formatStart(
-                                  u['scheduledStartAt'] as String?)),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              AfriChip(
+                                  label: _formatStart(
+                                      u['scheduledStartAt'] as String?)),
+                              const SizedBox(height: 4),
+                              _reminded.contains(u['id'])
+                                  ? const Text('Reminder set',
+                                      style: TextStyle(
+                                          color: AfriColors.gold, fontSize: 12))
+                                  : TextButton(
+                                      onPressed: () =>
+                                          _remind(u['id'] as String),
+                                      style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(0, 0),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap),
+                                      child: const Text('Remind me'),
+                                    ),
+                            ],
+                          ),
                         ],
                       ),
                     );

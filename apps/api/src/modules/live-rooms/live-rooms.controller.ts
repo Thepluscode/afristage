@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CreateLiveRoomDto } from './dto/create-live-room.dto';
@@ -52,5 +52,17 @@ export class LiveRoomsController {
   @Post(':id/join-token')
   join(@CurrentUser() user: any, @Param('id') id: string) {
     return this.rooms.joinToken(user.sub, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/remind')
+  setReminder(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.rooms.setReminder(user.sub, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id/remind')
+  cancelReminder(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.rooms.cancelReminder(user.sub, id);
   }
 }
