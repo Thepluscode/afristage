@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { adminGet } from '../lib/api';
 import { AlertCard, AuditTimeline, DangerBanner, ErrorState, LoadingState, MetricCard, PageHeader, SuccessBanner, WarningBanner } from './admin-ui';
+import { Sparkline } from './Sparkline';
 
 type Integrity = { ok: boolean; unbalancedTransactions: number };
+type SeriesPoint = { day: string; newUsers: number; giftCount: number; giftVolumeCoins: number };
 
 type Dashboard = {
   activeRooms: number;
@@ -23,12 +25,15 @@ type Dashboard = {
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
+  const [series, setSeries] = useState<SeriesPoint[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     adminGet<Dashboard>('/admin/dashboard').then(setData).catch((e) => setError(e.message));
-    // Ledger status is non-critical for the dashboard to render; show it when ready.
+    // Ledger status and the growth series are non-critical for the dashboard to
+    // render; show them when ready.
     adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => {});
+    adminGet<SeriesPoint[]>('/admin/analytics/series?days=30').then(setSeries).catch(() => {});
   }, []);
 
   if (error) return <ErrorState error={error} />;
@@ -98,6 +103,13 @@ export default function DashboardPage() {
               <MetricCard key={label} label={label} value={value} tone={tone} delta={delta} />
             ))}
           </div>
+          {series && series.length > 0 ? (
+            <div className="side-panel">
+              <h3>Growth (30 days)</h3>
+              <Sparkline label="New users / day" values={series.map((p) => p.newUsers)} accent="#6ad" />
+              <Sparkline label="Gift volume (coins) / day" values={series.map((p) => p.giftVolumeCoins)} accent="#caa53a" />
+            </div>
+          ) : null}
           <div className="side-panel">
             <h3>Priority queue</h3>
             <p>Critical reports, payment failures, suspicious payout activity, and ledger imbalance should be cleared before routine work.</p>
