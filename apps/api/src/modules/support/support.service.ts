@@ -41,9 +41,18 @@ export class SupportService {
     if (!ticket) throw new NotFoundException('Ticket not found');
     const isAdmin = ADMIN_ROLES.includes(role);
     if (!isAdmin && ticket.requesterId !== userId) throw new ForbiddenException('Not your ticket');
-    return this.prisma.supportTicketMessage.create({
+    const created = await this.prisma.supportTicketMessage.create({
       data: { ticketId, senderId: userId, message, internal: isAdmin ? internal : false }
     });
+    // A requester replying to a resolved/closed ticket reopens it so it returns
+    // to the queue — otherwise the reply sits unseen and the user is stuck.
+    if (!isAdmin && (ticket.status === SupportTicketStatus.RESOLVED || ticket.status === SupportTicketStatus.CLOSED)) {
+      await this.prisma.supportTicket.update({
+        where: { id: ticketId },
+        data: { status: SupportTicketStatus.OPEN, resolvedAt: null }
+      });
+    }
+    return created;
   }
 
   adminList() {

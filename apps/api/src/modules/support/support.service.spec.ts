@@ -4,7 +4,7 @@ import { SupportService } from './support.service';
 
 function build(ticket: any) {
   const prisma: any = {
-    supportTicket: { findUnique: jest.fn().mockResolvedValue(ticket) },
+    supportTicket: { findUnique: jest.fn().mockResolvedValue(ticket), update: jest.fn().mockResolvedValue({}) },
     supportTicketMessage: { create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve(data)) }
   };
   return { service: new SupportService(prisma), prisma };
@@ -51,5 +51,25 @@ describe('SupportService', () => {
     expect(prisma.supportTicketMessage.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ internal: true }) })
     );
+  });
+
+  it('reopens a resolved ticket when the requester replies', async () => {
+    const { service, prisma } = build({ id: 't1', requesterId: 'owner', status: 'RESOLVED' });
+    await service.addMessage('owner', UserRole.VIEWER, 't1', 'still broken', false);
+    expect(prisma.supportTicket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't1' }, data: { status: 'OPEN', resolvedAt: null } })
+    );
+  });
+
+  it('does not reopen when an admin replies to a resolved ticket', async () => {
+    const { service, prisma } = build({ id: 't1', requesterId: 'owner', status: 'RESOLVED' });
+    await service.addMessage('admin', UserRole.ADMIN, 't1', 'closing note', false);
+    expect(prisma.supportTicket.update).not.toHaveBeenCalled();
+  });
+
+  it('does not change status when the requester replies to an open ticket', async () => {
+    const { service, prisma } = build({ id: 't1', requesterId: 'owner', status: 'OPEN' });
+    await service.addMessage('owner', UserRole.VIEWER, 't1', 'more info', false);
+    expect(prisma.supportTicket.update).not.toHaveBeenCalled();
   });
 });
