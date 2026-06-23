@@ -4,11 +4,11 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function createUser(email: string, password: string, role: UserRole, username: string, displayName: string) {
+async function createUser(email: string, password: string, role: UserRole, username: string, displayName: string, avatarUrl?: string) {
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.upsert({
     where: { email },
-    update: {},
+    update: { profile: { update: { avatarUrl } } },
     create: {
       email,
       passwordHash,
@@ -19,6 +19,7 @@ async function createUser(email: string, password: string, role: UserRole, usern
         create: {
           username,
           displayName,
+          avatarUrl,
           country: 'NG',
           language: 'pidgin'
         }
@@ -36,10 +37,37 @@ async function createUser(email: string, password: string, role: UserRole, usern
   return user;
 }
 
+// Demo stage: varied creators with real face photos + a LIVE room each, so the
+// feed/room/profile screens demo with actual imagery (not gradient fallbacks).
+const DEMO_STAGE = [
+  { username: 'amaka_g', name: 'Amaka Gold', img: 45, title: 'Friday Afrobeats Live', category: CreatorCategory.MUSIC, peak: 1240 },
+  { username: 'dj_tunde', name: 'DJ Tunde', img: 12, title: 'Amapiano Dance Off', category: CreatorCategory.DANCE, peak: 530 },
+  { username: 'kwame_l', name: 'Kwame Live', img: 68, title: 'Lagos Comedy Night', category: CreatorCategory.COMEDY, peak: 210 },
+  { username: 'zola_k', name: 'Zola Kim', img: 32, title: 'AFCON Watch Party', category: CreatorCategory.FOOTBALL, peak: 88 }
+];
+
+async function seedDemoStage() {
+  for (const c of DEMO_STAGE) {
+    const email = `${c.username}@afristage.local`;
+    const user = await createUser(email, 'Creator123!', UserRole.CREATOR, c.username, c.name, `https://i.pravatar.cc/400?img=${c.img}`);
+    await prisma.creatorProfile.upsert({
+      where: { userId: user.id },
+      update: { approvalStatus: 'APPROVED' },
+      create: { userId: user.id, stageName: c.name, category: c.category, country: 'NG', language: 'pidgin', kycStatus: 'APPROVED', approvalStatus: 'APPROVED', payoutEnabled: true }
+    });
+    const existing = await prisma.liveRoom.findFirst({ where: { hostUserId: user.id, title: c.title } });
+    if (!existing) {
+      await prisma.liveRoom.create({
+        data: { hostUserId: user.id, title: c.title, category: c.category, country: 'NG', language: 'pidgin', status: 'LIVE', startedAt: new Date(), peakViewers: c.peak }
+      });
+    }
+  }
+}
+
 async function main() {
-  await createUser('admin@afristage.local', 'Admin123!', UserRole.SUPER_ADMIN, 'admin', 'AfriStage Admin');
-  await createUser('viewer@afristage.local', 'Viewer123!', UserRole.VIEWER, 'viewer', 'Demo Viewer');
-  const creator = await createUser('creator@afristage.local', 'Creator123!', UserRole.CREATOR, 'creator', 'Demo Creator');
+  await createUser('admin@afristage.local', 'Admin123!', UserRole.SUPER_ADMIN, 'admin', 'AfriStage Admin', 'https://i.pravatar.cc/400?img=8');
+  await createUser('viewer@afristage.local', 'Viewer123!', UserRole.VIEWER, 'viewer', 'Demo Viewer', 'https://i.pravatar.cc/400?img=5');
+  const creator = await createUser('creator@afristage.local', 'Creator123!', UserRole.CREATOR, 'creator', 'Demo Creator', 'https://i.pravatar.cc/400?img=15');
 
   await prisma.creatorProfile.upsert({
     where: { userId: creator.id },
@@ -73,6 +101,8 @@ async function main() {
     ],
     skipDuplicates: true
   });
+
+  await seedDemoStage();
 }
 
 main()

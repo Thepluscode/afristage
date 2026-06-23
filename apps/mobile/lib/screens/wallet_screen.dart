@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'history_screen.dart';
 
@@ -121,20 +122,18 @@ class _WalletScreenState extends State<WalletScreen> {
         ),
       ],
       children: [
-        AfriWalletBalanceCard(
-          coinBalance: wallet.coinBalance,
-          modeLabel: _useCard ? 'Paystack ready' : 'Dev wallet',
+        AfriBalanceCard(
+          coins: wallet.coinBalance,
+          onBuy: _busy ? null : () => _buy(_packages[1].$1),
+          onHistory: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen())),
         ),
         const SizedBox(height: 20),
-        const AfriSectionHeader(
-          title: 'Earnings summary',
-          subtitle: 'Coins earned from gifts, and what is held for checks',
-        ),
+        const Text('Earnings summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AfriColors.text)),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: AfriStatCard(
+              child: AfriStatTile(
                   label: 'Creator earnings',
                   value: '${wallet.earningBalance}',
                   icon: Icons.payments_outlined,
@@ -142,19 +141,13 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: AfriStatCard(
+              child: AfriStatTile(
                   label: 'Payout hold',
                   value: '${wallet.payoutHoldBalance}',
                   icon: Icons.lock_clock_outlined,
                   accent: AfriColors.warning),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        AfriPayoutStatusCard(
-          available: wallet.earningBalance,
-          pending: 0,
-          hold: wallet.payoutHoldBalance,
         ),
         const SizedBox(height: 24),
         AfriSectionHeader(

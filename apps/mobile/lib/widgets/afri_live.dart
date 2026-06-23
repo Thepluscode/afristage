@@ -299,3 +299,141 @@ class AfriCoinPill extends StatelessWidget {
     );
   }
 }
+
+/// Gold-gradient wallet balance card (mockup #4).
+class AfriBalanceCard extends StatelessWidget {
+  const AfriBalanceCard({super.key, required this.coins, this.onBuy, this.onHistory});
+  final int coins;
+  final VoidCallback? onBuy;
+  final VoidCallback? onHistory;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFFC857), Color(0xFFF59E0B)]),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Coin balance', style: TextStyle(color: Color(0xCC1A1205), fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+          Text(formatCount(coins), style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: Color(0xFF170B02))),
+          const SizedBox(width: 6),
+          const Text('coins', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xAA170B02))),
+        ]),
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(child: FilledButton.icon(
+            onPressed: onBuy,
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF170B02), foregroundColor: AfriColors.gold, minimumSize: const Size.fromHeight(46)),
+            icon: const Icon(Icons.add, size: 18), label: const Text('Buy coins'))),
+          const SizedBox(width: 10),
+          Expanded(child: OutlinedButton.icon(
+            onPressed: onHistory,
+            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF170B02), side: const BorderSide(color: Color(0x55170B02)), minimumSize: const Size.fromHeight(46)),
+            icon: const Icon(Icons.receipt_long, size: 18), label: const Text('Transactions'))),
+        ]),
+      ]),
+    );
+  }
+}
+
+/// Stat tile with a colored icon chip (dashboard / profile / wallet overview).
+class AfriStatTile extends StatelessWidget {
+  const AfriStatTile({super.key, required this.label, required this.value, required this.icon, required this.accent});
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color accent;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AfriColors.elevated, borderRadius: BorderRadius.circular(16), border: Border.all(color: AfriColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(color: accent.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, size: 19, color: accent),
+        ),
+        const SizedBox(height: 10),
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AfriColors.text)),
+        Text(label, style: const TextStyle(fontSize: 12, color: AfriColors.mutedText)),
+      ]),
+    );
+  }
+}
+
+/// Tappable settings/menu row (mockup #4 list).
+class AfriMenuRow extends StatelessWidget {
+  const AfriMenuRow({super.key, required this.icon, required this.title, this.subtitle, this.accent = AfriColors.teal, this.onTap});
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Color accent;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(children: [
+          Container(
+            width: 38, height: 38,
+            decoration: BoxDecoration(color: accent.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+            child: Icon(icon, size: 19, color: accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AfriColors.text)),
+            if (subtitle != null) Text(subtitle!, style: const TextStyle(fontSize: 12, color: AfriColors.mutedText)),
+          ])),
+          const Icon(Icons.chevron_right, color: AfriColors.mutedText),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Horizontal gift bar for the live room (mockup #2).
+class AfriGiftBar extends StatelessWidget {
+  const AfriGiftBar({super.key, required this.gifts, this.onSend});
+  final List<Map<String, dynamic>> gifts; // {name, coinPrice}
+  final void Function(Map<String, dynamic>)? onSend;
+  @override
+  Widget build(BuildContext context) {
+    const icons = [Icons.local_florist, Icons.favorite, Icons.mic, Icons.emoji_events, Icons.diamond, Icons.celebration];
+    const tints = [Color(0xFFEC4899), Color(0xFFEF4444), Color(0xFFFFC857), Color(0xFFF59E0B), Color(0xFF22D3EE), Color(0xFF7C3AED)];
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: gifts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final g = gifts[i];
+          final tint = tints[i % tints.length];
+          return GestureDetector(
+            onTap: () => onSend?.call(g),
+            child: Container(
+              width: 72,
+              decoration: BoxDecoration(color: AfriColors.elevated, borderRadius: BorderRadius.circular(14), border: Border.all(color: AfriColors.border)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(icons[i % icons.length], color: tint, size: 26),
+                const SizedBox(height: 6),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.monetization_on, size: 12, color: AfriColors.gold),
+                  const SizedBox(width: 3),
+                  Text('${g['coinPrice'] ?? 0}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AfriColors.gold)),
+                ]),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
