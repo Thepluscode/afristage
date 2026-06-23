@@ -37,6 +37,12 @@ export class LiveRoomsController {
     return this.rooms.list({ country, category, viewerLanguage, viewerCountry, q });
   }
 
+  // Public upcoming feed. Declared before :id so "upcoming" isn't captured as an id.
+  @Get('upcoming')
+  upcoming(@Query('limit') limit?: string) {
+    return this.rooms.upcoming(limit ? Number(limit) : 50);
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.rooms.get(id);
