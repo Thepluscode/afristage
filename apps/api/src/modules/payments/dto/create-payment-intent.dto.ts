@@ -1,10 +1,9 @@
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreatePaymentIntentDto {
-  @IsInt() @Min(100) amountMinor!: number;
-  @IsString() currency!: string;
-  @IsInt() @Min(1) coinAmount!: number;
-  // Defaults to 'mock' so existing callers are unchanged. 'paystack' kicks off a
-  // real hosted-checkout init.
+  // The client only chooses a package; the server owns the price and coin amount,
+  // so a client can never buy more coins than it pays for.
+  @IsString() @IsNotEmpty() packageId!: string;
+  // Defaults to 'mock'. 'paystack' kicks off a real hosted-checkout init.
   @IsOptional() @IsIn(['mock', 'paystack']) provider?: 'mock' | 'paystack';
 }

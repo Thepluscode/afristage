@@ -3,6 +3,7 @@ import { LedgerDirection, LedgerTransactionType, PaymentStatus, WalletAccountTyp
 import { PrismaService } from '../../database/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
+import { COIN_PACKAGES, CoinPackage, findCoinPackage } from './coin-packages';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PaystackProvider } from './providers/paystack.provider';
 
@@ -17,15 +18,23 @@ export class PaymentsService {
     private readonly paystack: PaystackProvider
   ) {}
 
+  // Catalog of purchasable coin packages (server-authoritative pricing).
+  listPackages() {
+    return COIN_PACKAGES;
+  }
+
   async createIntent(userId: string, dto: CreatePaymentIntentDto) {
-    if (dto.provider === 'paystack') return this.createPaystackIntent(userId, dto);
+    // Resolve the package server-side: the client picks an id, never the amounts.
+    const pkg = findCoinPackage(dto.packageId);
+    if (!pkg) throw new BadRequestException('Unknown coin package');
+    if (dto.provider === 'paystack') return this.createPaystackIntent(userId, pkg);
     return this.prisma.paymentIntent.create({
       data: {
         userId,
         provider: 'mock',
-        amountMinor: dto.amountMinor,
-        currency: dto.currency,
-        coinAmount: dto.coinAmount,
+        amountMinor: pkg.amountMinor,
+        currency: pkg.currency,
+        coinAmount: pkg.coinAmount,
         status: PaymentStatus.PENDING,
         providerReference: `mock_${Date.now()}_${Math.random().toString(16).slice(2)}`
       }
@@ -35,7 +44,7 @@ export class PaymentsService {
   // Records a PENDING intent, then initializes a real Paystack checkout keyed to
   // the same reference. Coins are credited later, only by the verified webhook.
   // Returns the intent plus the hosted-checkout URL the client must open.
-  private async createPaystackIntent(userId: string, dto: CreatePaymentIntentDto) {
+  private async createPaystackIntent(userId: string, pkg: CoinPackage) {
     if (!this.paystack.isConfigured()) throw new BadRequestException('Paystack is not configured');
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!user?.email) throw new BadRequestException('A verified email is required for card payments');
@@ -45,9 +54,9 @@ export class PaymentsService {
       data: {
         userId,
         provider: 'paystack',
-        amountMinor: dto.amountMinor,
-        currency: dto.currency,
-        coinAmount: dto.coinAmount,
+        amountMinor: pkg.amountMinor,
+        currency: pkg.currency,
+        coinAmount: pkg.coinAmount,
         status: PaymentStatus.PENDING,
         providerReference: reference
       }
@@ -56,8 +65,8 @@ export class PaymentsService {
     try {
       const init = await this.paystack.initializeTransaction({
         email: user.email,
-        amountMinor: dto.amountMinor,
-        currency: dto.currency,
+        amountMinor: pkg.amountMinor,
+        currency: pkg.currency,
         reference
       });
       this.logger.log(`Paystack checkout initialized for intent ${intent.id} (ref ${reference})`);

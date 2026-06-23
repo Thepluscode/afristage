@@ -45,9 +45,25 @@ function okVerify(amount = 500000, currency = 'NGN', status = 'success') {
   } as any);
 }
 
-const dto = { amountMinor: 500000, currency: 'NGN', coinAmount: 1000, provider: 'paystack' as const };
+// 'popular' package = 500000 minor NGN -> 550 coins (server-authoritative).
+const dto = { packageId: 'popular', provider: 'paystack' as const };
 
 afterEach(() => jest.restoreAllMocks());
+
+describe('PaymentsService.createIntent (package pricing)', () => {
+  it('rejects an unknown package id', async () => {
+    const { service } = build();
+    await expect(service.createIntent('u1', { packageId: 'free-million' } as any)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('mock intent uses the server-side package price and coins, never client input', async () => {
+    const { service, prisma } = build();
+    await service.createIntent('u1', { packageId: 'popular' } as any);
+    expect(prisma.paymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'mock', amountMinor: 500000, currency: 'NGN', coinAmount: 550 }) })
+    );
+  });
+});
 
 describe('PaymentsService.createIntent (paystack)', () => {
   it('records a PENDING intent and returns the authorization URL on success', async () => {
