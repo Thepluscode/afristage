@@ -49,6 +49,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Revoke every refresh token server-side, then drop this device's session.
+  Future<void> _signOutEverywhere() async {
+    final state = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await state.api.post('/auth/logout-all');
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      // Still drop the local session even if the server call failed.
+    }
+    await state.logout();
+  }
+
   // Pick -> presign -> PUT straight to object storage -> save the URL on the
   // profile. The image never passes through the API or the database.
   Future<void> _changeAvatar() async {
@@ -187,6 +200,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onPressed: () => context.read<AppState>().logout(),
           icon: const Icon(Icons.logout),
           label: const Text('Log out'),
+        ),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: _signOutEverywhere,
+          icon: const Icon(Icons.devices_outlined),
+          label: const Text('Sign out of all devices'),
         ),
       ],
     );

@@ -132,7 +132,7 @@ export class AuthService {
   // ponytail: stateless JWT refresh (no server-side rotation/revocation list yet).
   // Before public beta, add rotation + a device-session revocation table.
   async refresh(refreshToken: string) {
-    let payload: { sub: string };
+    let payload: { sub: string; tv?: number };
     try {
       payload = this.jwt.verify(refreshToken, { secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh' });
     } catch {
@@ -140,11 +140,21 @@ export class AuthService {
     }
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Account is not active');
+    // Reject tokens issued before the last "sign out everywhere". Treat a missing
+    // tv (legacy token) as version 0 so pre-revocation tokens still match a fresh account.
+    if ((payload.tv ?? 0) !== (user.tokenVersion ?? 0)) throw new UnauthorizedException('Refresh token has been revoked');
     return this.issueTokens(user);
   }
 
-  issueTokens(user: { id: string; role: UserRole; email?: string | null }) {
-    const payload = { sub: user.id, role: user.role, email: user.email };
+  // Invalidate every existing refresh token for this user by bumping the version
+  // embedded in them. Access tokens still expire on their own short TTL.
+  async logoutAll(userId: string) {
+    await this.prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
+    return { ok: true };
+  }
+
+  issueTokens(user: { id: string; role: UserRole; email?: string | null; tokenVersion?: number }) {
+    const payload = { sub: user.id, role: user.role, email: user.email, tv: user.tokenVersion ?? 0 };
     return {
       userId: user.id,
       role: user.role,
