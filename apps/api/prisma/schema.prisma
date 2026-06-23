@@ -234,6 +234,7 @@ model LiveRoom {
   livekitRoomName    String?    @unique @map("livekit_room_name")
   peakViewers        Int        @default(0) @map("peak_viewers")
   totalWatchSeconds  BigInt     @default(0) @map("total_watch_seconds")
+  scheduledStartAt   DateTime?  @map("scheduled_start_at")
   startedAt          DateTime?  @map("started_at")
   endedAt            DateTime?  @map("ended_at")
   createdAt          DateTime   @default(now()) @map("created_at")
@@ -245,6 +246,8 @@ model LiveRoom {
 
   @@index([status])
   @@index([country, category])
+  // Upcoming feed: SCHEDULED rooms ordered by soonest scheduled start.
+  @@index([status, scheduledStartAt])
   @@map("live_rooms")
 }
 

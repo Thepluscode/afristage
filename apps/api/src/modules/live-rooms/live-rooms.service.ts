@@ -43,6 +43,17 @@ export class LiveRoomsService {
     return this.prisma.liveRoom.create({ data: { hostUserId, ...dto, status: RoomStatus.SCHEDULED } });
   }
 
+  // Upcoming feed: scheduled rooms with a future announced start, soonest first.
+  async upcoming(limit = 50) {
+    const take = Math.min(Math.max(Math.trunc(limit) || 50, 1), 100); // bounded: 1..100
+    return this.prisma.liveRoom.findMany({
+      where: { status: RoomStatus.SCHEDULED, scheduledStartAt: { gte: new Date() } },
+      orderBy: { scheduledStartAt: 'asc' },
+      take,
+      include: PUBLIC_HOST_INCLUDE
+    });
+  }
+
   async start(hostUserId: string, roomId: string) {
     const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
     if (!room) throw new NotFoundException('Room not found');
