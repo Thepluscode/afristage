@@ -96,6 +96,38 @@ class AfriGradientPanel extends StatelessWidget {
   }
 }
 
+class AfriBrandMark extends StatelessWidget {
+  const AfriBrandMark({super.key, this.size = 52, this.flat = false});
+
+  final double size;
+  final bool flat;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = size * 0.56;
+    if (flat) {
+      return Icon(Icons.auto_awesome,
+          size: iconSize, color: AfriColors.orange);
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient:
+            const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+              color: AfriColors.orange.withValues(alpha: 0.24),
+              blurRadius: size * 0.42),
+        ],
+      ),
+      child: Icon(Icons.auto_awesome,
+          color: const Color(0xFF170B02), size: iconSize),
+    );
+  }
+}
+
 class AfriSectionHeader extends StatelessWidget {
   const AfriSectionHeader({
     super.key,
@@ -371,24 +403,19 @@ class AfriSplash extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 84,
-                height: 84,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [BoxShadow(color: AfriColors.gold.withValues(alpha: 0.35), blurRadius: 48)],
-                ),
-                child: const Center(
-                  child: Text('A', style: TextStyle(color: Color(0xFF170B02), fontSize: 40, fontWeight: FontWeight.w900)),
-                ),
-              ),
+              const AfriBrandMark(size: 84),
               const SizedBox(height: 20),
-              Text('AfriStage', style: Theme.of(context).textTheme.headlineSmall),
+              Text('AfriStage',
+                  style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 6),
-              Text("Africa's live stage", style: Theme.of(context).textTheme.bodyMedium),
+              Text("Africa's live stage",
+                  style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 26),
-              const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: AfriColors.gold)),
+              const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: AfriColors.gold)),
             ],
           ),
         ],
@@ -409,26 +436,7 @@ class AfriLoadingState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [AfriColors.orange, AfriColors.gold]),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                      color: AfriColors.orange.withValues(alpha: 0.26),
-                      blurRadius: 34)
-                ],
-              ),
-              child: const Center(
-                  child: Text('A',
-                      style: TextStyle(
-                          color: Color(0xFF170B02),
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900))),
-            ),
+            const AfriBrandMark(size: 72),
             const SizedBox(height: 18),
             Text('AfriStage Live',
                 style: Theme.of(context).textTheme.titleLarge),
@@ -497,7 +505,8 @@ class AfriHeroEventCard extends StatelessWidget {
         children: [
           Positioned.fill(
             child: hasCover
-                ? Image.network(avatar, fit: BoxFit.cover,
+                ? Image.network(avatar,
+                    fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const _HeroGradient())
                 : const _HeroGradient(),
           ),
@@ -525,7 +534,8 @@ class AfriHeroEventCard extends StatelessWidget {
                     if (r != null)
                       Row(
                         children: [
-                          const Icon(Icons.visibility, color: Colors.white, size: 15),
+                          const Icon(Icons.visibility,
+                              color: Colors.white, size: 15),
                           const SizedBox(width: 4),
                           Text('${afriCompactCount(r.viewerCount)} watching',
                               style: const TextStyle(
@@ -549,14 +559,16 @@ class AfriHeroEventCard extends StatelessWidget {
                 Text(subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFFE4E4E7), fontSize: 13)),
+                    style: const TextStyle(
+                        color: Color(0xFFE4E4E7), fontSize: 13)),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: onJoin,
-                        icon: Icon(r != null ? Icons.play_arrow : Icons.refresh),
+                        icon:
+                            Icon(r != null ? Icons.play_arrow : Icons.refresh),
                         label: Text(r != null ? 'Join now' : 'Refresh'),
                       ),
                     ),
@@ -664,7 +676,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                   Positioned(
                     right: -18,
                     bottom: -24,
-                    child: Icon(Icons.graphic_eq,
+                    child: Icon(Icons.auto_awesome,
                         size: 142,
                         color: AfriColors.gold.withValues(alpha: 0.16)),
                   ),
@@ -752,12 +764,20 @@ class AfriLiveRoomCard extends StatelessWidget {
 /// sensible glyph without a code change; unknown names fall back to a gift box.
 IconData afriGiftIcon(String name) {
   final n = name.toLowerCase();
-  if (n.contains('rose') || n.contains('flower')) return Icons.local_florist;
-  if (n.contains('fire') || n.contains('flame')) return Icons.local_fire_department;
+  if (n.contains('rose') || n.contains('flower')) {
+    return Icons.local_florist;
+  }
+  if (n.contains('fire') || n.contains('flame')) {
+    return Icons.local_fire_department;
+  }
   if (n.contains('mic')) return Icons.mic;
   if (n.contains('drum') || n.contains('music')) return Icons.music_note;
-  if (n.contains('crown') || n.contains('king') || n.contains('royal')) return Icons.workspace_premium;
-  if (n.contains('spotlight') || n.contains('light')) return Icons.flashlight_on;
+  if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
+    return Icons.workspace_premium;
+  }
+  if (n.contains('spotlight') || n.contains('light')) {
+    return Icons.flashlight_on;
+  }
   if (n.contains('star')) return Icons.star;
   if (n.contains('stage') || n.contains('concert')) return Icons.stadium;
   if (n.contains('heart') || n.contains('love')) return Icons.favorite;
@@ -773,7 +793,9 @@ String giftEmoji(String name) {
   if (n.contains('fire') || n.contains('flame')) return '🔥';
   if (n.contains('mic')) return '🎤';
   if (n.contains('drum')) return '🥁';
-  if (n.contains('crown') || n.contains('king') || n.contains('royal')) return '👑';
+  if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
+    return '👑';
+  }
   if (n.contains('spotlight') || n.contains('light')) return '💡';
   if (n.contains('star')) return '⭐';
   if (n.contains('stage') || n.contains('concert')) return '🎭';
@@ -785,12 +807,20 @@ String giftEmoji(String name) {
 
 // Distinct gift tints so the gift panel reads colorful (matches the room mockup).
 const List<Color> kGiftTints = [
-  Color(0xFFEC4899), Color(0xFFEF4444), Color(0xFFFFC857),
-  Color(0xFFF59E0B), Color(0xFF22D3EE), Color(0xFF7C3AED),
+  Color(0xFFEC4899),
+  Color(0xFFEF4444),
+  Color(0xFFFFC857),
+  Color(0xFFF59E0B),
+  Color(0xFF22D3EE),
+  Color(0xFF7C3AED),
 ];
 
 class AfriGiftTile extends StatelessWidget {
-  const AfriGiftTile({super.key, required this.gift, required this.onTap, this.accent = AfriColors.gold});
+  const AfriGiftTile(
+      {super.key,
+      required this.gift,
+      required this.onTap,
+      this.accent = AfriColors.gold});
 
   final Gift gift;
   final VoidCallback onTap;
@@ -810,13 +840,19 @@ class AfriGiftTile extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AfriColors.text)),
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AfriColors.text)),
           const SizedBox(height: 3),
           Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.monetization_on, size: 11, color: AfriColors.gold),
             const SizedBox(width: 2),
             Text('${gift.coinPrice}',
-                style: const TextStyle(fontSize: 11, color: AfriColors.gold, fontWeight: FontWeight.w800)),
+                style: const TextStyle(
+                    fontSize: 11,
+                    color: AfriColors.gold,
+                    fontWeight: FontWeight.w800)),
           ]),
         ],
       ),
@@ -913,7 +949,8 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                           child: AfriGiftTile(
                             gift: entry.value,
                             accent: kGiftTints[entry.key % kGiftTints.length],
-                            onTap: () => setState(() => _selected = entry.value),
+                            onTap: () =>
+                                setState(() => _selected = entry.value),
                           ),
                         ),
                         if (selected?.id == entry.value.id)
@@ -969,6 +1006,19 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
   }
 }
 
+// Stable per-name colour for chat usernames (matches the mockup's colorful names).
+const List<Color> _chatNameColors = [
+  Color(0xFF60A5FA), Color(0xFFF472B6), Color(0xFF34D399),
+  Color(0xFFFBBF24), Color(0xFFA78BFA), Color(0xFF22D3EE),
+];
+Color _chatNameColor(String name) {
+  var h = 0;
+  for (final c in name.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return _chatNameColors[h % _chatNameColors.length];
+}
+
 class AfriChatBubble extends StatelessWidget {
   const AfriChatBubble({super.key, required this.message});
 
@@ -977,30 +1027,50 @@ class AfriChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final system = message.sender == '•';
+    // System lines: subtle gold pill.
+    if (system) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AfriColors.gold.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(message.text, style: const TextStyle(color: AfriColors.gold, fontSize: 12.5)),
+      );
+    }
+    // Gift announcements ("X sent Rose") get a purple highlight pill.
+    final lower = message.text.toLowerCase();
+    final isGift = lower.contains('sent ') || message.text.contains('🎁') || lower.contains('gift');
+    final nameColor = _chatNameColor(message.sender);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: system
-            ? AfriColors.gold.withValues(alpha: 0.14)
-            : AfriColors.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: system
-                ? AfriColors.gold.withValues(alpha: 0.25)
-                : AfriColors.border),
-      ),
-      child: RichText(
-        text: TextSpan(
-          style: DefaultTextStyle.of(context).style,
-          children: [
-            TextSpan(
-                text: system ? '' : '${message.sender}: ',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            TextSpan(text: message.text),
-          ],
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: isGift
+          ? BoxDecoration(color: AfriColors.purple.withValues(alpha: 0.32), borderRadius: BorderRadius.circular(12))
+          : null,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        CircleAvatar(
+          radius: 12,
+          backgroundColor: nameColor.withValues(alpha: 0.6),
+          child: Text(
+            message.sender.characters.firstOrNull?.toUpperCase() ?? '?',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+          ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 13, color: Colors.white, height: 1.25),
+              children: [
+                TextSpan(text: '${message.sender}  ', style: TextStyle(fontWeight: FontWeight.w800, color: nameColor)),
+                TextSpan(text: message.text),
+              ],
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -1238,8 +1308,7 @@ class AfriProfileHeader extends StatelessWidget {
       colors: const [Color(0xFF211135), Color(0xFF17171F)],
       child: Row(
         children: [
-          _Avatar(
-              url: avatarUrl, onEdit: onEditAvatar, uploading: uploading),
+          _Avatar(url: avatarUrl, onEdit: onEditAvatar, uploading: uploading),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -1279,23 +1348,34 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = 58.0;
+    const size = 64.0;
+    const innerSize = 58.0;
     Widget face;
     if (uploading) {
       face = const Center(
           child: SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AfriColors.gold)));
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AfriColors.gold)));
     } else if (url != null && url!.isNotEmpty) {
-      face = ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Image.network(url!, width: size, height: size, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
-                const AfriIconBadge(icon: Icons.person, accent: AfriColors.purple, size: size)),
+      face = ClipOval(
+        child: Image.network(url!,
+            width: innerSize,
+            height: innerSize,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const CircleAvatar(
+                  radius: innerSize / 2,
+                  backgroundColor: AfriColors.elevated,
+                  child: Icon(Icons.person, color: AfriColors.purple),
+                )),
       );
     } else {
-      face = const AfriIconBadge(icon: Icons.person, accent: AfriColors.purple, size: size);
+      face = const CircleAvatar(
+        radius: innerSize / 2,
+        backgroundColor: AfriColors.elevated,
+        child: Icon(Icons.person, color: AfriColors.purple),
+      );
     }
 
     return GestureDetector(
@@ -1306,15 +1386,30 @@ class _Avatar extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            SizedBox(width: size, height: size, child: face),
+            Container(
+              width: size,
+              height: size,
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [
+                  AfriColors.purple,
+                  AfriColors.orange,
+                  AfriColors.gold
+                ]),
+              ),
+              child: face,
+            ),
             if (onEdit != null && !uploading)
               Positioned(
                 right: -4,
                 bottom: -4,
                 child: Container(
                   padding: const EdgeInsets.all(5),
-                  decoration: const BoxDecoration(color: AfriColors.gold, shape: BoxShape.circle),
-                  child: const Icon(Icons.edit, size: 13, color: Color(0xFF170B02)),
+                  decoration: const BoxDecoration(
+                      color: AfriColors.gold, shape: BoxShape.circle),
+                  child: const Icon(Icons.edit,
+                      size: 13, color: Color(0xFF170B02)),
                 ),
               ),
           ],
@@ -1392,7 +1487,11 @@ class AfriLiveRoomShell extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0x00000000), Color(0xB3000000), Color(0xF2000000)],
+                  colors: [
+                    Color(0x00000000),
+                    Color(0xB3000000),
+                    Color(0xF2000000)
+                  ],
                 ),
               ),
               child: SafeArea(
@@ -1471,8 +1570,12 @@ class AfriVideoStage extends StatelessWidget {
                   : Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (coverCategory != null || (coverImageUrl?.isNotEmpty ?? false))
-                          AfriCover(imageUrl: coverImageUrl, category: coverCategory ?? '', initial: coverInitial),
+                        if (coverCategory != null ||
+                            (coverImageUrl?.isNotEmpty ?? false))
+                          AfriCover(
+                              imageUrl: coverImageUrl,
+                              category: coverCategory ?? '',
+                              initial: coverInitial),
                         _VideoWaitingState(
                           ready: ready,
                           isHost: isHost,
@@ -1538,7 +1641,10 @@ class _VideoWaitingState extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!ready) {
       return const Center(
-        child: SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.4)),
+        child: SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(strokeWidth: 2.4)),
       );
     }
     // Viewer: keep the creator cover clean (like the mockup) with only a subtle
@@ -1554,7 +1660,8 @@ class _VideoWaitingState extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white24),
             ),
-            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+            child: const Icon(Icons.play_arrow_rounded,
+                color: Colors.white, size: 36),
           ),
         ),
       );
@@ -1566,12 +1673,16 @@ class _VideoWaitingState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AfriIconBadge(icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
+            const AfriIconBadge(
+                icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
             const SizedBox(height: 14),
-            Text('Ready to publish', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
+            Text('Ready to publish',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center),
             const SizedBox(height: 6),
             Text('Your stage stays private until you go live.',
-                style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onStartVideo,
@@ -1621,9 +1732,16 @@ class AfriLiveTopBar extends StatelessWidget {
         // Frosted creator chip + Follow pill + actions.
         Container(
           padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
-          decoration: BoxDecoration(color: const Color(0x55000000), borderRadius: BorderRadius.circular(999)),
+          decoration: BoxDecoration(
+              color: const Color(0x55000000),
+              borderRadius: BorderRadius.circular(999)),
           child: Row(
             children: [
+              IconButton(
+                  tooltip: 'Close room',
+                  onPressed: onClose,
+                  icon: const Icon(Icons.keyboard_arrow_down,
+                      color: Colors.white, size: 24)),
               CircleAvatar(
                 radius: 18,
                 backgroundColor: AfriColors.purple,
@@ -1637,13 +1755,12 @@ class AfriLiveTopBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(creatorName,
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.people, size: 12, color: Colors.white70),
-                      const SizedBox(width: 3),
-                      Text(formatCount(viewerCount), style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                    ]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
                   ],
                 ),
               ),
@@ -1651,19 +1768,45 @@ class AfriLiveTopBar extends StatelessWidget {
               GestureDetector(
                 onTap: onFollow,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
                     color: following ? Colors.transparent : AfriColors.purple,
                     borderRadius: BorderRadius.circular(999),
-                    border: following ? Border.all(color: Colors.white38) : null,
+                    border:
+                        following ? Border.all(color: Colors.white38) : null,
                   ),
                   child: Text(following ? 'Following' : 'Follow',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
                 ),
               ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0x55000000),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.people, size: 13, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(formatCount(viewerCount),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                ]),
+              ),
               if (onReport != null)
-                IconButton(tooltip: 'Report room', onPressed: onReport, icon: const Icon(Icons.flag_outlined, color: Colors.white, size: 20)),
-              IconButton(tooltip: 'Close room', onPressed: onClose, icon: const Icon(Icons.close, color: Colors.white, size: 20)),
+                IconButton(
+                    tooltip: 'Room options',
+                    onPressed: onReport,
+                    icon: const Icon(Icons.more_horiz,
+                        color: Colors.white, size: 20)),
             ],
           ),
         ),
@@ -1671,8 +1814,14 @@ class AfriLiveTopBar extends StatelessWidget {
         // LIVE · category · language tags.
         Row(mainAxisSize: MainAxisSize.min, children: [
           const AfriLivePill(),
-          if (category != null) ...[const SizedBox(width: 6), _TopTag(category!)],
-          if (language != null) ...[const SizedBox(width: 6), _TopTag(language!.toUpperCase())],
+          if (category != null) ...[
+            const SizedBox(width: 6),
+            _TopTag(category!)
+          ],
+          if (language != null) ...[
+            const SizedBox(width: 6),
+            _TopTag(language!.toUpperCase())
+          ],
         ]),
       ],
     );
@@ -1686,8 +1835,12 @@ class _TopTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: const Color(0x55000000), borderRadius: BorderRadius.circular(6)),
-      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+      decoration: BoxDecoration(
+          color: const Color(0x55000000),
+          borderRadius: BorderRadius.circular(6)),
+      child: Text(label,
+          style: const TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
     );
   }
 }
@@ -1989,7 +2142,8 @@ class AfriGiftAnimationLayer extends StatelessWidget {
   const AfriGiftAnimationLayer({super.key, this.giftLabel, this.imageUrl});
 
   final String? giftLabel;
-  final String? imageUrl; // admin-uploaded gift animation/image, when configured
+  final String?
+      imageUrl; // admin-uploaded gift animation/image, when configured
 
   @override
   Widget build(BuildContext context) {
@@ -2001,7 +2155,8 @@ class AfriGiftAnimationLayer extends StatelessWidget {
         color: AfriColors.gold,
         borderRadius: BorderRadius.circular(999),
         boxShadow: [
-          BoxShadow(color: AfriColors.gold.withValues(alpha: 0.28), blurRadius: 22)
+          BoxShadow(
+              color: AfriColors.gold.withValues(alpha: 0.28), blurRadius: 22)
         ],
       ),
       child: Text(
@@ -2251,7 +2406,8 @@ class AfriLegalLinks extends StatelessWidget {
       children: [
         Text('By continuing you agree to',
             style: Theme.of(context).textTheme.bodySmall),
-        TextButton(onPressed: () => _open(termsUrl), child: const Text('Terms')),
+        TextButton(
+            onPressed: () => _open(termsUrl), child: const Text('Terms')),
         Text('and', style: Theme.of(context).textTheme.bodySmall),
         TextButton(
             onPressed: () => _open(privacyUrl), child: const Text('Privacy')),
@@ -2346,9 +2502,11 @@ class AfriCreatorAvatar extends StatelessWidget {
               padding: const EdgeInsets.all(2.5),
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [AfriColors.gold, AfriColors.purple]),
+                gradient: LinearGradient(
+                    colors: [AfriColors.gold, AfriColors.purple]),
               ),
-              child: _AfriAvatar(label: name, avatarUrl: avatarUrl, size: 62, circle: true),
+              child: _AfriAvatar(
+                  label: name, avatarUrl: avatarUrl, size: 62, circle: true),
             ),
             const SizedBox(height: 6),
             Text(name,
@@ -2390,7 +2548,8 @@ class AfriLiveTile extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: hasCover
-                    ? Image.network(avatar, fit: BoxFit.cover,
+                    ? Image.network(avatar,
+                        fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const _TileGradient())
                     : const _TileGradient(),
               ),
@@ -2414,14 +2573,16 @@ class AfriLiveTile extends StatelessWidget {
                     const AfriLiveBadge(),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.45),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.visibility, color: Colors.white, size: 13),
+                          const Icon(Icons.visibility,
+                              color: Colors.white, size: 13),
                           const SizedBox(width: 3),
                           Text(afriCompactCount(room.viewerCount),
                               style: const TextStyle(
@@ -2454,7 +2615,8 @@ class AfriLiveTile extends StatelessWidget {
                       '${room.country.isNotEmpty ? '  ·  ${room.country}' : ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Color(0xFFD4D4D8), fontSize: 12),
+                      style: const TextStyle(
+                          color: Color(0xFFD4D4D8), fontSize: 12),
                     ),
                   ],
                 ),
@@ -2480,7 +2642,7 @@ class _TileGradient extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(Icons.graphic_eq,
+        child: Icon(Icons.auto_awesome,
             size: 96, color: AfriColors.gold.withValues(alpha: 0.18)),
       ),
     );
