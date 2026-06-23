@@ -23,11 +23,68 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
   bool _chatRules = true;
   bool _busy = false;
   String? _titleError;
+  DateTime? _scheduledAt; // null = go live now
 
   @override
   void dispose() {
     _title.dispose();
     super.dispose();
+  }
+
+  // Native date + time pickers (no dependency). Must be in the future.
+  Future<void> _pickSchedule() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _scheduledAt ?? now.add(const Duration(hours: 1)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+          _scheduledAt ?? now.add(const Duration(hours: 1))),
+    );
+    if (time == null || !mounted) return;
+    final chosen =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (chosen.isBefore(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pick a time in the future.')));
+      return;
+    }
+    setState(() => _scheduledAt = chosen);
+  }
+
+  // Compact local time, e.g. "23/06 19:30" — avoids pulling in intl for one label.
+  String _formatSchedule(DateTime d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
+  }
+
+  Future<void> _scheduleRoom() async {
+    setState(() => _busy = true);
+    final state = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await state.api.post('/live-rooms', {
+        'title': _title.text.trim(),
+        'category': _category,
+        'country': _country,
+        'language': _language,
+        'scheduledStartAt': _scheduledAt!.toUtc().toIso8601String(),
+      });
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Room scheduled. Followers can find it in Upcoming.')));
+      navigator.pop();
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _start() async {
@@ -36,6 +93,11 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
       return;
     }
     setState(() => _titleError = null);
+    // Scheduling for later creates the room without starting the LiveKit session.
+    if (_scheduledAt != null) {
+      await _scheduleRoom();
+      return;
+    }
     setState(() => _busy = true);
     final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
@@ -180,6 +242,22 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           title: const Text('Show chat rules'),
           subtitle: const Text('Remind viewers to keep the room respectful.'),
         ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.event_outlined),
+          title: Text(_scheduledAt == null
+              ? 'Schedule for later'
+              : 'Scheduled: ${_formatSchedule(_scheduledAt!)}'),
+          subtitle: const Text('Announce a start time in the Upcoming feed.'),
+          trailing: _scheduledAt == null
+              ? TextButton(onPressed: _pickSchedule, child: const Text('Set time'))
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Clear schedule',
+                  onPressed: () => setState(() => _scheduledAt = null),
+                ),
+          onTap: _pickSchedule,
+        ),
         const SizedBox(height: 12),
         const AfriSectionHeader(
           title: 'Feed preview',
@@ -205,8 +283,12 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _busy ? null : _start,
-          icon: const Icon(Icons.live_tv),
-          label: Text(_busy ? 'Starting…' : 'Start Live Room'),
+          icon: Icon(_scheduledAt == null ? Icons.live_tv : Icons.event_available),
+          label: Text(_busy
+              ? 'Working…'
+              : _scheduledAt == null
+                  ? 'Start Live Room'
+                  : 'Schedule Room'),
         ),
       ],
     );

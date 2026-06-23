@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_ui.dart';
@@ -20,6 +21,7 @@ class _FeedScreenState extends State<FeedScreen> {
   late Future<List<LiveRoom>> _rooms;
   String _category = 'For You';
   int _unread = 0;
+  List<Map<String, dynamic>> _upcoming = const [];
 
   static const _categories = [
     'For You',
@@ -36,6 +38,25 @@ class _FeedScreenState extends State<FeedScreen> {
     super.initState();
     _rooms = _load();
     _loadUnread();
+    _loadUpcoming();
+  }
+
+  // Upcoming scheduled rooms. Best-effort: a failure just hides the section.
+  Future<void> _loadUpcoming() async {
+    try {
+      final data = await context.read<AppState>().api.getList('/live-rooms/upcoming');
+      if (mounted) setState(() => _upcoming = data.cast<Map<String, dynamic>>());
+    } catch (_) {
+      // non-critical: the live feed still renders
+    }
+  }
+
+  // Compact local time for a scheduled start, e.g. "23/06 19:30".
+  String _formatStart(String? iso) {
+    final d = DateTime.tryParse(iso ?? '')?.toLocal();
+    if (d == null) return 'Soon';
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
   }
 
   // Bell badge. Best-effort: a failed count must never blank the feed, so swallow.
@@ -61,6 +82,7 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _refresh() async {
     final rooms = _load();
     setState(() => _rooms = rooms);
+    _loadUpcoming();
     await rooms;
   }
 
@@ -180,6 +202,47 @@ class _FeedScreenState extends State<FeedScreen> {
                           AfriLiveTile(room: live[i], onTap: () => _openRoom(live[i])),
                     ),
                   ),
+                if (_upcoming.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  const AfriSectionHeader(
+                    title: 'Upcoming',
+                    subtitle: 'Scheduled stages — set a reminder',
+                  ),
+                  const SizedBox(height: 12),
+                  ..._upcoming.map((u) {
+                    final host = u['host'] as Map<String, dynamic>?;
+                    final hostName = (host?['creatorProfile']
+                            as Map<String, dynamic>?)?['stageName'] as String? ??
+                        (host?['profile'] as Map<String, dynamic>?)?['displayName']
+                            as String? ??
+                        'Creator';
+                    return AfriCard(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_outlined, color: AfriColors.gold),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${u['title'] ?? 'Untitled room'}',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium),
+                                const SizedBox(height: 2),
+                                Text(hostName,
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium),
+                              ],
+                            ),
+                          ),
+                          AfriChip(
+                              label: _formatStart(
+                                  u['scheduledStartAt'] as String?)),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
                 const SizedBox(height: 22),
                 Text('Browse by category',
                     style: Theme.of(context).textTheme.titleMedium),
