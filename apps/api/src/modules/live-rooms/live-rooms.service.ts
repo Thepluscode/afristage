@@ -43,6 +43,26 @@ export class LiveRoomsService {
     return this.prisma.liveRoom.create({ data: { hostUserId, ...dto, status: RoomStatus.SCHEDULED } });
   }
 
+  // Set a "remind me" for a scheduled room. Idempotent (unique on roomId+userId);
+  // only valid while the room hasn't started yet — a reminder fires on start.
+  async setReminder(userId: string, roomId: string) {
+    const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
+    if (!room) throw new NotFoundException('Room not found');
+    if (room.status !== RoomStatus.SCHEDULED) throw new BadRequestException('Reminders are only for scheduled rooms');
+    await this.prisma.roomReminder.upsert({
+      where: { roomId_userId: { roomId, userId } },
+      create: { roomId, userId },
+      update: {}
+    });
+    return { roomId, reminded: true };
+  }
+
+  // Idempotent: deleteMany so cancelling when not set is a no-op, not an error.
+  async cancelReminder(userId: string, roomId: string) {
+    await this.prisma.roomReminder.deleteMany({ where: { roomId, userId } });
+    return { roomId, reminded: false };
+  }
+
   // Upcoming feed: scheduled rooms with a future announced start, soonest first.
   async upcoming(limit = 50) {
     const take = Math.min(Math.max(Math.trunc(limit) || 50, 1), 100); // bounded: 1..100
@@ -69,11 +89,19 @@ export class LiveRoomsService {
       where: { id: room.id },
       data: { status: RoomStatus.LIVE, livekitRoomName, startedAt: new Date() }
     });
-    const followers = await this.prisma.follow.findMany({ where: { followingId: hostUserId } });
-    if (followers.length) {
+    // Notify followers AND anyone who set a reminder for this specific room,
+    // deduped into one notification each (a user who is both gets one, not two),
+    // never the host. Reminders are one-shot: clear them once fired.
+    const [followers, reminders] = await Promise.all([
+      this.prisma.follow.findMany({ where: { followingId: hostUserId } }),
+      this.prisma.roomReminder.findMany({ where: { roomId: updated.id } })
+    ]);
+    const recipientIds = new Set<string>([...followers.map((f) => f.followerId), ...reminders.map((r) => r.userId)]);
+    recipientIds.delete(hostUserId);
+    if (recipientIds.size) {
       await this.prisma.notification.createMany({
-        data: followers.map((follow) => ({
-          userId: follow.followerId,
+        data: [...recipientIds].map((userId) => ({
+          userId,
           type: 'CREATOR_LIVE',
           title: 'Creator is live',
           body: updated.title,
@@ -81,6 +109,7 @@ export class LiveRoomsService {
         }))
       });
     }
+    if (reminders.length) await this.prisma.roomReminder.deleteMany({ where: { roomId: updated.id } });
     return {
       ...updated,
       hostToken: await this.livekit.createToken({ roomName: livekitRoomName, identity: hostUserId, canPublish: true }),
