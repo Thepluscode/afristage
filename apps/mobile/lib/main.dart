@@ -53,6 +53,25 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+// Prominent gold "Go Live" center action in the bottom nav (per the mockup).
+class _GoLiveButton extends StatelessWidget {
+  const _GoLiveButton({required this.icon});
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: AfriColors.orange.withValues(alpha: 0.4), blurRadius: 14)],
+      ),
+      child: Icon(icon, color: const Color(0xFF170B02), size: 24),
+    );
+  }
+}
+
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
@@ -71,28 +90,10 @@ class _HomeShellState extends State<HomeShell> {
           icon: Icon(Icons.home_outlined),
           selectedIcon: Icon(Icons.home),
           label: 'Home'),
-      NavigationDestination(
-        icon: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.orange, AfriColors.gold]),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.add, color: Color(0xFF170B02)),
-        ),
-        selectedIcon: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.orange, AfriColors.gold]),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.mic, color: Color(0xFF170B02)),
-        ),
-        label: 'Create',
+      const NavigationDestination(
+        icon: _GoLiveButton(icon: Icons.add),
+        selectedIcon: _GoLiveButton(icon: Icons.mic),
+        label: 'Go Live',
       ),
       const NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),

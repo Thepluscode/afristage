@@ -1578,6 +1578,8 @@ class AfriLiveTopBar extends StatelessWidget {
     required this.onClose,
     this.onReport,
     this.avatarUrl,
+    this.category,
+    this.language,
   });
 
   final String creatorName;
@@ -1587,47 +1589,88 @@ class AfriLiveTopBar extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback? onReport;
   final String? avatarUrl;
+  final String? category;
+  final String? language;
 
   @override
   Widget build(BuildContext context) {
     final initial =
         creatorName.trim().isEmpty ? 'A' : creatorName.trim()[0].toUpperCase();
     final hasPhoto = avatarUrl != null && avatarUrl!.isNotEmpty;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        CircleAvatar(
-          backgroundColor: AfriColors.purple,
-          backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
-          child: hasPhoto ? null : Text(initial),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+        // Frosted creator chip + Follow pill + actions.
+        Container(
+          padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+          decoration: BoxDecoration(color: const Color(0x55000000), borderRadius: BorderRadius.circular(999)),
+          child: Row(
             children: [
-              Text(creatorName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium),
-              Text('$viewerCount watching',
-                  style: Theme.of(context).textTheme.labelMedium),
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AfriColors.purple,
+                backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
+                child: hasPhoto ? null : Text(initial),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(creatorName,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.people, size: 12, color: Colors.white70),
+                      const SizedBox(width: 3),
+                      Text(formatCount(viewerCount), style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                    ]),
+                  ],
+                ),
+              ),
+              // Purple Follow pill (per mockup).
+              GestureDetector(
+                onTap: onFollow,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: following ? Colors.transparent : AfriColors.purple,
+                    borderRadius: BorderRadius.circular(999),
+                    border: following ? Border.all(color: Colors.white38) : null,
+                  ),
+                  child: Text(following ? 'Following' : 'Follow',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                ),
+              ),
+              if (onReport != null)
+                IconButton(tooltip: 'Report room', onPressed: onReport, icon: const Icon(Icons.flag_outlined, color: Colors.white, size: 20)),
+              IconButton(tooltip: 'Close room', onPressed: onClose, icon: const Icon(Icons.close, color: Colors.white, size: 20)),
             ],
           ),
         ),
-        TextButton(
-            onPressed: onFollow,
-            child: Text(following ? 'Following' : 'Follow')),
-        if (onReport != null)
-          IconButton.filledTonal(
-              tooltip: 'Report room',
-              onPressed: onReport,
-              icon: const Icon(Icons.flag_outlined)),
-        IconButton.filledTonal(
-            tooltip: 'Close room',
-            onPressed: onClose,
-            icon: const Icon(Icons.close)),
+        const SizedBox(height: 8),
+        // LIVE · category · language tags.
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          const AfriLivePill(),
+          if (category != null) ...[const SizedBox(width: 6), _TopTag(category!)],
+          if (language != null) ...[const SizedBox(width: 6), _TopTag(language!.toUpperCase())],
+        ]),
       ],
+    );
+  }
+}
+
+class _TopTag extends StatelessWidget {
+  const _TopTag(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: const Color(0x55000000), borderRadius: BorderRadius.circular(6)),
+      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
     );
   }
 }

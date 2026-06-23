@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AfriColors {
   static const stage = Color(0xFF07070A);
@@ -30,18 +31,22 @@ class AfriTheme {
       surface: AfriColors.surface,
     );
 
+    // Plus Jakarta Sans — the rounded geometric sans from the design mockups.
+    final fontFamily = GoogleFonts.plusJakartaSans().fontFamily;
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
+      fontFamily: fontFamily,
       scaffoldBackgroundColor: AfriColors.stage,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         elevation: 0,
         centerTitle: false,
         backgroundColor: AfriColors.stage,
         foregroundColor: AfriColors.text,
         titleTextStyle: TextStyle(
-            fontSize: 20, fontWeight: FontWeight.w800, color: AfriColors.text),
+            fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: AfriColors.text),
       ),
       cardTheme: CardThemeData(
         color: AfriColors.elevated,

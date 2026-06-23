@@ -535,6 +535,8 @@ class _RoomScreenState extends State<RoomScreen> {
         overlay: AfriLiveTopBar(
           creatorName: widget.room.hostName ?? 'Creator',
           avatarUrl: widget.room.hostAvatarUrl,
+          category: widget.room.category,
+          language: widget.room.language,
           following: _following,
           viewerCount: _viewerCount,
           onClose: () => Navigator.pop(context),
