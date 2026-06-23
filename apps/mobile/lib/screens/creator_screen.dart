@@ -61,8 +61,8 @@ class _CreatorScreenState extends State<CreatorScreen> {
     if (methods.isEmpty) {
       messenger.showSnackBar(const SnackBar(
           content: Text('Add a payout method first so earnings can settle.')));
-      await navigator.push(MaterialPageRoute(
-          builder: (_) => const PayoutMethodsScreen()));
+      await navigator
+          .push(MaterialPageRoute(builder: (_) => const PayoutMethodsScreen()));
       return;
     }
     final defaultMethod = methods.cast<Map<String, dynamic>>().firstWhere(
@@ -108,7 +108,23 @@ class _CreatorScreenState extends State<CreatorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create')),
+      appBar: AppBar(
+        title: const Text('Create'),
+        actions: [
+          IconButton(
+            tooltip: 'Creator settings',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const CreatorRoomsScreen())),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          IconButton(
+            tooltip: 'Creator alerts',
+            onPressed: _reload,
+            icon: const Icon(Icons.notifications_none),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _dashboard,
         builder: (context, snapshot) {
@@ -139,13 +155,16 @@ class _CreatorScreenState extends State<CreatorScreen> {
               (creator == null ? 'PENDING' : 'APPROVED');
           final stageName = creator?['stageName'] as String? ?? 'Creator';
           final earnings = usd((data?['earnings'] as num?) ?? 0);
-          final supporters = (data?['topSupporters'] as List?)
-                  ?.cast<Map<String, dynamic>>() ??
-              const <Map<String, dynamic>>[];
+          final supporters =
+              (data?['topSupporters'] as List?)?.cast<Map<String, dynamic>>() ??
+                  const <Map<String, dynamic>>[];
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _CreatorHeader(stageName: stageName, approved: status == 'APPROVED', avatarUrl: data?['avatarUrl'] as String?),
+              _CreatorHeader(
+                  stageName: stageName,
+                  approved: status == 'APPROVED',
+                  avatarUrl: data?['avatarUrl'] as String?),
               const SizedBox(height: 14),
               AfriCreatorStatusBanner(
                 status: status,
@@ -185,6 +204,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                         Expanded(
                           child: FilledButton.icon(
                             onPressed: _goLive,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AfriColors.purple,
+                              foregroundColor: Colors.white,
+                            ),
                             icon: const Icon(Icons.live_tv),
                             label: const Text('Go Live'),
                           ),
@@ -285,10 +308,13 @@ class _CreatorScreenState extends State<CreatorScreen> {
               AfriActionRow(
                 icon: Icons.account_balance,
                 title: 'Payout methods',
-                body: 'Add a bank or mobile-money destination for your earnings.',
+                body:
+                    'Add a bank or mobile-money destination for your earnings.',
                 accent: AfriColors.teal,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutMethodsScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
@@ -296,8 +322,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 title: 'Payout history',
                 body: 'Track every payout request from review to paid.',
                 accent: AfriColors.gold,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const PayoutHistoryScreen())),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutHistoryScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
@@ -305,8 +333,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 title: 'Show performance',
                 body: 'Peak viewers, watch time, and gifts for each room.',
                 accent: AfriColors.purple,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const CreatorRoomsScreen())),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CreatorRoomsScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
@@ -325,7 +355,8 @@ class _CreatorScreenState extends State<CreatorScreen> {
 }
 
 class _CreatorHeader extends StatelessWidget {
-  const _CreatorHeader({required this.stageName, required this.approved, this.avatarUrl});
+  const _CreatorHeader(
+      {required this.stageName, required this.approved, this.avatarUrl});
 
   final String stageName;
   final bool approved;
@@ -344,7 +375,8 @@ class _CreatorHeader extends StatelessWidget {
           padding: const EdgeInsets.all(2.5),
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(colors: [AfriColors.purple, AfriColors.orange]),
+            gradient:
+                LinearGradient(colors: [AfriColors.purple, AfriColors.orange]),
           ),
           child: CircleAvatar(
             backgroundColor: AfriColors.elevated,
@@ -352,7 +384,10 @@ class _CreatorHeader extends StatelessWidget {
             child: hasPhoto
                 ? null
                 : Text(initial,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22)),
           ),
         ),
         const SizedBox(width: 12),
@@ -423,11 +458,11 @@ class _SupporterRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium),
           ),
-          Text('$coins coins',
+          Text(usd(coins),
               style: Theme.of(context)
                   .textTheme
-                  .labelMedium
-                  ?.copyWith(color: AfriColors.gold)),
+                  .titleMedium
+                  ?.copyWith(color: AfriColors.success, fontWeight: FontWeight.w800)),
         ],
       ),
     );
