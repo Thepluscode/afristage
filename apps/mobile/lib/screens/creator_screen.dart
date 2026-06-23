@@ -138,7 +138,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
           final status = creator?['status'] as String? ??
               (creator == null ? 'PENDING' : 'APPROVED');
           final stageName = creator?['stageName'] as String? ?? 'Creator';
-          final earnings = '${data?['earnings'] ?? 0}';
+          final earnings = usd((data?['earnings'] as num?) ?? 0);
           final supporters = (data?['topSupporters'] as List?)
                   ?.cast<Map<String, dynamic>>() ??
               const <Map<String, dynamic>>[];
@@ -175,7 +175,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                                     color: AfriColors.success,
                                     fontWeight: FontWeight.w900)),
                         const SizedBox(width: 6),
-                        Text('coins',
+                        Text('available',
                             style: Theme.of(context).textTheme.bodyMedium),
                       ],
                     ),
@@ -212,7 +212,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 children: [
                   Expanded(
                     child: AfriStatTile(
-                        label: 'Earnings (coins)',
+                        label: 'Earnings',
                         value: earnings,
                         icon: Icons.payments_outlined,
                         accent: AfriColors.success),

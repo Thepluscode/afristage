@@ -343,44 +343,72 @@ class AfriCoinPill extends StatelessWidget {
   }
 }
 
-/// Gold-gradient wallet balance card (mockup #4).
+/// Dark-gold gradient balance card (mockup #4): label, big value, two actions.
 class AfriBalanceCard extends StatelessWidget {
-  const AfriBalanceCard({super.key, required this.coins, this.onBuy, this.onHistory});
-  final int coins;
-  final VoidCallback? onBuy;
-  final VoidCallback? onHistory;
+  const AfriBalanceCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.primaryLabel,
+    required this.secondaryLabel,
+    this.primaryIcon = Icons.north_east,
+    this.onPrimary,
+    this.onSecondary,
+    this.currencyLabel,
+  });
+  final String label;
+  final String value;
+  final String primaryLabel;
+  final String secondaryLabel;
+  final IconData primaryIcon;
+  final VoidCallback? onPrimary;
+  final VoidCallback? onSecondary;
+  final String? currencyLabel; // e.g. "USD" shown as a chip top-right
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFFFC857), Color(0xFFF59E0B)]),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF3A2A0A), Color(0xFF17120A)]),
+        border: Border.all(color: const Color(0x33FFC857)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Coin balance', style: TextStyle(color: Color(0xCC1A1205), fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-          Text(formatCount(coins), style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: Color(0xFF170B02))),
-          const SizedBox(width: 6),
-          const Text('coins', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xAA170B02))),
+        Row(children: [
+          Text(label, style: const TextStyle(color: AfriColors.mutedText, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          if (currencyLabel != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: const Color(0x22FFC857), borderRadius: BorderRadius.circular(20)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(currencyLabel!, style: const TextStyle(color: AfriColors.gold, fontWeight: FontWeight.w700, fontSize: 12)),
+                const Icon(Icons.keyboard_arrow_down, size: 16, color: AfriColors.gold),
+              ]),
+            ),
         ]),
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
+        Text(value, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: AfriColors.gold)),
+        const SizedBox(height: 18),
         Row(children: [
           Expanded(child: FilledButton.icon(
-            onPressed: onBuy,
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF170B02), foregroundColor: AfriColors.gold, minimumSize: const Size.fromHeight(46)),
-            icon: const Icon(Icons.add, size: 18), label: const Text('Buy coins'))),
+            onPressed: onPrimary,
+            style: FilledButton.styleFrom(backgroundColor: AfriColors.gold, foregroundColor: const Color(0xFF170B02), minimumSize: const Size.fromHeight(46)),
+            icon: Icon(primaryIcon, size: 18), label: Text(primaryLabel))),
           const SizedBox(width: 10),
-          Expanded(child: OutlinedButton.icon(
-            onPressed: onHistory,
-            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF170B02), side: const BorderSide(color: Color(0x55170B02)), minimumSize: const Size.fromHeight(46)),
-            icon: const Icon(Icons.receipt_long, size: 18), label: const Text('Transactions'))),
+          Expanded(child: OutlinedButton(
+            onPressed: onSecondary,
+            style: OutlinedButton.styleFrom(foregroundColor: AfriColors.gold, side: const BorderSide(color: Color(0x55FFC857)), minimumSize: const Size.fromHeight(46)),
+            child: Text(secondaryLabel))),
         ]),
       ]),
     );
   }
 }
+
+/// USD display from coins (1 coin ≈ \$1 at the platform payout rate).
+String usd(num coins) => '\$${coins.toStringAsFixed(2)}';
 
 /// Stat tile with a colored icon chip (dashboard / profile / wallet overview).
 class AfriStatTile extends StatelessWidget {
