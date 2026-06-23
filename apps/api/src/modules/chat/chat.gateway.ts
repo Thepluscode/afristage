@@ -17,6 +17,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // move to a Redis adapter / dedupe by userId when the API scales horizontally.
   private readonly viewers = new Map<string, Set<string>>();
 
+  // When each socket joined each room, keyed `${roomId}::${socketId}`. Used to
+  // accumulate real watch-time into LiveRoom.totalWatchSeconds on leave/disconnect.
+  private readonly joinedAt = new Map<string, number>();
+
+  // Seam for deterministic tests; production reads the wall clock.
+  protected now(): number {
+    return Date.now();
+  }
+
   constructor(
     private readonly chat: ChatService,
     private readonly jwt: JwtService,
@@ -52,6 +61,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server?.to(roomId).emit('room.viewer_count_updated', { roomId, count: this.countFor(roomId) });
   }
 
+  private watchKey(roomId: string, socketId: string): string {
+    return `${roomId}::${socketId}`;
+  }
+
+  // Roll this socket's elapsed time in the room into LiveRoom.totalWatchSeconds.
+  // Best-effort and conditional (updateMany, not update) so a since-deleted room
+  // or a DB hiccup never breaks leave/disconnect handling.
+  private finalizeWatch(roomId: string, socketId: string) {
+    const key = this.watchKey(roomId, socketId);
+    const start = this.joinedAt.get(key);
+    if (start === undefined) return;
+    this.joinedAt.delete(key);
+    const seconds = Math.floor((this.now() - start) / 1000);
+    if (seconds <= 0) return;
+    this.prisma.liveRoom
+      .updateMany({ where: { id: roomId }, data: { totalWatchSeconds: { increment: BigInt(seconds) } } })
+      .catch(() => {});
+  }
+
   // Lets HTTP services/controllers (gifts, room-end, mute/delete) push events
   // into a live room. Realtime is an optional layer: if the socket server isn't
   // up yet (e.g. unit tests, boot race) this must NOT break the core action.
@@ -73,6 +101,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // separate — sweep this socket out of every room it was counted in.
   handleDisconnect(client: Socket) {
     for (const roomId of [...this.viewers.keys()]) {
+      this.finalizeWatch(roomId, client.id);
       if (this.removeViewer(roomId, client.id)) this.broadcastCount(roomId);
     }
   }
@@ -81,6 +110,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async join(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId: string }) {
     await client.join(body.roomId);
     this.addViewer(body.roomId, client.id);
+    this.joinedAt.set(this.watchKey(body.roomId, client.id), this.now());
     this.broadcastCount(body.roomId);
     const count = this.countFor(body.roomId);
     // Record a new concurrent-viewer peak when it grows. Conditional updateMany
@@ -96,6 +126,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('room.leave')
   async leave(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId: string }) {
     await client.leave(body.roomId);
+    this.finalizeWatch(body.roomId, client.id);
     if (this.removeViewer(body.roomId, client.id)) this.broadcastCount(body.roomId);
     return { ok: true, count: this.countFor(body.roomId) };
   }
