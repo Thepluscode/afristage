@@ -239,7 +239,9 @@ export class PayoutsService {
     return updated;
   }
 
-  async markPaid(reviewedBy: string, id: string) {
+  // providerReference is the external transfer id (bank/Paystack) — the proof a real
+  // disbursement happened. Recorded so PAID is always reconcilable to a transfer.
+  async markPaid(reviewedBy: string, id: string, providerReference?: string) {
     const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
     if (!payout) throw new NotFoundException('Payout not found');
     this.assertTransition(payout, PayoutStatus.PAID); // blocks double-pay and REQUESTED/REJECTED -> PAID
@@ -249,14 +251,17 @@ export class PayoutsService {
     await this.ledger.postTransaction({
       type: LedgerTransactionType.PAYOUT,
       idempotencyKey: `payout_paid:${id}`,
-      metadata: { payoutId: id },
+      metadata: { payoutId: id, providerReference },
       entries: [
         { accountId: hold.id, direction: LedgerDirection.DEBIT, amountMinor: payout.coinAmount, currency: 'COIN' },
         { accountId: clearing.id, direction: LedgerDirection.CREDIT, amountMinor: payout.coinAmount, currency: 'COIN' }
       ]
     });
-    const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.PAID, reviewedBy, paidAt: new Date() } });
-    await this.audit(reviewedBy, 'payout.paid', id, { coinAmount: payout.coinAmount.toString() });
+    const updated = await this.prisma.payoutRequest.update({
+      where: { id },
+      data: { status: PayoutStatus.PAID, reviewedBy, paidAt: new Date(), providerReference: providerReference?.trim() || null }
+    });
+    await this.audit(reviewedBy, 'payout.paid', id, { coinAmount: payout.coinAmount.toString(), providerReference: providerReference ?? null });
     return updated;
   }
 }

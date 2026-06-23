@@ -101,6 +101,16 @@ describe('PayoutsService', () => {
     expect(ledger.postTransaction).toHaveBeenCalled();
   });
 
+  it('records the external transfer reference when marking PAID', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'APPROVED', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PAID' });
+    await service.markPaid('admin', 'p1', '  PSK_TRX_999  ');
+    expect(prisma.payoutRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ providerReference: 'PSK_TRX_999' }) })
+    );
+  });
+
   it('snapshots the destination onto the payout request', async () => {
     const { service, prisma } = build();
     prisma.payoutMethod = {
