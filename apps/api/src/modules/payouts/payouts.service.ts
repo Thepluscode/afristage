@@ -1,6 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { LedgerDirection, LedgerTransactionType, PayoutRequest, PayoutStatus, Prisma, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { CreatePayoutMethodDto } from './dto/create-payout-method.dto';
@@ -21,11 +22,28 @@ const ALLOWED_TRANSITIONS: Record<PayoutStatus, PayoutStatus[]> = {
 
 @Injectable()
 export class PayoutsService {
-  constructor(private readonly prisma: PrismaService, private readonly wallet: WalletService, private readonly ledger: LedgerService) {}
+  private readonly logger = new Logger(PayoutsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wallet: WalletService,
+    private readonly ledger: LedgerService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   private assertTransition(payout: PayoutRequest, to: PayoutStatus) {
     if (!ALLOWED_TRANSITIONS[payout.status].includes(to)) {
       throw new ConflictException(`Illegal payout transition ${payout.status} -> ${to}`);
+    }
+  }
+
+  // Best-effort: a notification failure must never block or roll back a money
+  // state change (optional dependency — Rule 9). Fire after the state is committed.
+  private async notify(userId: string, title: string, body: string) {
+    try {
+      await this.notifications.notifyUser(userId, 'PAYOUT_UPDATE', title, body);
+    } catch (e) {
+      this.logger.warn(`payout notification failed for ${userId}: ${(e as Error).message}`);
     }
   }
 
@@ -196,6 +214,7 @@ export class PayoutsService {
     this.assertTransition(payout, PayoutStatus.HELD);
     const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.HELD, reviewedBy, reviewedAt: new Date() } });
     await this.audit(reviewedBy, 'payout.held', id, { reason: reason ?? 'admin hold' });
+    await this.notify(payout.creatorUserId, 'Payout on hold', `Your payout of ${payout.coinAmount} coins is on hold while we review it.`);
     return updated;
   }
 
@@ -215,6 +234,7 @@ export class PayoutsService {
     this.assertTransition(payout, PayoutStatus.APPROVED);
     const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.APPROVED, reviewedBy, reviewedAt: new Date() } });
     await this.audit(reviewedBy, 'payout.approved', id, { coinAmount: payout.coinAmount.toString() });
+    await this.notify(payout.creatorUserId, 'Payout approved', `Your payout of ${payout.coinAmount} coins is approved and will be sent shortly.`);
     return updated;
   }
 
@@ -236,6 +256,7 @@ export class PayoutsService {
     });
     const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.REJECTED, reviewedBy, reviewedAt: new Date(), rejectionReason: reason } });
     await this.audit(reviewedBy, 'payout.rejected', id, { coinAmount: payout.coinAmount.toString(), reason });
+    await this.notify(payout.creatorUserId, 'Payout rejected', `Your payout of ${payout.coinAmount} coins was rejected: ${reason}. The coins are back in your earnings.`);
     return updated;
   }
 
@@ -262,6 +283,8 @@ export class PayoutsService {
       data: { status: PayoutStatus.PAID, reviewedBy, paidAt: new Date(), providerReference: providerReference?.trim() || null }
     });
     await this.audit(reviewedBy, 'payout.paid', id, { coinAmount: payout.coinAmount.toString(), providerReference: providerReference ?? null });
+    const ref = providerReference?.trim();
+    await this.notify(payout.creatorUserId, 'Payout sent', `Your payout of ${payout.coinAmount} coins has been sent.${ref ? ` Ref: ${ref}` : ''}`);
     return updated;
   }
 }

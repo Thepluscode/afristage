@@ -13,8 +13,9 @@ function build() {
     ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'clearing' })
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
-  const service = new PayoutsService(prisma, wallet, ledger);
-  return { service, prisma, wallet, ledger };
+  const notifications: any = { notifyUser: jest.fn().mockResolvedValue({}) };
+  const service = new PayoutsService(prisma, wallet, ledger, notifications);
+  return { service, prisma, wallet, ledger, notifications };
 }
 
 const reqDto = { coinAmount: 1000, idempotencyKey: 'idem-1' };
@@ -99,6 +100,22 @@ describe('PayoutsService', () => {
     prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PAID' });
     await expect(service.markPaid('admin', 'p1')).resolves.toMatchObject({ status: 'PAID' });
     expect(ledger.postTransaction).toHaveBeenCalled();
+  });
+
+  it('notifies the creator when a payout is approved', async () => {
+    const { service, prisma, notifications } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'APPROVED' });
+    await service.approve('admin', 'p1');
+    expect(notifications.notifyUser).toHaveBeenCalledWith('c1', 'PAYOUT_UPDATE', 'Payout approved', expect.any(String));
+  });
+
+  it('a failed notification never breaks the payout transition', async () => {
+    const { service, prisma, notifications } = build();
+    notifications.notifyUser.mockRejectedValue(new Error('notif down'));
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'APPROVED' });
+    await expect(service.approve('admin', 'p1')).resolves.toMatchObject({ status: 'APPROVED' });
   });
 
   it('records the external transfer reference when marking PAID', async () => {
