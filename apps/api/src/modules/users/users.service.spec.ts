@@ -1,11 +1,16 @@
+import { BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { UsersService } from './users.service';
 
 function makeService() {
   const prisma = {
     block: { findMany: jest.fn(), deleteMany: jest.fn() },
-    user: { findMany: jest.fn() }
+    user: { findMany: jest.fn() },
+    follow: { create: jest.fn(), findUniqueOrThrow: jest.fn() },
+    profile: { findUnique: jest.fn() }
   };
-  return { svc: new UsersService(prisma as any), prisma };
+  const notifications = { notifyUser: jest.fn().mockResolvedValue({}) };
+  return { svc: new UsersService(prisma as any, notifications as any), prisma, notifications };
 }
 
 describe('UsersService block management', () => {
@@ -42,6 +47,35 @@ describe('UsersService block management', () => {
     prisma.user.findMany.mockResolvedValue([]);
     const out = await svc.listBlocked('me');
     expect(out[0]).toMatchObject({ id: 'gone', displayName: 'Unknown user', avatarUrl: null });
+  });
+
+  it('notifies the followed user on a new follow', async () => {
+    const { svc, prisma, notifications } = makeService();
+    prisma.follow.create.mockResolvedValue({ id: 'f1', followerId: 'a', followingId: 'b' });
+    prisma.profile.findUnique.mockResolvedValue({ displayName: 'Ada' });
+    await svc.follow('a', 'b');
+    expect(notifications.notifyUser).toHaveBeenCalledWith('b', 'NEW_FOLLOWER', 'New follower', 'Ada started following you.');
+  });
+
+  it('does not notify on a re-follow (already following)', async () => {
+    const { svc, prisma, notifications } = makeService();
+    prisma.follow.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }));
+    prisma.follow.findUniqueOrThrow.mockResolvedValue({ id: 'f1' });
+    await svc.follow('a', 'b');
+    expect(notifications.notifyUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects following yourself', async () => {
+    const { svc, prisma } = makeService();
+    await expect(svc.follow('a', 'a')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.follow.create).not.toHaveBeenCalled();
+  });
+
+  it('a failed follower notification still completes the follow', async () => {
+    const { svc, prisma, notifications } = makeService();
+    prisma.follow.create.mockResolvedValue({ id: 'f1' });
+    notifications.notifyUser.mockRejectedValue(new Error('notif down'));
+    await expect(svc.follow('a', 'b')).resolves.toMatchObject({ id: 'f1' });
   });
 
   it('unblock is idempotent and returns ok', async () => {
