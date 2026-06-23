@@ -18,6 +18,13 @@ export class GiftsController {
     return this.gifts.list();
   }
 
+  // A viewer's own gift-sending history.
+  @UseGuards(JwtAuthGuard)
+  @Get('gifts/me')
+  myGifts(@CurrentUser() user: any, @Query('limit') limit?: string) {
+    return this.gifts.myGifts(user.sub, limit ? Number(limit) : 50);
+  }
+
   // Public: room "top supporters" leaderboard, ranked by total coins gifted.
   @Get('live-rooms/:roomId/top-gifters')
   topGifters(@Param('roomId') roomId: string, @Query('limit') limit?: string) {

@@ -58,6 +58,40 @@ export class GiftsService {
     }));
   }
 
+  // A viewer's own gift-sending history (mirror of the creator's "gifts received").
+  // GiftTransaction has no relation to the creator User, so resolve creator names
+  // in a second query and expose only safe public fields.
+  async myGifts(viewerId: string, limit = 50) {
+    const take = Math.min(Math.max(Math.trunc(limit) || 50, 1), 100); // bounded: 1..100
+    const txns = await this.prisma.giftTransaction.findMany({
+      where: { viewerId },
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: { gift: { select: { name: true, animationUrl: true } }, room: { select: { id: true, title: true } } }
+    });
+    if (!txns.length) return [];
+
+    const creatorIds = [...new Set(txns.map((t) => t.creatorId))];
+    const profiles = await this.prisma.profile.findMany({
+      where: { userId: { in: creatorIds } },
+      select: { userId: true, displayName: true }
+    });
+    const byId = new Map(profiles.map((p) => [p.userId, p.displayName]));
+
+    return txns.map((t) => ({
+      id: t.id,
+      giftName: t.gift.name,
+      animationUrl: t.gift.animationUrl ?? null,
+      quantity: t.quantity,
+      totalCoinAmount: t.totalCoinAmount,
+      roomId: t.roomId,
+      roomTitle: t.room.title,
+      creatorId: t.creatorId,
+      creatorName: byId.get(t.creatorId) ?? 'Creator',
+      createdAt: t.createdAt
+    }));
+  }
+
   async send(viewerId: string, roomId: string, dto: SendGiftDto) {
     const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
     if (!room || room.status !== RoomStatus.LIVE) throw new BadRequestException('Room is not live');
