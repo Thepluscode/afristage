@@ -20,30 +20,29 @@ class _WalletScreenState extends State<WalletScreen> {
   bool _useCard = false;
   String? _pendingIntentId; // last Paystack checkout awaiting confirmation
 
-  /// Coin packages: (label, fiat minor, coins).
-  static const _packages = <(String, int, int)>[
-    ('₦1,000 → 100 coins', 100000, 100),
-    ('₦5,000 → 550 coins', 500000, 550),
-    ('₦10,000 → 1,200 coins', 1000000, 1200),
+  /// Display catalog. Pricing is server-authoritative; the client only sends the
+  /// package id (`id`) — the server owns amount + coins. Labels are cosmetic.
+  static const _packages = <(String id, String label)>[
+    ('starter', '₦1,000 → 100 coins'),
+    ('popular', '₦5,000 → 550 coins'),
+    ('pro', '₦10,000 → 1,200 coins'),
   ];
 
-  Future<void> _buy(int amountMinor, int coinAmount) async {
+  Future<void> _buy(String packageId) async {
     if (_useCard) {
-      return _buyWithCard(amountMinor, coinAmount);
+      return _buyWithCard(packageId);
     }
     setState(() => _busy = true);
     final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     try {
       final intent = await state.api.post('/payments/coin-purchase-intents', {
-        'amountMinor': amountMinor,
-        'currency': 'NGN',
-        'coinAmount': coinAmount,
+        'packageId': packageId,
       });
       await state.api.post('/payments/mock/${intent['id']}/complete');
       await state.refreshWallet();
-      messenger
-          .showSnackBar(SnackBar(content: Text('Added $coinAmount coins')));
+      messenger.showSnackBar(
+          SnackBar(content: Text('Added ${intent['coinAmount']} coins')));
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
@@ -53,15 +52,13 @@ class _WalletScreenState extends State<WalletScreen> {
 
   // Real Paystack: open the hosted checkout. Coins are credited by the verified
   // webhook after payment, so we tell the user to refresh once it completes.
-  Future<void> _buyWithCard(int amountMinor, int coinAmount) async {
+  Future<void> _buyWithCard(String packageId) async {
     setState(() => _busy = true);
     final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     try {
       final intent = await state.api.post('/payments/coin-purchase-intents', {
-        'amountMinor': amountMinor,
-        'currency': 'NGN',
-        'coinAmount': coinAmount,
+        'packageId': packageId,
         'provider': 'paystack',
       });
       final url = intent['authorizationUrl'] as String?;
@@ -184,11 +181,11 @@ class _WalletScreenState extends State<WalletScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: AfriCoinPackageCard(
-              label: p.$1,
+              label: p.$2,
               body: _useCard
                   ? 'Open secure checkout'
                   : 'Credit instantly in dev mode',
-              onTap: _busy ? null : () => _buy(p.$2, p.$3),
+              onTap: _busy ? null : () => _buy(p.$1),
               busy: _busy,
             ),
           ),

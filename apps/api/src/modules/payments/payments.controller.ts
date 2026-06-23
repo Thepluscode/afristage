@@ -9,6 +9,12 @@ import { PaymentsService } from './payments.service';
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
+  // Server-authoritative coin catalog the client renders and selects from.
+  @Get('coin-packages')
+  packages() {
+    return this.payments.listPackages();
+  }
+
   @Post('coin-purchase-intents')
   create(@CurrentUser() user: any, @Body() dto: CreatePaymentIntentDto) {
     return this.payments.createIntent(user.sub, dto);
