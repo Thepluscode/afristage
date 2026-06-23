@@ -766,11 +766,18 @@ IconData afriGiftIcon(String name) {
   return Icons.card_giftcard;
 }
 
+// Distinct gift tints so the gift panel reads colorful (matches the room mockup).
+const List<Color> kGiftTints = [
+  Color(0xFFEC4899), Color(0xFFEF4444), Color(0xFFFFC857),
+  Color(0xFFF59E0B), Color(0xFF22D3EE), Color(0xFF7C3AED),
+];
+
 class AfriGiftTile extends StatelessWidget {
-  const AfriGiftTile({super.key, required this.gift, required this.onTap});
+  const AfriGiftTile({super.key, required this.gift, required this.onTap, this.accent = AfriColors.gold});
 
   final Gift gift;
   final VoidCallback onTap;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -780,19 +787,19 @@ class AfriGiftTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AfriIconBadge(
-              icon: afriGiftIcon(gift.name), accent: AfriColors.gold, size: 38),
+          AfriIconBadge(icon: afriGiftIcon(gift.name), accent: accent, size: 38),
           const Spacer(),
           Text(gift.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 2),
-          Text('${gift.coinPrice} coins',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium
-                  ?.copyWith(color: AfriColors.gold)),
+          Row(children: [
+            const Icon(Icons.monetization_on, size: 13, color: AfriColors.gold),
+            const SizedBox(width: 3),
+            Text('${gift.coinPrice}',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AfriColors.gold, fontWeight: FontWeight.w700)),
+          ]),
         ],
       ),
     );
@@ -881,16 +888,17 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 children: [
-                  for (final gift in widget.gifts)
+                  for (final entry in widget.gifts.asMap().entries)
                     Stack(
                       children: [
                         Positioned.fill(
                           child: AfriGiftTile(
-                            gift: gift,
-                            onTap: () => setState(() => _selected = gift),
+                            gift: entry.value,
+                            accent: kGiftTints[entry.key % kGiftTints.length],
+                            onTap: () => setState(() => _selected = entry.value),
                           ),
                         ),
-                        if (selected?.id == gift.id)
+                        if (selected?.id == entry.value.id)
                           Positioned(
                             right: 8,
                             top: 8,

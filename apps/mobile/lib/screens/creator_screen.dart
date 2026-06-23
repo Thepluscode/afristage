@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'creator_rooms_screen.dart';
 import 'go_live_setup_screen.dart';
@@ -210,7 +211,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Earnings (coins)',
                         value: earnings,
                         icon: Icons.payments_outlined,
@@ -218,7 +219,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Gifts received',
                         value: '${data?['totalGiftTransactions'] ?? 0}',
                         icon: Icons.card_giftcard,
@@ -230,7 +231,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Live sessions',
                         value: '${data?['totalRooms'] ?? 0}',
                         icon: Icons.mic,
@@ -238,7 +239,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Followers',
                         value: '${data?['followers'] ?? 0}',
                         icon: Icons.group_outlined,
@@ -250,7 +251,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Watch time',
                         value: _formatWatch(data?['totalWatchSeconds']),
                         icon: Icons.schedule,
