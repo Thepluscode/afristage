@@ -9,8 +9,16 @@ export class NotificationsService {
     return this.prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 });
   }
 
-  markRead(userId: string, id: string) {
-    return this.prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
+  // Scoped to the owner: updateMany with userId so one user can't mark another's
+  // notification read.
+  async markRead(userId: string, id: string) {
+    await this.prisma.notification.updateMany({ where: { id, userId }, data: { readAt: new Date() } });
+    return { ok: true };
+  }
+
+  // Generic single-user notification. Callers own the copy; this just persists it.
+  notifyUser(userId: string, type: string, title: string, body: string) {
+    return this.prisma.notification.create({ data: { userId, type, title, body } });
   }
 
   async notifyFollowersCreatorLive(creatorUserId: string, roomId: string, title: string) {
