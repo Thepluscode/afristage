@@ -76,7 +76,7 @@ export class PayoutsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.PAYOUT_REVIEWER)
   @Post('admin/payouts/:id/mark-paid')
-  markPaid(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.payouts.markPaid(user.sub, id);
+  markPaid(@CurrentUser() user: any, @Param('id') id: string, @Body('reference') reference?: string) {
+    return this.payouts.markPaid(user.sub, id, reference);
   }
 }

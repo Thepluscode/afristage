@@ -414,6 +414,12 @@ model PayoutRequest {
   holdLedgerTransactionId String?  @map("hold_ledger_transaction_id")
   status              PayoutStatus
   payoutMethodId      String?      @map("payout_method_id")
+  // Destination snapshot taken at request time (like the fiat snapshot above) so the
+  // reviewer always sees where money settles, even if the creator later deletes the method.
+  payoutProvider             String? @map("payout_provider")
+  payoutDestinationLabel     String? @map("payout_destination_label")
+  payoutDestinationReference String? @map("payout_destination_reference")
+  payoutCountry              String? @map("payout_country")
   reviewedBy          String?      @map("reviewed_by")
   rejectionReason     String?      @map("rejection_reason")
   providerReference   String?      @map("provider_reference")
