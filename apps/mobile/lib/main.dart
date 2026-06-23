@@ -6,10 +6,10 @@ import 'core/app_state.dart';
 import 'screens/creator_apply_screen.dart';
 import 'screens/creator_screen.dart';
 import 'screens/feed_screen.dart';
+import 'screens/live_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/support_screen.dart';
-import 'screens/wallet_screen.dart';
 import 'widgets/afri_ui.dart';
 
 void main() {
@@ -75,45 +75,45 @@ class _GoLiveButton extends StatelessWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  // Tabs match the mockup: Home · Live · Go Live · Activity · Profile.
+  // Go Live (index 2) is an action, not a page — it pushes the go-live flow.
+  static const _goLiveIndex = 2;
+
   @override
   Widget build(BuildContext context) {
-    final isCreator = context.watch<AppState>().isCreator;
     final pages = <Widget>[
       const FeedScreen(),
-      isCreator ? const CreatorScreen() : const CreatorApplyScreen(),
-      const WalletScreen(),
-      const SupportScreen(),
+      const LiveScreen(),
+      const SizedBox.shrink(), // Go Live is a push action, never shown as a page
+      const NotificationsScreen(),
       const ProfileScreen(),
     ];
     final destinations = <NavigationDestination>[
+      const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+      const NavigationDestination(icon: Icon(Icons.live_tv_outlined), selectedIcon: Icon(Icons.live_tv), label: 'Live'),
       const NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
-          label: 'Home'),
-      const NavigationDestination(
-        icon: _GoLiveButton(icon: Icons.add),
-        selectedIcon: _GoLiveButton(icon: Icons.mic),
+        icon: _GoLiveButton(icon: Icons.videocam),
+        selectedIcon: _GoLiveButton(icon: Icons.videocam),
         label: 'Go Live',
       ),
-      const NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet),
-          label: 'Wallet'),
-      const NavigationDestination(
-          icon: Icon(Icons.support_agent_outlined),
-          selectedIcon: Icon(Icons.support_agent),
-          label: 'Support'),
-      const NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person),
-          label: 'Profile'),
+      const NavigationDestination(icon: Icon(Icons.notifications_none), selectedIcon: Icon(Icons.notifications), label: 'Activity'),
+      const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
     ];
     final safeIndex = _index.clamp(0, pages.length - 1);
     return Scaffold(
       body: pages[safeIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: safeIndex,
-        onDestinationSelected: (value) => setState(() => _index = value),
+        onDestinationSelected: (value) {
+          if (value == _goLiveIndex) {
+            final isCreator = context.read<AppState>().isCreator;
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => isCreator ? const CreatorScreen() : const CreatorApplyScreen(),
+            ));
+            return;
+          }
+          setState(() => _index = value);
+        },
         destinations: destinations,
       ),
     );
