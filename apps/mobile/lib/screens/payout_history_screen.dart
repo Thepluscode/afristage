@@ -77,6 +77,16 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
               final p = rows[i];
               final status = p['status'] as String? ?? 'REQUESTED';
               final color = _statusColor(status);
+              // Tell the creator what happened: why a payout was rejected/failed,
+              // and the transfer reference once it's paid. Both already come from
+              // /payouts/me — they just weren't shown.
+              final reason = (p['rejectionReason'] as String?)?.trim();
+              final reference = (p['providerReference'] as String?)?.trim();
+              final note = (status == 'REJECTED' || status == 'FAILED')
+                  ? (reason?.isNotEmpty == true ? reason : null)
+                  : status == 'PAID'
+                      ? (reference?.isNotEmpty == true ? 'Ref: $reference' : null)
+                      : null;
               return AfriCard(
                 child: Row(
                   children: [
@@ -100,6 +110,14 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
                           Text(
                               '${p['fiatMinor'] ?? ''} ${p['fiatCurrency'] ?? ''} · ${p['createdAt'] ?? ''}',
                               style: Theme.of(context).textTheme.bodyMedium),
+                          if (note != null) ...[
+                            const SizedBox(height: 3),
+                            Text(note,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: color)),
+                          ],
                         ],
                       ),
                     ),
