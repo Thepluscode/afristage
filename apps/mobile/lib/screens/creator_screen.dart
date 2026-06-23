@@ -5,6 +5,7 @@ import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
+import 'creator_rooms_screen.dart';
 import 'go_live_setup_screen.dart';
 import 'payout_history_screen.dart';
 import 'payout_methods_screen.dart';
@@ -296,6 +297,15 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 accent: AfriColors.gold,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const PayoutHistoryScreen())),
+              ),
+              const SizedBox(height: 10),
+              AfriActionRow(
+                icon: Icons.insights,
+                title: 'Show performance',
+                body: 'Peak viewers, watch time, and gifts for each room.',
+                accent: AfriColors.purple,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const CreatorRoomsScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
