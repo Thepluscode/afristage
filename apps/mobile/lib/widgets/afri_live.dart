@@ -112,9 +112,26 @@ class AfriViewerPill extends StatelessWidget {
   }
 }
 
-/// Full-width featured live card.
+/// Red "Live now" pill for the hero (cards use the teal AfriLivePill).
+class AfriLiveNowPill extends StatelessWidget {
+  const AfriLiveNowPill({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(color: AfriColors.danger, borderRadius: BorderRadius.circular(8)),
+      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.circle, size: 7, color: Colors.white),
+        SizedBox(width: 5),
+        Text('Live now', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+      ]),
+    );
+  }
+}
+
+/// Full-width featured live card with a Join CTA + carousel dots.
 class AfriHeroLive extends StatelessWidget {
-  const AfriHeroLive({super.key, required this.title, required this.category, this.creator, this.imageUrl, this.viewerCount = 0, this.onTap});
+  const AfriHeroLive({super.key, required this.title, required this.category, this.creator, this.imageUrl, this.viewerCount = 0, this.onTap, this.onJoin, this.dotCount = 4, this.dotIndex = 0});
 
   final String title;
   final String category;
@@ -122,6 +139,9 @@ class AfriHeroLive extends StatelessWidget {
   final String? imageUrl;
   final int viewerCount;
   final VoidCallback? onTap;
+  final VoidCallback? onJoin;
+  final int dotCount;
+  final int dotIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -130,24 +150,12 @@ class AfriHeroLive extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: SizedBox(
-          height: 220,
+          height: 248,
           child: Stack(
             fit: StackFit.expand,
             children: [
               AfriCover(imageUrl: imageUrl, category: category, initial: creator),
-              Positioned(
-                top: 14,
-                left: 14,
-                child: Row(children: [
-                  const AfriLivePill(),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: const Color(0x66000000), borderRadius: BorderRadius.circular(6)),
-                    child: Text(category, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                  ),
-                ]),
-              ),
+              const Positioned(top: 14, left: 14, child: AfriLiveNowPill()),
               Positioned(top: 14, right: 14, child: AfriViewerPill(count: viewerCount)),
               Positioned(
                 left: 16,
@@ -157,11 +165,40 @@ class AfriHeroLive extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
                     if (creator != null) ...[
                       const SizedBox(height: 4),
                       Text('With $creator', style: const TextStyle(fontSize: 13, color: Color(0xFFE5E5E5), fontWeight: FontWeight.w600)),
                     ],
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      FilledButton(
+                        onPressed: onJoin ?? onTap,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AfriColors.gold,
+                          foregroundColor: const Color(0xFF170B02),
+                          minimumSize: const Size(0, 42),
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text('Join now', style: TextStyle(fontWeight: FontWeight.w800)),
+                          SizedBox(width: 6),
+                          Icon(Icons.arrow_forward, size: 16),
+                        ]),
+                      ),
+                      const Spacer(),
+                      // Carousel dots.
+                      for (int i = 0; i < dotCount; i++)
+                        Container(
+                          width: i == dotIndex ? 18 : 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(left: 4),
+                          decoration: BoxDecoration(
+                            color: i == dotIndex ? Colors.white : Colors.white38,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                    ]),
                   ],
                 ),
               ),
@@ -173,13 +210,23 @@ class AfriHeroLive extends StatelessWidget {
   }
 }
 
-/// Compact live card for horizontal rails.
+/// Emoji flag from an ISO country code (e.g. "NG" -> 🇳🇬).
+String countryFlag(String? code) {
+  if (code == null || code.length != 2) return '';
+  final cc = code.toUpperCase();
+  final a = cc.codeUnitAt(0), b = cc.codeUnitAt(1);
+  if (a < 65 || a > 90 || b < 65 || b > 90) return '';
+  return String.fromCharCode(0x1F1E6 + (a - 65)) + String.fromCharCode(0x1F1E6 + (b - 65));
+}
+
+/// Compact live card: photo with LIVE + viewer pills, then title + creator·flag·country.
 class AfriLiveCard extends StatelessWidget {
-  const AfriLiveCard({super.key, required this.title, required this.category, this.creator, this.imageUrl, this.viewerCount = 0, this.onTap, this.width = 168});
+  const AfriLiveCard({super.key, required this.title, required this.category, this.creator, this.country, this.imageUrl, this.viewerCount = 0, this.onTap, this.width = 168});
 
   final String title;
   final String category;
   final String? creator;
+  final String? country;
   final String? imageUrl;
   final int viewerCount;
   final VoidCallback? onTap;
@@ -187,39 +234,36 @@ class AfriLiveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final flag = countryFlag(country);
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
         width: width,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                height: 190,
+              child: AspectRatio(
+                aspectRatio: 0.92,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     AfriCover(imageUrl: imageUrl, category: category, initial: creator),
                     const Positioned(top: 10, left: 10, child: AfriLivePill()),
                     Positioned(top: 10, right: 10, child: AfriViewerPill(count: viewerCount)),
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      bottom: 10,
-                      child: Text(creator ?? title,
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 8),
             Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AfriColors.text)),
-            Text(category, style: const TextStyle(fontSize: 11, color: AfriColors.mutedText)),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AfriColors.text)),
+            const SizedBox(height: 2),
+            Text('${creator ?? 'Creator'}${flag.isNotEmpty ? '  $flag ${country!.toUpperCase()}' : ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AfriColors.mutedText)),
           ],
         ),
       ),

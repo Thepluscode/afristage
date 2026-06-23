@@ -766,6 +766,23 @@ IconData afriGiftIcon(String name) {
   return Icons.card_giftcard;
 }
 
+/// Emoji per gift name, matching the design mockup's gift drawer.
+String giftEmoji(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('rose') || n.contains('flower')) return '🌹';
+  if (n.contains('fire') || n.contains('flame')) return '🔥';
+  if (n.contains('mic')) return '🎤';
+  if (n.contains('drum')) return '🥁';
+  if (n.contains('crown') || n.contains('king') || n.contains('royal')) return '👑';
+  if (n.contains('spotlight') || n.contains('light')) return '💡';
+  if (n.contains('star')) return '⭐';
+  if (n.contains('stage') || n.contains('concert')) return '🎭';
+  if (n.contains('heart') || n.contains('love')) return '❤️';
+  if (n.contains('diamond') || n.contains('gem')) return '💎';
+  if (n.contains('rocket')) return '🚀';
+  return '🎁';
+}
+
 // Distinct gift tints so the gift panel reads colorful (matches the room mockup).
 const List<Color> kGiftTints = [
   Color(0xFFEC4899), Color(0xFFEF4444), Color(0xFFFFC857),
@@ -787,7 +804,7 @@ class AfriGiftTile extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(afriGiftIcon(gift.name), color: accent, size: 30),
+          Text(giftEmoji(gift.name), style: const TextStyle(fontSize: 30)),
           const SizedBox(height: 8),
           Text(gift.name,
               maxLines: 1,

@@ -29,11 +29,11 @@ class _FeedScreenState extends State<FeedScreen> {
   static const _categories = [
     'For You',
     'Music',
-    'Comedy',
     'Talk',
-    'Football',
-    'Faith',
-    'New Creators'
+    'Comedy',
+    'Dance',
+    'Art',
+    'Lifestyle'
   ];
 
   @override
@@ -107,31 +107,39 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final coins = context.watch<AppState>().wallet.coinBalance;
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: const Row(children: [
-          Text('AfriStage', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AfriColors.text)),
-          Text(' Live', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AfriColors.orange)),
+        // Logomark + wordmark per the mockup (no coin pill on the feed).
+        title: Row(children: [
+          Container(
+            width: 26,
+            height: 26,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.graphic_eq, size: 16, color: Color(0xFF170B02)),
+          ),
+          const Text('AfriStage', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AfriColors.text)),
         ]),
         actions: [
-          AfriCoinPill(coins: coins, onTap: () {}),
+          // Notification bell with unread badge, then search (mockup order).
           IconButton(
-            tooltip: 'Search',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
-            icon: const Icon(Icons.search),
+            tooltip: 'Notifications',
+            onPressed: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+              _loadUnread();
+            },
+            icon: Badge.count(count: _unread, isLabelVisible: _unread > 0, child: const Icon(Icons.notifications_none)),
           ),
-          // Notification bell with unread badge.
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: IconButton(
-              tooltip: 'Notifications',
-              onPressed: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
-                _loadUnread();
-              },
-              icon: Badge.count(count: _unread, isLabelVisible: _unread > 0, child: const Icon(Icons.notifications_none)),
+              tooltip: 'Search',
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+              icon: const Icon(Icons.search),
             ),
           ),
         ],
@@ -201,6 +209,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         title: rail[i].title,
                         category: rail[i].category,
                         creator: rail[i].hostName,
+                        country: rail[i].country,
                         imageUrl: rail[i].hostAvatarUrl,
                         viewerCount: rail[i].viewerCount,
                         onTap: () => _openRoom(rail[i]),

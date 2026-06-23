@@ -86,9 +86,14 @@ async function main() {
 
   await prisma.gift.createMany({
     data: [
-      { name: 'Palm Clap', coinPrice: 10, animationUrl: '/gifts/palm-clap.json' },
-      { name: 'Golden Mic', coinPrice: 100, animationUrl: '/gifts/golden-mic.json' },
-      { name: 'Jollof Crown', coinPrice: 500, animationUrl: '/gifts/jollof-crown.json' }
+      { name: 'Rose', coinPrice: 10 },
+      { name: 'Fire', coinPrice: 50 },
+      { name: 'Golden Mic', coinPrice: 100 },
+      { name: 'Drum', coinPrice: 200 },
+      { name: 'Crown', coinPrice: 500 },
+      { name: 'Spotlight', coinPrice: 1000 },
+      { name: 'Star', coinPrice: 2000 },
+      { name: 'Stage', coinPrice: 5000 }
     ],
     skipDuplicates: true
   });
