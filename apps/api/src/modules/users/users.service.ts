@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(private readonly prisma: PrismaService, private readonly notifications: NotificationsService) {}
 
   me(userId: string) {
     return this.prisma.user.findUnique({ where: { id: userId }, include: { profile: true, creatorProfile: true } });
@@ -14,12 +18,33 @@ export class UsersService {
     return this.prisma.profile.update({ where: { userId }, data: dto });
   }
 
-  follow(followerId: string, followingId: string) {
-    return this.prisma.follow.upsert({
-      where: { followerId_followingId: { followerId, followingId } },
-      update: {},
-      create: { followerId, followingId }
-    });
+  async follow(followerId: string, followingId: string) {
+    // A self-follow would silently inflate follower counts — reject it.
+    if (followerId === followingId) throw new BadRequestException('Cannot follow yourself');
+    // create (not upsert) so a unique-violation tells us this is a re-follow and we
+    // skip re-notifying. Only a genuinely new follow notifies the followed user.
+    try {
+      const follow = await this.prisma.follow.create({ data: { followerId, followingId } });
+      await this.notifyNewFollower(followerId, followingId);
+      return follow;
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return this.prisma.follow.findUniqueOrThrow({ where: { followerId_followingId: { followerId, followingId } } });
+      }
+      throw e;
+    }
+  }
+
+  // Best-effort: a notification failure must never break the follow (optional
+  // dependency — Rule 9).
+  private async notifyNewFollower(followerId: string, followingId: string) {
+    try {
+      const follower = await this.prisma.profile.findUnique({ where: { userId: followerId } });
+      const name = follower?.displayName ?? 'Someone';
+      await this.notifications.notifyUser(followingId, 'NEW_FOLLOWER', 'New follower', `${name} started following you.`);
+    } catch (e) {
+      this.logger.warn(`new-follower notification failed for ${followingId}: ${(e as Error).message}`);
+    }
   }
 
   // Idempotent: deleteMany so unfollowing when not following is a no-op, not an error.
