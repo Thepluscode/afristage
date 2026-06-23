@@ -8,7 +8,7 @@ function build(overrides: any = {}) {
     liveRoom: { findUnique: jest.fn() },
     user: { findUnique: jest.fn() },
     gift: { findUnique: jest.fn() },
-    giftTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), groupBy: jest.fn() },
+    giftTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), groupBy: jest.fn(), findMany: jest.fn() },
     ledgerTransaction: { findUnique: jest.fn().mockResolvedValue(null) },
     profile: { findMany: jest.fn().mockResolvedValue([]) }
   };
@@ -84,6 +84,33 @@ describe('GiftsService.send', () => {
       'gift.sent',
       expect.objectContaining({ giftTransactionId: 'gt1', giftName: 'Rose', senderId: 'v1', totalCoinAmount: 10 })
     );
+  });
+});
+
+describe('GiftsService.myGifts', () => {
+  it('returns [] and skips the profile lookup when the viewer has sent nothing', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.findMany.mockResolvedValue([]);
+    expect(await service.myGifts('v1')).toEqual([]);
+    expect(prisma.profile.findMany).not.toHaveBeenCalled();
+  });
+
+  it('shapes gift history with gift name, room title, and resolved creator name', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.findMany.mockResolvedValue([
+      { id: 'gt1', creatorId: 'creator', roomId: 'r1', quantity: 2, totalCoinAmount: 20, createdAt: new Date(0), gift: { name: 'Rose', animationUrl: 'a.json' }, room: { id: 'r1', title: 'Friday Jam' } }
+    ]);
+    prisma.profile.findMany.mockResolvedValue([{ userId: 'creator', displayName: 'DJ X' }]);
+    expect(await service.myGifts('v1')).toEqual([
+      { id: 'gt1', giftName: 'Rose', animationUrl: 'a.json', quantity: 2, totalCoinAmount: 20, roomId: 'r1', roomTitle: 'Friday Jam', creatorId: 'creator', creatorName: 'DJ X', createdAt: new Date(0) }
+    ]);
+  });
+
+  it('bounds the limit to 1..100', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.findMany.mockResolvedValue([]);
+    await service.myGifts('v1', 9999);
+    expect(prisma.giftTransaction.findMany.mock.calls[0][0].take).toBe(100);
   });
 });
 
