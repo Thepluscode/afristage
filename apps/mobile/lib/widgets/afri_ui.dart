@@ -257,11 +257,11 @@ class AfriLiveBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AfriColors.danger,
+        color: AfriColors.teal,
         borderRadius: BorderRadius.circular(999),
         boxShadow: [
           BoxShadow(
-              color: AfriColors.danger.withValues(alpha: 0.26), blurRadius: 18)
+              color: AfriColors.teal.withValues(alpha: 0.26), blurRadius: 18)
         ],
       ),
       child: Row(
@@ -783,22 +783,23 @@ class AfriGiftTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return AfriCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AfriIconBadge(icon: afriGiftIcon(gift.name), accent: accent, size: 38),
-          const Spacer(),
+          Icon(afriGiftIcon(gift.name), color: accent, size: 30),
+          const SizedBox(height: 8),
           Text(gift.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 2),
-          Row(children: [
-            const Icon(Icons.monetization_on, size: 13, color: AfriColors.gold),
-            const SizedBox(width: 3),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AfriColors.text)),
+          const SizedBox(height: 3),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.monetization_on, size: 11, color: AfriColors.gold),
+            const SizedBox(width: 2),
             Text('${gift.coinPrice}',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AfriColors.gold, fontWeight: FontWeight.w700)),
+                style: const TextStyle(fontSize: 11, color: AfriColors.gold, fontWeight: FontWeight.w800)),
           ]),
         ],
       ),
@@ -883,8 +884,8 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
             else
               GridView.count(
                 shrinkWrap: true,
-                crossAxisCount: 2,
-                childAspectRatio: 1.24,
+                crossAxisCount: 4,
+                childAspectRatio: 0.82,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 children: [
@@ -1518,43 +1519,48 @@ class _VideoWaitingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!ready) {
+      return const Center(
+        child: SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.4)),
+      );
+    }
+    // Viewer: keep the creator cover clean (like the mockup) with only a subtle
+    // play affordance — no full-screen prompt blocking the stage.
+    if (!isHost) {
+      return Center(
+        child: GestureDetector(
+          onTap: onStartVideo,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0x44000000),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white24),
+            ),
+            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+          ),
+        ),
+      );
+    }
+    // Host: explicit go-live prompt (they must start camera + mic).
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AfriIconBadge(
-                icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
+            const AfriIconBadge(icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
             const SizedBox(height: 14),
-            Text(
-              ready
-                  ? (isHost ? 'Ready to publish' : 'Ready to join stream')
-                  : 'Connecting to stage…',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
+            Text('Ready to publish', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
             const SizedBox(height: 6),
-            Text(
-              ready
-                  ? 'Video stays paused until you start it.'
-                  : 'We are setting up video and chat. You will never see a blank stage.',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
+            Text('Your stage stays private until you go live.',
+                style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            if (ready)
-              FilledButton.icon(
-                onPressed: onStartVideo,
-                icon: Icon(isHost ? Icons.videocam : Icons.play_circle_outline),
-                label: Text(
-                    isHost ? 'Go Live with Camera + Mic' : 'Connect Video'),
-              )
-            else
-              const SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: CircularProgressIndicator(strokeWidth: 2.4)),
+            FilledButton.icon(
+              onPressed: onStartVideo,
+              icon: const Icon(Icons.videocam),
+              label: const Text('Go Live with Camera + Mic'),
+            ),
           ],
         ),
       ),

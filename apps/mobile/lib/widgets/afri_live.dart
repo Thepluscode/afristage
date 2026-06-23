@@ -85,13 +85,11 @@ class AfriLivePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: AfriColors.danger, borderRadius: BorderRadius.circular(6)),
-      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.circle, size: 7, color: Colors.white),
-        SizedBox(width: 4),
-        Text('LIVE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5)),
-      ]),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      // Teal LIVE pill per the design mockups (not red).
+      decoration: BoxDecoration(color: AfriColors.teal, borderRadius: BorderRadius.circular(8)),
+      child: const Text('LIVE',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.6)),
     );
   }
 }
@@ -105,7 +103,8 @@ class AfriViewerPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: const Color(0x66000000), borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.visibility, size: 13, color: Colors.white),
+        // People icon per the mockups (not an eye).
+        const Icon(Icons.people, size: 13, color: Colors.white),
         const SizedBox(width: 4),
         Text(formatCount(count), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
       ]),
