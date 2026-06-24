@@ -82,64 +82,83 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Account')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            AfriCard(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Join AfriStage',
-                      style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Text(
-                      'Create an account in three short steps. Beta invites can be added later from Profile.',
-                      style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 14),
-                  LinearProgressIndicator(
-                      value: (_step + 1) / 3, color: AfriColors.gold),
-                ],
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('Create Account'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 0.85,
+            colors: [Color(0x22FFC857), AfriColors.stage],
+          ),
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              AfriCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: AfriBrandMark(size: 64),
+                    ),
+                    Text('Join AfriStage',
+                        style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    Text(
+                        'Create an account in three short steps. Beta invites can be added later from Profile.',
+                        style: Theme.of(context).textTheme.bodyMedium),
+                    const SizedBox(height: 14),
+                    LinearProgressIndicator(
+                        value: (_step + 1) / 3, color: AfriColors.gold),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 360,
-              child: PageView(
-                controller: _page,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _AccountStep(email: _email, password: _password),
-                  _IdentityStep(username: _username, displayName: _displayName),
-                  _LocaleStep(
-                    country: _country,
-                    language: _language,
-                    ageConfirmed: _ageConfirmed,
-                    onCountry: (v) => setState(() => _country = v),
-                    onLanguage: (v) => setState(() => _language = v),
-                    onAge: (v) => setState(() => _ageConfirmed = v),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 360,
+                child: PageView(
+                  controller: _page,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _AccountStep(email: _email, password: _password),
+                    _IdentityStep(
+                        username: _username, displayName: _displayName),
+                    _LocaleStep(
+                      country: _country,
+                      language: _language,
+                      ageConfirmed: _ageConfirmed,
+                      onCountry: (v) => setState(() => _country = v),
+                      onLanguage: (v) => setState(() => _language = v),
+                      onAge: (v) => setState(() => _ageConfirmed = v),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _busy ? null : _next,
-              child: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(_step == 2 ? 'Create Account' : 'Continue'),
-            ),
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('I already have an account')),
-            const SizedBox(height: 8),
-            const AfriLegalLinks(),
-          ],
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _busy ? null : _next,
+                child: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(_step == 2 ? 'Create Account' : 'Continue'),
+              ),
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('I already have an account')),
+              const SizedBox(height: 8),
+              const AfriLegalLinks(),
+            ],
+          ),
         ),
       ),
     );
