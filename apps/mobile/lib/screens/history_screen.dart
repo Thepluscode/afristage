@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -65,6 +66,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final tx = e['transaction'] as Map<String, dynamic>?;
               final acct = e['account'] as Map<String, dynamic>?;
               final debit = e['direction'] == 'DEBIT';
+              final amountMinor = (e['amountMinor'] as num?)?.toInt() ?? 0;
+              final currency = '${e['currency'] ?? 'COIN'}';
               return AfriCard(
                 child: Row(
                   children: [
@@ -90,14 +93,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               '${tx?['type'] ?? 'TXN'} · ${acct?['accountType'] ?? 'Wallet'}',
                               style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 3),
-                          Text('${e['createdAt'] ?? ''}',
+                          Text(shortDateTime('${e['createdAt'] ?? ''}'),
                               style: Theme.of(context).textTheme.bodyMedium),
                         ],
                       ),
                     ),
                     Text(
-                        '${debit ? '-' : '+'}${e['amountMinor']} ${e['currency']}',
-                        style: Theme.of(context).textTheme.titleMedium),
+                        '${debit ? '-' : '+'}${ledgerMoney(amountMinor, currency)}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: debit
+                                      ? AfriColors.danger
+                                      : AfriColors.success,
+                                )),
                   ],
                 ),
               );
