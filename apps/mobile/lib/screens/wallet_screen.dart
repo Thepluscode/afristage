@@ -5,8 +5,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'history_screen.dart';
+import 'payout_history_screen.dart';
+import 'payout_methods_screen.dart';
+import 'support_screen.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -114,6 +118,11 @@ class _WalletScreenState extends State<WalletScreen> {
     return AfriScaffold(
       title: 'Wallet',
       actions: [
+        TextButton(
+          onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const SupportScreen())),
+          child: const Text('Support'),
+        ),
         IconButton(
           tooltip: 'Refresh wallet',
           onPressed: () => context.read<AppState>().refreshWallet(),
@@ -121,91 +130,188 @@ class _WalletScreenState extends State<WalletScreen> {
         ),
       ],
       children: [
-        AfriWalletBalanceCard(
-          coinBalance: wallet.coinBalance,
-          modeLabel: _useCard ? 'Paystack ready' : 'Dev wallet',
+        // Available (withdrawable) earnings shown in USD, per the mockup.
+        AfriBalanceCard(
+          label: 'Available balance',
+          value: usd(wallet.earningBalance),
+          currencyLabel: 'USD',
+          primaryLabel: 'Payout',
+          primaryIcon: Icons.north_east,
+          secondaryLabel: 'Transactions',
+          onPrimary: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
+          onSecondary: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const HistoryScreen())),
         ),
-        const SizedBox(height: 20),
-        const AfriSectionHeader(
-          title: 'Earnings summary',
-          subtitle: 'Coins earned from gifts, and what is held for checks',
-        ),
+        const SizedBox(height: 22),
+        const Text('Earnings summary',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AfriColors.text)),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: AfriStatCard(
+        Row(children: [
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Total earnings',
+                  value: usd(wallet.earningBalance),
+                  icon: Icons.trending_up,
+                  accent: AfriColors.success)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: AfriStatTile(
                   label: 'Creator earnings',
-                  value: '${wallet.earningBalance}',
-                  icon: Icons.payments_outlined,
-                  accent: AfriColors.success),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AfriStatCard(
-                  label: 'Payout hold',
-                  value: '${wallet.payoutHoldBalance}',
-                  icon: Icons.lock_clock_outlined,
-                  accent: AfriColors.warning),
-            ),
-          ],
-        ),
+                  value: usd(wallet.earningBalance),
+                  icon: Icons.card_giftcard,
+                  accent: AfriColors.gold)),
+        ]),
         const SizedBox(height: 12),
-        AfriPayoutStatusCard(
-          available: wallet.earningBalance,
-          pending: 0,
-          hold: wallet.payoutHoldBalance,
+        Row(children: [
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Payout hold',
+                  value: usd(wallet.payoutHoldBalance),
+                  icon: Icons.lock_clock_outlined,
+                  accent: AfriColors.warning)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Coin balance',
+                  value: '${wallet.coinBalance}',
+                  icon: Icons.monetization_on,
+                  accent: AfriColors.teal)),
+        ]),
+        const SizedBox(height: 22),
+        // Settings/menu list (mockup #4).
+        AfriCard(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Column(children: [
+            AfriMenuRow(
+                icon: Icons.person,
+                title: 'Profile',
+                subtitle: 'Manage your account',
+                accent: AfriColors.purple,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Use the Profile tab to manage your account.')))),
+            AfriMenuRow(
+                icon: Icons.add_circle_outline,
+                title: 'Buy coins',
+                subtitle: 'Top up to send gifts',
+                accent: AfriColors.gold,
+                onTap: _busy ? null : _openBuyCoins),
+            AfriMenuRow(
+                icon: Icons.account_balance,
+                title: 'Payout methods',
+                subtitle: 'Bank or mobile money',
+                accent: AfriColors.teal,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutMethodsScreen()))),
+            AfriMenuRow(
+                icon: Icons.history,
+                title: 'Ledger and history',
+                subtitle: 'View past sessions, gifts, and wallet movement',
+                accent: AfriColors.purple,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()))),
+            AfriMenuRow(
+                icon: Icons.receipt_long,
+                title: 'Payout history',
+                subtitle: 'Track every payout request',
+                accent: AfriColors.gold,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutHistoryScreen()))),
+            AfriMenuRow(
+                icon: Icons.support_agent,
+                title: 'Support',
+                subtitle: 'Help center & contact us',
+                accent: AfriColors.teal,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const SupportScreen()))),
+            AfriMenuRow(
+                icon: Icons.report_outlined,
+                title: 'Report',
+                subtitle: 'Report a user or content',
+                accent: AfriColors.warning,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Open a live room or profile to report specific content.')))),
+            AfriMenuRow(
+                icon: Icons.settings,
+                title: 'Settings',
+                subtitle: 'Notifications, privacy, and more',
+                accent: AfriColors.purple,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text('Settings are available from Profile.')))),
+          ]),
         ),
-        const SizedBox(height: 24),
-        AfriSectionHeader(
-          title: 'Buy coins',
-          subtitle:
-              'Provider: ${_useCard ? 'Paystack card checkout' : 'Mock instant dev flow'}',
-        ),
-        const SizedBox(height: 8),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-              _useCard ? 'Pay with card (Paystack)' : 'Mock (instant, dev)'),
-          value: _useCard,
-          onChanged: _busy ? null : (v) => setState(() => _useCard = v),
-        ),
-        if (_pendingIntentId != null)
+        if (_pendingIntentId != null) ...[
+          const SizedBox(height: 12),
           FilledButton.tonalIcon(
             onPressed: _busy ? null : _confirmCard,
             icon: const Icon(Icons.check_circle_outline),
             label: const Text("I've paid — confirm"),
           ),
-        const SizedBox(height: 8),
-        for (final p in _packages)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: AfriCoinPackageCard(
-              label: p.$2,
-              body: _useCard
-                  ? 'Open secure checkout'
-                  : 'Credit instantly in dev mode',
-              onTap: _busy ? null : () => _buy(p.$1),
-              busy: _busy,
-            ),
-          ),
-        const SizedBox(height: 8),
-        AfriActionRow(
-          icon: Icons.receipt_long,
-          title: 'Ledger and history',
-          body: 'Review coin purchases, gifts, payouts, and wallet movement.',
-          accent: AfriColors.teal,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const HistoryScreen()),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Available earnings can be requested for payout. Some earnings may be held for fraud and payment checks.',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        ],
       ],
+    );
+  }
+
+  // Buy-coins moved into a bottom sheet (the mockup wallet leads with earnings).
+  void _openBuyCoins() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AfriColors.surface,
+      showDragHandle: true,
+      builder: (sheetCtx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            const Text('Buy coins',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AfriColors.text)),
+            const Spacer(),
+            Switch(
+                value: _useCard,
+                onChanged: (v) {
+                  setState(() => _useCard = v);
+                  Navigator.pop(sheetCtx);
+                  _openBuyCoins();
+                }),
+            Text(_useCard ? 'Card' : 'Mock',
+                style:
+                    const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
+          ]),
+          const SizedBox(height: 8),
+          for (final p in _packages)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: AfriCoinPackageCard(
+                label: p.$2,
+                body: _useCard
+                    ? 'Open secure checkout'
+                    : 'Credit instantly in dev mode',
+                onTap: _busy
+                    ? null
+                    : () {
+                        Navigator.pop(sheetCtx);
+                        _buy(p.$1);
+                      },
+                busy: _busy,
+              ),
+            ),
+        ]),
+      ),
     );
   }
 }

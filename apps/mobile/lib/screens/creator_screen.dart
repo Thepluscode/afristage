@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'creator_rooms_screen.dart';
 import 'go_live_setup_screen.dart';
@@ -60,8 +61,8 @@ class _CreatorScreenState extends State<CreatorScreen> {
     if (methods.isEmpty) {
       messenger.showSnackBar(const SnackBar(
           content: Text('Add a payout method first so earnings can settle.')));
-      await navigator.push(MaterialPageRoute(
-          builder: (_) => const PayoutMethodsScreen()));
+      await navigator
+          .push(MaterialPageRoute(builder: (_) => const PayoutMethodsScreen()));
       return;
     }
     final defaultMethod = methods.cast<Map<String, dynamic>>().firstWhere(
@@ -107,7 +108,23 @@ class _CreatorScreenState extends State<CreatorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create')),
+      appBar: AppBar(
+        title: const Text('Create'),
+        actions: [
+          IconButton(
+            tooltip: 'Creator settings',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const CreatorRoomsScreen())),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          IconButton(
+            tooltip: 'Creator alerts',
+            onPressed: _reload,
+            icon: const Icon(Icons.notifications_none),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _dashboard,
         builder: (context, snapshot) {
@@ -137,14 +154,17 @@ class _CreatorScreenState extends State<CreatorScreen> {
           final status = creator?['status'] as String? ??
               (creator == null ? 'PENDING' : 'APPROVED');
           final stageName = creator?['stageName'] as String? ?? 'Creator';
-          final earnings = '${data?['earnings'] ?? 0}';
-          final supporters = (data?['topSupporters'] as List?)
-                  ?.cast<Map<String, dynamic>>() ??
-              const <Map<String, dynamic>>[];
+          final earnings = usd((data?['earnings'] as num?) ?? 0);
+          final supporters =
+              (data?['topSupporters'] as List?)?.cast<Map<String, dynamic>>() ??
+                  const <Map<String, dynamic>>[];
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _CreatorHeader(stageName: stageName, approved: status == 'APPROVED'),
+              _CreatorHeader(
+                  stageName: stageName,
+                  approved: status == 'APPROVED',
+                  avatarUrl: data?['avatarUrl'] as String?),
               const SizedBox(height: 14),
               AfriCreatorStatusBanner(
                 status: status,
@@ -174,7 +194,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                                     color: AfriColors.success,
                                     fontWeight: FontWeight.w900)),
                         const SizedBox(width: 6),
-                        Text('coins',
+                        Text('available',
                             style: Theme.of(context).textTheme.bodyMedium),
                       ],
                     ),
@@ -184,6 +204,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                         Expanded(
                           child: FilledButton.icon(
                             onPressed: _goLive,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AfriColors.purple,
+                              foregroundColor: Colors.white,
+                            ),
                             icon: const Icon(Icons.live_tv),
                             label: const Text('Go Live'),
                           ),
@@ -210,15 +234,15 @@ class _CreatorScreenState extends State<CreatorScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: AfriStatCard(
-                        label: 'Earnings (coins)',
+                    child: AfriStatTile(
+                        label: 'Earnings',
                         value: earnings,
                         icon: Icons.payments_outlined,
                         accent: AfriColors.success),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Gifts received',
                         value: '${data?['totalGiftTransactions'] ?? 0}',
                         icon: Icons.card_giftcard,
@@ -230,7 +254,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Live sessions',
                         value: '${data?['totalRooms'] ?? 0}',
                         icon: Icons.mic,
@@ -238,7 +262,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Followers',
                         value: '${data?['followers'] ?? 0}',
                         icon: Icons.group_outlined,
@@ -250,7 +274,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: AfriStatCard(
+                    child: AfriStatTile(
                         label: 'Watch time',
                         value: _formatWatch(data?['totalWatchSeconds']),
                         icon: Icons.schedule,
@@ -284,10 +308,13 @@ class _CreatorScreenState extends State<CreatorScreen> {
               AfriActionRow(
                 icon: Icons.account_balance,
                 title: 'Payout methods',
-                body: 'Add a bank or mobile-money destination for your earnings.',
+                body:
+                    'Add a bank or mobile-money destination for your earnings.',
                 accent: AfriColors.teal,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutMethodsScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
@@ -295,8 +322,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 title: 'Payout history',
                 body: 'Track every payout request from review to paid.',
                 accent: AfriColors.gold,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const PayoutHistoryScreen())),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutHistoryScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
@@ -304,8 +333,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 title: 'Show performance',
                 body: 'Peak viewers, watch time, and gifts for each room.',
                 accent: AfriColors.purple,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const CreatorRoomsScreen())),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CreatorRoomsScreen())),
               ),
               const SizedBox(height: 10),
               AfriActionRow(
@@ -324,31 +355,40 @@ class _CreatorScreenState extends State<CreatorScreen> {
 }
 
 class _CreatorHeader extends StatelessWidget {
-  const _CreatorHeader({required this.stageName, required this.approved});
+  const _CreatorHeader(
+      {required this.stageName, required this.approved, this.avatarUrl});
 
   final String stageName;
   final bool approved;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final initial =
         stageName.trim().isEmpty ? 'C' : stageName.trim()[0].toUpperCase();
+    final hasPhoto = avatarUrl != null && avatarUrl!.isNotEmpty;
     return Row(
       children: [
         Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.purple, AfriColors.orange]),
-            borderRadius: BorderRadius.circular(18),
+          width: 56,
+          height: 56,
+          padding: const EdgeInsets.all(2.5),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient:
+                LinearGradient(colors: [AfriColors.purple, AfriColors.orange]),
           ),
-          alignment: Alignment.center,
-          child: Text(initial,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22)),
+          child: CircleAvatar(
+            backgroundColor: AfriColors.elevated,
+            backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
+            child: hasPhoto
+                ? null
+                : Text(initial,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22)),
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -418,11 +458,11 @@ class _SupporterRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium),
           ),
-          Text('$coins coins',
+          Text(usd(coins),
               style: Theme.of(context)
                   .textTheme
-                  .labelMedium
-                  ?.copyWith(color: AfriColors.gold)),
+                  .titleMedium
+                  ?.copyWith(color: AfriColors.success, fontWeight: FontWeight.w800)),
         ],
       ),
     );

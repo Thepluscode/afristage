@@ -6,9 +6,9 @@ import 'core/app_state.dart';
 import 'screens/creator_apply_screen.dart';
 import 'screens/creator_screen.dart';
 import 'screens/feed_screen.dart';
+import 'screens/live_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/support_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'widgets/afri_ui.dart';
 
@@ -53,17 +53,42 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+// Prominent gold "Go Live" center action in the bottom nav (per the mockup).
+class _GoLiveButton extends StatelessWidget {
+  const _GoLiveButton({required this.icon});
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        gradient:
+            const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+              color: AfriColors.orange.withValues(alpha: 0.4), blurRadius: 14)
+        ],
+      ),
+      child: Icon(icon, color: const Color(0xFF170B02), size: 24),
+    );
+  }
+}
+
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  // Tabs match the newer mockups: Home · Live · Create · Wallet · Profile.
 
   @override
   Widget build(BuildContext context) {
     final isCreator = context.watch<AppState>().isCreator;
     final pages = <Widget>[
       const FeedScreen(),
+      const LiveScreen(),
       isCreator ? const CreatorScreen() : const CreatorApplyScreen(),
       const WalletScreen(),
-      const SupportScreen(),
       const ProfileScreen(),
     ];
     final destinations = <NavigationDestination>[
@@ -71,37 +96,19 @@ class _HomeShellState extends State<HomeShell> {
           icon: Icon(Icons.home_outlined),
           selectedIcon: Icon(Icons.home),
           label: 'Home'),
-      NavigationDestination(
-        icon: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.orange, AfriColors.gold]),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.add, color: Color(0xFF170B02)),
-        ),
-        selectedIcon: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.orange, AfriColors.gold]),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.mic, color: Color(0xFF170B02)),
-        ),
+      const NavigationDestination(
+          icon: Icon(Icons.live_tv_outlined),
+          selectedIcon: Icon(Icons.live_tv),
+          label: 'Live'),
+      const NavigationDestination(
+        icon: _GoLiveButton(icon: Icons.videocam),
+        selectedIcon: _GoLiveButton(icon: Icons.videocam),
         label: 'Create',
       ),
       const NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),
           selectedIcon: Icon(Icons.account_balance_wallet),
           label: 'Wallet'),
-      const NavigationDestination(
-          icon: Icon(Icons.support_agent_outlined),
-          selectedIcon: Icon(Icons.support_agent),
-          label: 'Support'),
       const NavigationDestination(
           icon: Icon(Icons.person_outline),
           selectedIcon: Icon(Icons.person),

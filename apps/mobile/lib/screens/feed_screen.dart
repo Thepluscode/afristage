@@ -5,11 +5,15 @@ import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
+import 'creator_apply_screen.dart';
 import 'creator_profile_screen.dart';
+import 'creator_screen.dart';
 import 'notifications_screen.dart';
 import 'room_screen.dart';
 import 'search_screen.dart';
+import 'wallet_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -28,11 +32,11 @@ class _FeedScreenState extends State<FeedScreen> {
   static const _categories = [
     'For You',
     'Music',
-    'Comedy',
     'Talk',
-    'Football',
-    'Faith',
-    'New Creators'
+    'Comedy',
+    'Dance',
+    'Art',
+    'Lifestyle'
   ];
 
   @override
@@ -43,45 +47,48 @@ class _FeedScreenState extends State<FeedScreen> {
     _loadUpcoming();
   }
 
-  // Upcoming scheduled rooms. Best-effort: a failure just hides the section.
+  Future<void> _loadUnread() async {
+    try {
+      final data =
+          await context.read<AppState>().api.get('/notifications/unread-count');
+      if (mounted) {
+        setState(() => _unread = (data['count'] as num?)?.toInt() ?? 0);
+      }
+    } catch (e) {
+      debugPrint('Unread notification count failed to load: $e');
+    }
+  }
+
   Future<void> _loadUpcoming() async {
     try {
-      final data = await context.read<AppState>().api.getList('/live-rooms/upcoming');
-      if (mounted) setState(() => _upcoming = data.cast<Map<String, dynamic>>());
-    } catch (_) {
-      // non-critical: the live feed still renders
+      final data =
+          await context.read<AppState>().api.getList('/live-rooms/upcoming');
+      if (mounted) {
+        setState(() => _upcoming = data.cast<Map<String, dynamic>>());
+      }
+    } catch (e) {
+      debugPrint('Upcoming rooms failed to load: $e');
     }
   }
 
   Future<void> _remind(String roomId) async {
     final messenger = ScaffoldMessenger.of(context);
-    setState(() => _reminded.add(roomId)); // optimistic
+    setState(() => _reminded.add(roomId));
     try {
       await context.read<AppState>().api.post('/live-rooms/$roomId/remind');
       messenger.showSnackBar(const SnackBar(
           content: Text("Reminder set — we'll notify you when it starts.")));
     } on ApiException catch (e) {
-      if (mounted) setState(() => _reminded.remove(roomId)); // rollback
+      if (mounted) setState(() => _reminded.remove(roomId));
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
-  // Compact local time for a scheduled start, e.g. "23/06 19:30".
   String _formatStart(String? iso) {
     final d = DateTime.tryParse(iso ?? '')?.toLocal();
     if (d == null) return 'Soon';
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(d.day)}/${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
-  }
-
-  // Bell badge. Best-effort: a failed count must never blank the feed, so swallow.
-  Future<void> _loadUnread() async {
-    try {
-      final data = await context.read<AppState>().api.get('/notifications/unread-count');
-      if (mounted) setState(() => _unread = (data['count'] as num?)?.toInt() ?? 0);
-    } catch (_) {
-      // leave the previous count; the badge is non-critical
-    }
   }
 
   Future<List<LiveRoom>> _load() async {
@@ -97,14 +104,24 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _refresh() async {
     final rooms = _load();
     setState(() => _rooms = rooms);
+    _loadUnread();
     _loadUpcoming();
     await rooms;
   }
 
   void _openRoom(LiveRoom room) => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
+
+  void _openCreator(LiveRoom room) {
+    if (room.hostId == null) {
+      _openRoom(room);
+      return;
+    }
+    Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => RoomScreen(room: room)),
-      );
+        MaterialPageRoute(
+            builder: (_) => CreatorProfileScreen(creatorId: room.hostId!)));
+  }
 
   List<LiveRoom> _filter(List<LiveRoom> rooms) => _category == 'For You'
       ? rooms
@@ -114,30 +131,58 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final coins = state.wallet.coinBalance;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AfriStage Live'),
+        titleSpacing: 16,
+        title: const Row(children: [
+          Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: AfriBrandMark(size: 28, flat: true),
+          ),
+          Text('AfriStage',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: AfriColors.text)),
+          SizedBox(width: 3),
+          Text('Live',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: AfriColors.orange)),
+        ]),
         actions: [
           IconButton(
-              tooltip: 'Search creators',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const SearchScreen())),
-              icon: const Icon(Icons.search)),
+            tooltip: 'Search',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SearchScreen())),
+            icon: const Icon(Icons.search),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: AfriCoinPill(
+              coins: coins,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const WalletScreen())),
+            ),
+          ),
           IconButton(
-              tooltip: 'Notifications',
-              onPressed: () async {
-                await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const NotificationsScreen()));
-                // Refresh the badge after the user has seen/read notifications.
-                _loadUnread();
-              },
-              icon: Badge.count(
+            tooltip: 'Notifications',
+            onPressed: () async {
+              await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen()));
+              _loadUnread();
+            },
+            icon: Badge.count(
                 count: _unread,
                 isLabelVisible: _unread > 0,
-                child: const Icon(Icons.notifications_none),
-              )),
+                child: const Icon(Icons.notifications_none)),
+          ),
+          const SizedBox(width: 6),
         ],
       ),
       body: RefreshIndicator(
@@ -149,172 +194,134 @@ class _FeedScreenState extends State<FeedScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  const SizedBox(height: 80),
-                  AfriEmptyState(
-                    icon: Icons.wifi_off,
-                    title: 'Could not load live rooms',
-                    body:
-                        'Check your connection and retry. If the problem continues, contact support.',
-                    action: FilledButton(
-                        onPressed: _refresh,
-                        child: const Text('Retry live feed')),
-                  ),
-                ],
-              );
+              return ListView(padding: const EdgeInsets.all(16), children: [
+                const SizedBox(height: 80),
+                AfriEmptyState(
+                  icon: Icons.wifi_off,
+                  title: 'Could not load live rooms',
+                  body: 'Check your connection and retry.',
+                  action: FilledButton(
+                      onPressed: _refresh,
+                      child: const Text('Retry live feed')),
+                ),
+              ]);
             }
             final rooms = snapshot.data ?? const <LiveRoom>[];
-            final hero = rooms.isEmpty ? null : rooms.first;
             final live = _filter(rooms);
-            // "Creators to watch": creators live right now (deduped by host).
+            final hero = live.isNotEmpty
+                ? live.first
+                : (rooms.isNotEmpty ? rooms.first : null);
+            final rail = live.length > 1
+                ? live.where((r) => r.id != hero?.id).toList()
+                : live;
             final creators = <String, LiveRoom>{};
             for (final r in rooms) {
               if (r.hostId != null) creators.putIfAbsent(r.hostId!, () => r);
             }
 
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                AfriHeroEventCard(
-                  room: hero,
-                  onJoin: hero == null ? _refresh : () => _openRoom(hero),
-                ),
-                const SizedBox(height: 22),
-                AfriSectionHeader(
-                  title: 'Live now',
-                  subtitle: live.isEmpty
-                      ? 'No rooms broadcasting yet'
-                      : '${live.length} ${live.length == 1 ? 'stage' : 'stages'} broadcasting',
-                  trailing: IconButton(
-                    tooltip: 'Refresh live rooms',
-                    onPressed: _refresh,
-                    icon: const Icon(Icons.refresh),
+                _HomeStageActions(
+                  isCreator: state.isCreator,
+                  onCreate: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => state.isCreator
+                            ? const CreatorScreen()
+                            : const CreatorApplyScreen()),
                   ),
                 ),
+                const SizedBox(height: 18),
+
+                // Hero featured live card.
+                if (hero != null)
+                  AfriHeroLive(
+                    title: hero.title,
+                    category: hero.category,
+                    creator: hero.hostName,
+                    imageUrl: hero.hostAvatarUrl,
+                    viewerCount: hero.viewerCount,
+                    onTap: () => _openRoom(hero),
+                  )
+                else
+                  _WarmingUp(onRefresh: _refresh),
+                const SizedBox(height: 22),
+
+                _HomeWalletPanel(
+                  coins: coins,
+                  onWallet: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const WalletScreen())),
+                  onSendGift: hero == null ? null : () => _openRoom(hero),
+                ),
+                const SizedBox(height: 22),
+
+                // Live now rail.
+                _SectionHeader(
+                    title: 'Live now', trailing: '${live.length} live'),
                 const SizedBox(height: 12),
-                if (live.isEmpty)
+                if (rail.isEmpty)
                   AfriEmptyState(
                     icon: Icons.live_tv,
                     title: _category == 'For You'
-                        ? 'No live rooms yet'
-                        : 'No $_category rooms yet',
-                    body:
-                        'Follow creators or check back soon when creators are on stage.',
-                    action: OutlinedButton(
-                        onPressed: _refresh,
-                        child: const Text('Refresh live rooms')),
+                        ? 'No other rooms live'
+                        : 'No $_category rooms live',
+                    body: 'Follow creators or check back soon.',
                   )
                 else
                   SizedBox(
-                    height: 250,
+                    height: 232,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: live.length,
+                      itemCount: rail.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (_, i) =>
-                          AfriLiveTile(room: live[i], onTap: () => _openRoom(live[i])),
+                      itemBuilder: (_, i) => AfriLiveCard(
+                        title: rail[i].title,
+                        category: rail[i].category,
+                        creator: rail[i].hostName,
+                        country: rail[i].country,
+                        imageUrl: rail[i].hostAvatarUrl,
+                        viewerCount: rail[i].viewerCount,
+                        onTap: () => _openRoom(rail[i]),
+                      ),
                     ),
                   ),
+
+                // Upcoming.
                 if (_upcoming.isNotEmpty) ...[
                   const SizedBox(height: 22),
-                  const AfriSectionHeader(
-                    title: 'Upcoming',
-                    subtitle: 'Scheduled stages — set a reminder',
-                  ),
+                  const _SectionHeader(title: 'Upcoming'),
                   const SizedBox(height: 12),
-                  ..._upcoming.map((u) {
-                    final host = u['host'] as Map<String, dynamic>?;
-                    final hostName = (host?['creatorProfile']
-                            as Map<String, dynamic>?)?['stageName'] as String? ??
-                        (host?['profile'] as Map<String, dynamic>?)?['displayName']
-                            as String? ??
-                        'Creator';
-                    return AfriCard(
-                      child: Row(
-                        children: [
-                          const Icon(Icons.event_outlined, color: AfriColors.gold),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('${u['title'] ?? 'Untitled room'}',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium),
-                                const SizedBox(height: 2),
-                                Text(hostName,
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              AfriChip(
-                                  label: _formatStart(
-                                      u['scheduledStartAt'] as String?)),
-                              const SizedBox(height: 4),
-                              _reminded.contains(u['id'])
-                                  ? const Text('Reminder set',
-                                      style: TextStyle(
-                                          color: AfriColors.gold, fontSize: 12))
-                                  : TextButton(
-                                      onPressed: () =>
-                                          _remind(u['id'] as String),
-                                      style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: const Size(0, 0),
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap),
-                                      child: const Text('Remind me'),
-                                    ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                  ..._upcoming.map(_upcomingTile),
                 ],
+
                 const SizedBox(height: 22),
-                Text('Browse by category',
-                    style: Theme.of(context).textTheme.titleMedium),
+                const _SectionHeader(title: 'Browse by category'),
                 const SizedBox(height: 12),
                 AfriCategoryChips(
-                  items: _categories,
-                  selected: _category,
-                  onSelected: (value) => setState(() => _category = value),
-                ),
+                    items: _categories,
+                    selected: _category,
+                    onSelected: (v) => setState(() => _category = v)),
+
                 if (creators.isNotEmpty) ...[
-                  const SizedBox(height: 22),
-                  const AfriSectionHeader(
-                    title: 'Creators to watch',
-                    subtitle: 'On stage right now',
-                  ),
+                  const SizedBox(height: 24),
+                  const _SectionHeader(title: 'Creators to watch'),
                   const SizedBox(height: 12),
                   SizedBox(
                     height: 116,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: creators.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 14),
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
                       itemBuilder: (_, i) {
                         final r = creators.values.elementAt(i);
-                        return AfriCreatorAvatar(
+                        return AfriCreatorRing(
                           name: r.hostName ?? 'Creator',
+                          imageUrl: r.hostAvatarUrl,
                           viewerCount: r.viewerCount,
-                          avatarUrl: r.hostAvatarUrl,
-                          onTap: r.hostId == null
-                              ? () => _openRoom(r)
-                              : () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => CreatorProfileScreen(
-                                          creatorId: r.hostId!),
-                                    ),
-                                  ),
+                          onTap: () => _openCreator(r),
                         );
                       },
                     ),
@@ -324,6 +331,292 @@ class _FeedScreenState extends State<FeedScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _upcomingTile(Map<String, dynamic> u) {
+    final host = u['host'] as Map<String, dynamic>?;
+    final hostName = (host?['creatorProfile']
+            as Map<String, dynamic>?)?['stageName'] as String? ??
+        (host?['profile'] as Map<String, dynamic>?)?['displayName']
+            as String? ??
+        'Creator';
+    final reminded = _reminded.contains(u['id']);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AfriCard(
+        child: Row(children: [
+          const Icon(Icons.event_outlined, color: AfriColors.gold),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${u['title'] ?? 'Untitled room'}',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 2),
+              Text(hostName, style: Theme.of(context).textTheme.bodyMedium),
+            ]),
+          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            AfriChip(label: _formatStart(u['scheduledStartAt'] as String?)),
+            const SizedBox(height: 4),
+            reminded
+                ? const Text('Reminder set',
+                    style: TextStyle(color: AfriColors.gold, fontSize: 12))
+                : TextButton(
+                    onPressed: () => _remind(u['id'] as String),
+                    style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    child: const Text('Remind me'),
+                  ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _HomeStageActions extends StatelessWidget {
+  const _HomeStageActions({required this.isCreator, required this.onCreate});
+
+  final bool isCreator;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Expanded(
+        child: FilledButton.icon(
+          onPressed: onCreate,
+          style: FilledButton.styleFrom(
+            backgroundColor: AfriColors.teal,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(58),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          icon: const Icon(Icons.sensors),
+          label: Text(isCreator ? 'Go Live' : 'Apply to Go Live',
+              style: const TextStyle(fontWeight: FontWeight.w900)),
+        ),
+      ),
+      const SizedBox(width: 10),
+      InkWell(
+        onTap: onCreate,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [AfriColors.purple, AfriColors.orange]),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: AfriColors.purple.withValues(alpha: 0.24),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10)),
+            ],
+          ),
+          child: const Icon(Icons.add, color: Colors.white, size: 30),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _HomeWalletPanel extends StatelessWidget {
+  const _HomeWalletPanel({
+    required this.coins,
+    required this.onWallet,
+    required this.onSendGift,
+  });
+
+  final int coins;
+  final VoidCallback onWallet;
+  final VoidCallback? onSendGift;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const _SectionHeader(title: 'Gift Wallet', trailing: 'View wallet'),
+      const SizedBox(height: 12),
+      GestureDetector(
+        onTap: onWallet,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFB87905), Color(0xFF4D3004)],
+            ),
+            border: Border.all(color: const Color(0x66FFC857)),
+          ),
+          child: Row(children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0x22FFFFFF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.card_giftcard,
+                  color: AfriColors.gold, size: 30),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Gift Balance',
+                        style: TextStyle(
+                            color: Color(0xFFEFE3BC),
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(_formatCoins(coins),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900)),
+                  ]),
+            ),
+            const Icon(Icons.chevron_right, color: AfriColors.gold),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(
+            child: _WalletActionTile(
+                icon: Icons.card_giftcard,
+                label: 'Send Gift',
+                onTap: onSendGift)),
+        const SizedBox(width: 10),
+        Expanded(
+            child: _WalletActionTile(
+                icon: Icons.account_balance_wallet_outlined,
+                label: 'Top Up',
+                onTap: onWallet)),
+        const SizedBox(width: 10),
+        Expanded(
+            child: _WalletActionTile(
+                icon: Icons.history,
+                label: 'History',
+                onTap: onWallet)),
+      ]),
+    ]);
+  }
+}
+
+String _formatCoins(int coins) {
+  final raw = coins.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < raw.length; i++) {
+    final fromRight = raw.length - i;
+    buffer.write(raw[i]);
+    if (fromRight > 1 && fromRight % 3 == 1) {
+      buffer.write(',');
+    }
+  }
+  return buffer.toString();
+}
+
+class _WalletActionTile extends StatelessWidget {
+  const _WalletActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        height: 76,
+        decoration: BoxDecoration(
+          color: AfriColors.elevated,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AfriColors.border),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: AfriColors.gold, size: 24),
+          const SizedBox(height: 7),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AfriColors.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.trailing});
+  final String title;
+  final String? trailing;
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(title,
+          style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AfriColors.text)),
+      if (trailing != null)
+        Text(trailing!,
+            style: const TextStyle(fontSize: 13, color: AfriColors.mutedText)),
+    ]);
+  }
+}
+
+class _WarmingUp extends StatelessWidget {
+  const _WarmingUp({required this.onRefresh});
+  final VoidCallback onRefresh;
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        height: 200,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2B1606), Color(0xFF111827)]),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('AfriStage is warming up',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white)),
+              const SizedBox(height: 6),
+              const Text('Be the first on stage — refresh the live feed.',
+                  style: TextStyle(color: Color(0xFFD4D4D8))),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh')),
+            ]),
       ),
     );
   }

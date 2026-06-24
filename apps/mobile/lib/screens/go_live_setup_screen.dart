@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'room_screen.dart';
 
@@ -250,7 +251,8 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
               : 'Scheduled: ${_formatSchedule(_scheduledAt!)}'),
           subtitle: const Text('Announce a start time in the Upcoming feed.'),
           trailing: _scheduledAt == null
-              ? TextButton(onPressed: _pickSchedule, child: const Text('Set time'))
+              ? TextButton(
+                  onPressed: _pickSchedule, child: const Text('Set time'))
               : IconButton(
                   icon: const Icon(Icons.clear),
                   tooltip: 'Clear schedule',
@@ -264,26 +266,24 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           subtitle: 'How this stage will read in the home feed',
         ),
         const SizedBox(height: 10),
-        AfriLiveRoomCard(
-          room: LiveRoom(
-            id: 'preview',
+        SizedBox(
+          width: 188,
+          child: AfriLiveCard(
             title: _title.text.trim().isEmpty
                 ? 'Your room title'
                 : _title.text.trim(),
             category: _category,
             country: _country,
-            language: _language,
-            status: 'LIVE',
-            hostName: 'Your stage',
+            creator: 'Your stage',
+            viewerCount: 0,
+            onTap: () {},
           ),
-          viewerCount: 0,
-          giftActivity: _lowData ? 'Low data' : 'Gifts enabled',
-          onTap: () {},
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _busy ? null : _start,
-          icon: Icon(_scheduledAt == null ? Icons.live_tv : Icons.event_available),
+          icon: Icon(
+              _scheduledAt == null ? Icons.live_tv : Icons.event_available),
           label: Text(_busy
               ? 'Working…'
               : _scheduledAt == null

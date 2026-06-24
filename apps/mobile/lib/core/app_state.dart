@@ -40,20 +40,29 @@ class AppState extends ChangeNotifier {
   /// Load a previously saved session, if any. A stale access token is recovered
   /// silently by the client's 401→refresh path, so we only log out if that fails.
   Future<void> restore() async {
-    final token = await _storage.read(key: _tokenKey);
-    if (token != null) {
-      api.token = token;
-      api.refreshToken = await _storage.read(key: _refreshKey);
-      role = await _storage.read(key: _roleKey);
-      userId = await _storage.read(key: _userKey);
-      try {
-        await refreshWallet();
-      } on ApiException {
-        await logout(); // refresh also failed -> truly expired
+    try {
+      final token = await _storage.read(key: _tokenKey);
+      if (token != null) {
+        api.token = token;
+        api.refreshToken = await _storage.read(key: _refreshKey);
+        role = await _storage.read(key: _roleKey);
+        userId = await _storage.read(key: _userKey);
+        try {
+          await refreshWallet();
+        } on ApiException {
+          await logout(); // auth refresh also failed -> truly expired
+        } catch (_) {
+          // Network/other error at startup: keep the session and continue into
+          // the app. The wallet refetches on the wallet screen / pull-to-refresh.
+          // Never hang the splash on a transient connectivity blip.
+        }
       }
+    } catch (_) {
+      // Storage or any unexpected failure must not trap the user on the splash.
+    } finally {
+      _restoring = false;
+      notifyListeners();
     }
-    _restoring = false;
-    notifyListeners();
   }
 
   Future<void> login(String identifier, String password) async {
@@ -93,7 +102,10 @@ class AppState extends ChangeNotifier {
     await _storage.write(key: _refreshKey, value: api.refreshToken);
     await _storage.write(key: _roleKey, value: role);
     await _storage.write(key: _userKey, value: userId);
-    await refreshWallet();
+    // Wallet is non-critical to completing login — don't fail auth if it errors.
+    try {
+      await refreshWallet();
+    } catch (_) {}
     notifyListeners();
   }
 

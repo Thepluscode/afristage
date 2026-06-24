@@ -130,10 +130,10 @@ class _CreatorApplyScreenState extends State<CreatorApplyScreen> {
                   Container(
                     width: 54,
                     height: 54,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
                           colors: [AfriColors.purple, AfriColors.orange]),
-                      borderRadius: BorderRadius.circular(18),
+                      shape: BoxShape.circle,
                     ),
                     child:
                         const Icon(Icons.mic_external_on, color: Colors.white),

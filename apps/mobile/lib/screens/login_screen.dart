@@ -71,29 +71,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Align(
+                      const Align(
                         alignment: Alignment.centerLeft,
-                        child: Container(
-                          width: 74,
-                          height: 74,
-                          alignment: Alignment.center,
-                          margin: const EdgeInsets.only(bottom: 18),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                                colors: [AfriColors.orange, AfriColors.gold]),
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                  color:
-                                      AfriColors.orange.withValues(alpha: 0.28),
-                                  blurRadius: 34)
-                            ],
-                          ),
-                          child: const Text('A',
-                              style: TextStyle(
-                                  fontSize: 34,
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFF170B02))),
+                        child: Padding(
+                          padding: EdgeInsets.only(bottom: 18),
+                          child: AfriBrandMark(size: 74),
                         ),
                       ),
                       Text('Welcome back to AfriStage',

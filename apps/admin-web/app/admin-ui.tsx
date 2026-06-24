@@ -13,14 +13,15 @@ export function SidebarGroup({
   pathname
 }: {
   heading: string;
-  links: [string, string][];
+  links: [string, string, React.ReactNode?][];
   pathname: string;
 }) {
   return (
     <div className="nav-group">
       <div className="nav-heading">{heading}</div>
-      {links.map(([label, href]) => (
+      {links.map(([label, href, icon]) => (
         <Link key={href} href={href} className={pathname === href ? 'active' : ''}>
+          {icon ? <span className="nav-icon">{icon}</span> : null}
           {label}
         </Link>
       ))}
@@ -52,16 +53,21 @@ export function MetricCard({
   label,
   value,
   tone,
-  delta
+  delta,
+  icon
 }: {
   label: string;
   value: string | number;
   tone?: 'good' | 'warn' | 'danger' | 'neutral';
   delta?: string;
+  icon?: React.ReactNode;
 }) {
   return (
     <div className={`metric-card ${tone ?? 'neutral'}`}>
-      <span>{label}</span>
+      <div className="metric-card-head">
+        <span>{label}</span>
+        {icon ? <span className="metric-icon">{icon}</span> : null}
+      </div>
       <strong>{value}</strong>
       {delta ? <small>{delta}</small> : null}
     </div>
