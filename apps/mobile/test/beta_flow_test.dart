@@ -1,3 +1,4 @@
+import 'package:afristage_mobile/core/afri_theme.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/models/models.dart';
@@ -168,6 +169,39 @@ void main() {
     expect(find.byType(CircleAvatar), findsOneWidget);
     expect(find.text('Creator'), findsOneWidget);
     expect(find.text('Data saver ready'), findsOneWidget);
+  });
+
+  testWidgets('profile stat strip shows coins, available USD, and account type',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Row(children: [
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Coins',
+                  value: '150',
+                  icon: Icons.monetization_on,
+                  accent: AfriColors.teal)),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Available',
+                  value: r'$12.00',
+                  icon: Icons.trending_up,
+                  accent: AfriColors.success)),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Account',
+                  value: 'Creator',
+                  icon: Icons.verified,
+                  accent: AfriColors.purple)),
+        ]),
+      ),
+    ));
+
+    expect(find.text('Coins'), findsOneWidget);
+    expect(find.text('150'), findsOneWidget);
+    expect(find.text(r'$12.00'), findsOneWidget);
+    expect(find.text('Account'), findsOneWidget);
   });
 
   testWidgets('live room state banners describe reconnecting and ended states',

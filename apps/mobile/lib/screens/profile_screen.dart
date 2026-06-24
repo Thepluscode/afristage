@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'beta_accept_screen.dart';
 import 'blocked_users_screen.dart';
@@ -100,6 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final wallet = state.wallet;
 
     void go(Widget screen) =>
         Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
@@ -115,6 +117,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           uploading: _uploadingAvatar,
           onEditAvatar: _changeAvatar,
         ),
+        const SizedBox(height: 16),
+        // Glanceable identity strip — same stat-tile pattern as wallet/dashboard.
+        Row(children: [
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Coins',
+                  value: '${wallet.coinBalance}',
+                  icon: Icons.monetization_on,
+                  accent: AfriColors.teal)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Available',
+                  value: usd(wallet.earningBalance),
+                  icon: Icons.trending_up,
+                  accent: AfriColors.success)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Account',
+                  value: state.isCreator ? 'Creator' : 'Member',
+                  icon: state.isCreator ? Icons.verified : Icons.person,
+                  accent: AfriColors.purple)),
+        ]),
         const SizedBox(height: 16),
         AfriActionRow(
           icon: Icons.mic,
