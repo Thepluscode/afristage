@@ -8,8 +8,8 @@ import 'screens/creator_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/live_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/wallet_screen.dart';
 import 'widgets/afri_ui.dart';
 
 void main() {
@@ -63,9 +63,13 @@ class _GoLiveButton extends StatelessWidget {
       width: 46,
       height: 46,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
+        gradient:
+            const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
         shape: BoxShape.circle,
-        boxShadow: [BoxShadow(color: AfriColors.orange.withValues(alpha: 0.4), blurRadius: 14)],
+        boxShadow: [
+          BoxShadow(
+              color: AfriColors.orange.withValues(alpha: 0.4), blurRadius: 14)
+        ],
       ),
       child: Icon(icon, color: const Color(0xFF170B02), size: 24),
     );
@@ -75,45 +79,47 @@ class _GoLiveButton extends StatelessWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  // Tabs match the mockup: Home · Live · Go Live · Activity · Profile.
-  // Go Live (index 2) is an action, not a page — it pushes the go-live flow.
-  static const _goLiveIndex = 2;
+  // Tabs match the newer mockups: Home · Live · Create · Wallet · Profile.
 
   @override
   Widget build(BuildContext context) {
+    final isCreator = context.watch<AppState>().isCreator;
     final pages = <Widget>[
       const FeedScreen(),
       const LiveScreen(),
-      const SizedBox.shrink(), // Go Live is a push action, never shown as a page
-      const NotificationsScreen(),
+      isCreator ? const CreatorScreen() : const CreatorApplyScreen(),
+      const WalletScreen(),
       const ProfileScreen(),
     ];
     final destinations = <NavigationDestination>[
-      const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-      const NavigationDestination(icon: Icon(Icons.live_tv_outlined), selectedIcon: Icon(Icons.live_tv), label: 'Live'),
+      const NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Home'),
+      const NavigationDestination(
+          icon: Icon(Icons.live_tv_outlined),
+          selectedIcon: Icon(Icons.live_tv),
+          label: 'Live'),
       const NavigationDestination(
         icon: _GoLiveButton(icon: Icons.videocam),
         selectedIcon: _GoLiveButton(icon: Icons.videocam),
-        label: 'Go Live',
+        label: 'Create',
       ),
-      const NavigationDestination(icon: Icon(Icons.notifications_none), selectedIcon: Icon(Icons.notifications), label: 'Activity'),
-      const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+      const NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: Icon(Icons.account_balance_wallet),
+          label: 'Wallet'),
+      const NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Profile'),
     ];
     final safeIndex = _index.clamp(0, pages.length - 1);
     return Scaffold(
       body: pages[safeIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: safeIndex,
-        onDestinationSelected: (value) {
-          if (value == _goLiveIndex) {
-            final isCreator = context.read<AppState>().isCreator;
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => isCreator ? const CreatorScreen() : const CreatorApplyScreen(),
-            ));
-            return;
-          }
-          setState(() => _index = value);
-        },
+        onDestinationSelected: (value) => setState(() => _index = value),
         destinations: destinations,
       ),
     );

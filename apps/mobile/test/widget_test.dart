@@ -14,6 +14,7 @@ void main() {
       ),
     );
 
+    expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
     expect(find.text('Welcome back to AfriStage'), findsOneWidget);
     expect(find.text('Log in to AfriStage'), findsOneWidget);
     expect(find.text('Seeded test accounts'), findsOneWidget);

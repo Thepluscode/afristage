@@ -26,7 +26,11 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Future<List<LiveRoom>> _load() async {
     final data = await context.read<AppState>().api.getList('/live-rooms');
-    return data.cast<Map<String, dynamic>>().map(LiveRoom.fromJson).where((r) => r.status == 'LIVE').toList();
+    return data
+        .cast<Map<String, dynamic>>()
+        .map(LiveRoom.fromJson)
+        .where((r) => r.status == 'LIVE')
+        .toList();
   }
 
   Future<void> _refresh() async {
@@ -35,7 +39,8 @@ class _LiveScreenState extends State<LiveScreen> {
     await f;
   }
 
-  void _open(LiveRoom r) => Navigator.push(context, MaterialPageRoute(builder: (_) => RoomScreen(room: r)));
+  void _open(LiveRoom r) => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => RoomScreen(room: r)));
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +62,8 @@ class _LiveScreenState extends State<LiveScreen> {
                   icon: Icons.live_tv,
                   title: 'No rooms live right now',
                   body: 'Check back soon when creators are on stage.',
-                  action: FilledButton(onPressed: _refresh, child: const Text('Refresh')),
+                  action: FilledButton(
+                      onPressed: _refresh, child: const Text('Refresh')),
                 ),
               ]);
             }
@@ -67,7 +73,7 @@ class _LiveScreenState extends State<LiveScreen> {
                 crossAxisCount: 2,
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
-                childAspectRatio: 0.58,
+                childAspectRatio: 0.76,
               ),
               itemCount: rooms.length,
               itemBuilder: (_, i) => AfriLiveCard(

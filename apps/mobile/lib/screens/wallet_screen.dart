@@ -118,6 +118,11 @@ class _WalletScreenState extends State<WalletScreen> {
     return AfriScaffold(
       title: 'Wallet',
       actions: [
+        TextButton(
+          onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const SupportScreen())),
+          child: const Text('Support'),
+        ),
         IconButton(
           tooltip: 'Refresh wallet',
           onPressed: () => context.read<AppState>().refreshWallet(),
@@ -133,32 +138,119 @@ class _WalletScreenState extends State<WalletScreen> {
           primaryLabel: 'Payout',
           primaryIcon: Icons.north_east,
           secondaryLabel: 'Transactions',
-          onPrimary: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
-          onSecondary: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen())),
+          onPrimary: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
+          onSecondary: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const HistoryScreen())),
         ),
         const SizedBox(height: 22),
-        const Text('Earnings summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AfriColors.text)),
+        const Text('Earnings summary',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AfriColors.text)),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: AfriStatTile(label: 'Total earnings', value: usd(wallet.earningBalance), icon: Icons.trending_up, accent: AfriColors.success)),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Total earnings',
+                  value: usd(wallet.earningBalance),
+                  icon: Icons.trending_up,
+                  accent: AfriColors.success)),
           const SizedBox(width: 12),
-          Expanded(child: AfriStatTile(label: 'Gift earnings', value: usd(wallet.earningBalance), icon: Icons.card_giftcard, accent: AfriColors.gold)),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Creator earnings',
+                  value: usd(wallet.earningBalance),
+                  icon: Icons.card_giftcard,
+                  accent: AfriColors.gold)),
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: AfriStatTile(label: 'On hold', value: usd(wallet.payoutHoldBalance), icon: Icons.lock_clock_outlined, accent: AfriColors.warning)),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Payout hold',
+                  value: usd(wallet.payoutHoldBalance),
+                  icon: Icons.lock_clock_outlined,
+                  accent: AfriColors.warning)),
           const SizedBox(width: 12),
-          Expanded(child: AfriStatTile(label: 'Coin balance', value: '${wallet.coinBalance}', icon: Icons.monetization_on, accent: AfriColors.teal)),
+          Expanded(
+              child: AfriStatTile(
+                  label: 'Coin balance',
+                  value: '${wallet.coinBalance}',
+                  icon: Icons.monetization_on,
+                  accent: AfriColors.teal)),
         ]),
         const SizedBox(height: 22),
         // Settings/menu list (mockup #4).
         AfriCard(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Column(children: [
-            AfriMenuRow(icon: Icons.add_circle_outline, title: 'Buy coins', subtitle: 'Top up to send gifts', accent: AfriColors.gold, onTap: _busy ? null : _openBuyCoins),
-            AfriMenuRow(icon: Icons.account_balance, title: 'Payout methods', subtitle: 'Bank or mobile money', accent: AfriColors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayoutMethodsScreen()))),
-            AfriMenuRow(icon: Icons.history, title: 'Payout history', subtitle: 'Track every payout request', accent: AfriColors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayoutHistoryScreen()))),
-            AfriMenuRow(icon: Icons.support_agent, title: 'Support', subtitle: 'Help center & contact us', accent: AfriColors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen()))),
+            AfriMenuRow(
+                icon: Icons.person,
+                title: 'Profile',
+                subtitle: 'Manage your account',
+                accent: AfriColors.purple,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Use the Profile tab to manage your account.')))),
+            AfriMenuRow(
+                icon: Icons.add_circle_outline,
+                title: 'Buy coins',
+                subtitle: 'Top up to send gifts',
+                accent: AfriColors.gold,
+                onTap: _busy ? null : _openBuyCoins),
+            AfriMenuRow(
+                icon: Icons.account_balance,
+                title: 'Payout methods',
+                subtitle: 'Bank or mobile money',
+                accent: AfriColors.teal,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutMethodsScreen()))),
+            AfriMenuRow(
+                icon: Icons.history,
+                title: 'Ledger and history',
+                subtitle: 'View past sessions, gifts, and wallet movement',
+                accent: AfriColors.purple,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()))),
+            AfriMenuRow(
+                icon: Icons.receipt_long,
+                title: 'Payout history',
+                subtitle: 'Track every payout request',
+                accent: AfriColors.gold,
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PayoutHistoryScreen()))),
+            AfriMenuRow(
+                icon: Icons.support_agent,
+                title: 'Support',
+                subtitle: 'Help center & contact us',
+                accent: AfriColors.teal,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const SupportScreen()))),
+            AfriMenuRow(
+                icon: Icons.report_outlined,
+                title: 'Report',
+                subtitle: 'Report a user or content',
+                accent: AfriColors.warning,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Open a live room or profile to report specific content.')))),
+            AfriMenuRow(
+                icon: Icons.settings,
+                title: 'Settings',
+                subtitle: 'Notifications, privacy, and more',
+                accent: AfriColors.purple,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text('Settings are available from Profile.')))),
           ]),
         ),
         if (_pendingIntentId != null) ...[
@@ -183,10 +275,22 @@ class _WalletScreenState extends State<WalletScreen> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
-            const Text('Buy coins', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AfriColors.text)),
+            const Text('Buy coins',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AfriColors.text)),
             const Spacer(),
-            Switch(value: _useCard, onChanged: (v) { setState(() => _useCard = v); Navigator.pop(sheetCtx); _openBuyCoins(); }),
-            Text(_useCard ? 'Card' : 'Mock', style: const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
+            Switch(
+                value: _useCard,
+                onChanged: (v) {
+                  setState(() => _useCard = v);
+                  Navigator.pop(sheetCtx);
+                  _openBuyCoins();
+                }),
+            Text(_useCard ? 'Card' : 'Mock',
+                style:
+                    const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
           ]),
           const SizedBox(height: 8),
           for (final p in _packages)
@@ -194,8 +298,15 @@ class _WalletScreenState extends State<WalletScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: AfriCoinPackageCard(
                 label: p.$2,
-                body: _useCard ? 'Open secure checkout' : 'Credit instantly in dev mode',
-                onTap: _busy ? null : () { Navigator.pop(sheetCtx); _buy(p.$1); },
+                body: _useCard
+                    ? 'Open secure checkout'
+                    : 'Credit instantly in dev mode',
+                onTap: _busy
+                    ? null
+                    : () {
+                        Navigator.pop(sheetCtx);
+                        _buy(p.$1);
+                      },
                 busy: _busy,
               ),
             ),

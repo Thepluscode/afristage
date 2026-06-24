@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'room_screen.dart';
 
@@ -40,8 +41,10 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<List<LiveRoom>> _load(String q) async {
-    final data =
-        await context.read<AppState>().api.getList('/live-rooms?q=${Uri.encodeQueryComponent(q)}');
+    final data = await context
+        .read<AppState>()
+        .api
+        .getList('/live-rooms?q=${Uri.encodeQueryComponent(q)}');
     return data
         .cast<Map<String, dynamic>>()
         .map(LiveRoom.fromJson)
@@ -77,7 +80,8 @@ class _SearchScreenState extends State<SearchScreen> {
               child: AfriEmptyState(
                 icon: Icons.search,
                 title: 'Find a live room',
-                body: 'Search by room title or creator name to jump into a stage.',
+                body:
+                    'Search by room title or creator name to jump into a stage.',
               ),
             )
           : FutureBuilder<List<LiveRoom>>(
@@ -103,22 +107,32 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: AfriEmptyState(
                       icon: Icons.live_tv_outlined,
                       title: 'No live rooms for "$_query"',
-                      body: 'Try a different name, or check back when more creators are live.',
+                      body:
+                          'Try a different name, or check back when more creators are live.',
                     ),
                   );
                 }
-                return ListView.builder(
+                return GridView.builder(
                   padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 0.76,
+                  ),
                   itemCount: rooms.length,
-                  itemBuilder: (context, i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: AfriLiveRoomCard(
-                      room: rooms[i],
-                      viewerCount: rooms[i].viewerCount,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => RoomScreen(room: rooms[i])),
-                      ),
+                  itemBuilder: (context, i) => AfriLiveCard(
+                    title: rooms[i].title,
+                    category: rooms[i].category,
+                    creator: rooms[i].hostName,
+                    country: rooms[i].country,
+                    imageUrl: rooms[i].hostAvatarUrl,
+                    viewerCount: rooms[i].viewerCount,
+                    width: double.infinity,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => RoomScreen(room: rooms[i])),
                     ),
                   ),
                 );
