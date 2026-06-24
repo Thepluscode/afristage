@@ -4,6 +4,7 @@ import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/screens/beta_accept_screen.dart';
 import 'package:afristage_mobile/screens/feed_screen.dart';
+import 'package:afristage_mobile/screens/notifications_screen.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/wallet_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
@@ -176,6 +177,15 @@ void main() {
     expect(ledgerMoney(100000, 'NGN'), '₦1000.00');
     expect(ledgerMoney(62040, 'USD'), r'$620.40');
     expect(ledgerMoney(500, 'GHS'), '₵5.00');
+  });
+
+  test('notificationStyle maps known types and falls back for unknown', () {
+    expect(notificationStyle('CREATOR_LIVE').icon, Icons.live_tv);
+    expect(notificationStyle('CREATOR_LIVE').color, AfriColors.purple);
+    expect(notificationStyle('NEW_FOLLOWER').icon, Icons.person_add_alt_1);
+    expect(notificationStyle('PAYOUT_UPDATE').color, AfriColors.gold);
+    expect(notificationStyle('SOMETHING_NEW').icon, Icons.notifications);
+    expect(notificationStyle('').icon, Icons.notifications);
   });
 
   test('shortDateTime formats ISO and passes through unparseable input', () {
