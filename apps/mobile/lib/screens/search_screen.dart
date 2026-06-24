@@ -15,14 +15,39 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  // Quick-browse categories (display label -> CreatorCategory enum value).
+  static const _browseCategories = <(String, String)>[
+    ('Music', 'MUSIC'),
+    ('Comedy', 'COMEDY'),
+    ('Dance', 'DANCE'),
+    ('Talk', 'TALK'),
+    ('Faith', 'FAITH'),
+    ('Education', 'EDUCATION'),
+    ('Football', 'FOOTBALL'),
+    ('Gaming', 'GAMING'),
+    ('Diaspora', 'DIASPORA'),
+    ('Relationships', 'RELATIONSHIPS'),
+  ];
+
   final _controller = TextEditingController();
   Future<List<LiveRoom>>? _results;
   String _query = '';
+  // The last load run, so the error-retry button re-runs whatever produced the
+  // current results (text search or category browse), not always a text search.
+  Future<List<LiveRoom>> Function()? _lastLoad;
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _run(String label, Future<List<LiveRoom>> Function() loader) {
+    setState(() {
+      _query = label;
+      _lastLoad = loader;
+      _results = loader();
+    });
   }
 
   void _search(String q) {
@@ -31,20 +56,20 @@ class _SearchScreenState extends State<SearchScreen> {
       setState(() {
         _query = '';
         _results = null;
+        _lastLoad = null;
       });
       return;
     }
-    setState(() {
-      _query = query;
-      _results = _load(query);
-    });
+    _run(query, () => _fetch('/live-rooms?q=${Uri.encodeQueryComponent(query)}'));
   }
 
-  Future<List<LiveRoom>> _load(String q) async {
-    final data = await context
-        .read<AppState>()
-        .api
-        .getList('/live-rooms?q=${Uri.encodeQueryComponent(q)}');
+  void _browse(String label, String category) {
+    _controller.clear();
+    _run(label, () => _fetch('/live-rooms?category=$category'));
+  }
+
+  Future<List<LiveRoom>> _fetch(String path) async {
+    final data = await context.read<AppState>().api.getList(path);
     return data
         .cast<Map<String, dynamic>>()
         .map(LiveRoom.fromJson)
@@ -75,14 +100,31 @@ class _SearchScreenState extends State<SearchScreen> {
         ],
       ),
       body: _results == null
-          ? const Padding(
-              padding: EdgeInsets.all(16),
-              child: AfriEmptyState(
-                icon: Icons.search,
-                title: 'Find a live room',
-                body:
-                    'Search by room title or creator name to jump into a stage.',
-              ),
+          ? ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const AfriEmptyState(
+                  icon: Icons.search,
+                  title: 'Find a live room',
+                  body:
+                      'Search by room title or creator name to jump into a stage.',
+                ),
+                const SizedBox(height: 24),
+                Text('Browse by category',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final (label, category) in _browseCategories)
+                      GestureDetector(
+                        onTap: () => _browse(label, category),
+                        child: AfriChip(label: label),
+                      ),
+                  ],
+                ),
+              ],
             )
           : FutureBuilder<List<LiveRoom>>(
               future: _results,
@@ -96,7 +138,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: AfriErrorState(
                       title: 'Search failed',
                       body: 'Check your connection and try again.',
-                      onRetry: () => _search(_query),
+                      onRetry: () =>
+                          setState(() => _results = _lastLoad?.call()),
                     ),
                   );
                 }

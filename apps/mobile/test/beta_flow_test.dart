@@ -6,6 +6,7 @@ import 'package:afristage_mobile/screens/beta_accept_screen.dart';
 import 'package:afristage_mobile/screens/feed_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
+import 'package:afristage_mobile/screens/search_screen.dart';
 import 'package:afristage_mobile/screens/wallet_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
@@ -68,6 +69,16 @@ void main() {
         find.text('Accept Beta Invite', skipOffstage: false), findsOneWidget);
   });
 
+  testWidgets('search screen offers category browse on the initial state',
+      (tester) async {
+    await tester.pumpWidget(wrap(const SearchScreen()));
+    await tester.pump();
+    expect(find.text('Find a live room'), findsOneWidget);
+    expect(find.text('Browse by category'), findsOneWidget);
+    expect(find.text('Music'), findsOneWidget);
+    expect(find.text('Gaming'), findsOneWidget);
+  });
+
   testWidgets('report screen renders reason dropdown + submit', (tester) async {
     await tester
         .pumpWidget(wrap(const ReportScreen(roomId: 'r1', label: 'room')));
@@ -128,6 +139,7 @@ void main() {
 
     expect(find.text('Send Gift'), findsOneWidget);
     expect(find.text('Balance: 100 coins'), findsOneWidget);
+    expect(find.byIcon(Icons.flashlight_on), findsOneWidget);
     expect(find.text('Spotlight'), findsWidgets);
     expect(find.text('50 coins'), findsWidgets);
     expect(find.text('Buy coins'), findsOneWidget);
@@ -150,7 +162,7 @@ void main() {
     ));
 
     expect(find.text('LIVE'), findsOneWidget);
-    expect(find.byIcon(Icons.visibility), findsOneWidget);
+    expect(find.byIcon(Icons.person), findsOneWidget);
     expect(find.text('Friday Afrobeats Live'), findsOneWidget);
     expect(find.textContaining('Zola Kim'), findsOneWidget);
   });
