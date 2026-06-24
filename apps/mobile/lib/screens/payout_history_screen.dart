@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 
 class PayoutHistoryScreen extends StatefulWidget {
@@ -77,6 +78,11 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
               final p = rows[i];
               final status = p['status'] as String? ?? 'REQUESTED';
               final color = _statusColor(status);
+              final fiatMinor = (p['fiatMinor'] as num?)?.toInt();
+              final when = shortDateTime('${p['createdAt'] ?? ''}');
+              final subtitle = fiatMinor != null
+                  ? '${ledgerMoney(fiatMinor, '${p['fiatCurrency'] ?? 'NGN'}')} · $when'
+                  : when;
               // Tell the creator what happened: why a payout was rejected/failed,
               // and the transfer reference once it's paid. Both already come from
               // /payouts/me — they just weren't shown.
@@ -107,8 +113,7 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
                           Text('${p['coinAmount']} coins',
                               style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 3),
-                          Text(
-                              '${p['fiatMinor'] ?? ''} ${p['fiatCurrency'] ?? ''} · ${p['createdAt'] ?? ''}',
+                          Text(subtitle,
                               style: Theme.of(context).textTheme.bodyMedium),
                           if (note != null) ...[
                             const SizedBox(height: 3),
