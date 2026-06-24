@@ -5,8 +5,22 @@ import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'room_screen.dart';
+
+/// Icon + accent for a notification type (CREATOR_LIVE / NEW_FOLLOWER /
+/// PAYOUT_UPDATE today; unknown types fall back to a neutral bell).
+({IconData icon, Color color}) notificationStyle(String type) =>
+    switch (type) {
+      'CREATOR_LIVE' => (icon: Icons.live_tv, color: AfriColors.purple),
+      'NEW_FOLLOWER' => (icon: Icons.person_add_alt_1, color: AfriColors.teal),
+      'PAYOUT_UPDATE' => (
+          icon: Icons.account_balance_wallet,
+          color: AfriColors.gold
+        ),
+      _ => (icon: Icons.notifications, color: AfriColors.mutedText),
+    };
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -123,6 +137,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               itemBuilder: (context, i) {
                 final n = rows[i];
                 final unread = n['readAt'] == null;
+                final style = notificationStyle('${n['type'] ?? ''}');
                 return AfriCard(
                   onTap: () => _open(n),
                   child: Row(
@@ -132,10 +147,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         width: 42,
                         height: 42,
                         decoration: BoxDecoration(
-                          color: AfriColors.purple.withValues(alpha: 0.16),
+                          color: style.color.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.live_tv, color: AfriColors.purple),
+                        child: Icon(style.icon, color: style.color),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -147,6 +162,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             const SizedBox(height: 3),
                             Text('${n['body'] ?? ''}',
                                 style: Theme.of(context).textTheme.bodyMedium),
+                            const SizedBox(height: 5),
+                            Text(shortDateTime('${n['createdAt'] ?? ''}'),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AfriColors.mutedText)),
                           ],
                         ),
                       ),
