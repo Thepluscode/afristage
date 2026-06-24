@@ -570,6 +570,32 @@ class AfriBalanceCard extends StatelessWidget {
 /// USD display from coins (1 coin ≈ \$1 at the platform payout rate).
 String usd(num coins) => '\$${coins.toStringAsFixed(2)}';
 
+/// Ledger amount display. COIN has no minor subdivision (whole coins); fiat
+/// `amountMinor` is in minor units (kobo/cents) and divides by 100.
+String ledgerMoney(int amountMinor, String currency) {
+  if (currency == 'COIN') return '$amountMinor coins';
+  const symbol = {'NGN': '₦', 'USD': '\$', 'GHS': '₵'};
+  final major = amountMinor / 100;
+  return '${symbol[currency] ?? '$currency '}${major.toStringAsFixed(2)}';
+}
+
+const _monthAbbr = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+/// Human-readable "Jun 24, 2026 · 9:05 PM" from an ISO timestamp.
+/// Returns the raw string unchanged if it cannot be parsed.
+String shortDateTime(String? iso) {
+  final dt = DateTime.tryParse(iso ?? '')?.toLocal();
+  if (dt == null) return iso ?? '';
+  final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+  final minute = dt.minute.toString().padLeft(2, '0');
+  final meridiem = dt.hour < 12 ? 'AM' : 'PM';
+  return '${_monthAbbr[dt.month - 1]} ${dt.day}, ${dt.year} · '
+      '$hour12:$minute $meridiem';
+}
+
 /// Stat tile with a colored icon chip (dashboard / profile / wallet overview).
 class AfriStatTile extends StatelessWidget {
   const AfriStatTile(

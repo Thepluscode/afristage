@@ -171,6 +171,24 @@ void main() {
     expect(find.text('Data saver ready'), findsOneWidget);
   });
 
+  test('ledgerMoney formats coins whole and fiat in major units', () {
+    expect(ledgerMoney(100, 'COIN'), '100 coins');
+    expect(ledgerMoney(100000, 'NGN'), '₦1000.00');
+    expect(ledgerMoney(62040, 'USD'), r'$620.40');
+    expect(ledgerMoney(500, 'GHS'), '₵5.00');
+  });
+
+  test('shortDateTime formats ISO and passes through unparseable input', () {
+    // toLocal() makes the exact day timezone-dependent; assert structure only.
+    final formatted = shortDateTime('2026-06-24T12:00:00Z');
+    expect(formatted, contains('2026'));
+    expect(formatted, contains(' · '));
+    expect(formatted, anyOf(contains('AM'), contains('PM')));
+    // Pass-through cases are timezone-independent.
+    expect(shortDateTime('not-a-date'), 'not-a-date');
+    expect(shortDateTime(null), '');
+  });
+
   testWidgets('profile stat strip shows coins, available USD, and account type',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
