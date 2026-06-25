@@ -11,7 +11,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "test:concurrency": "jest --testRegex '.*\\.int-spec\\.ts$' --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1073.0",
