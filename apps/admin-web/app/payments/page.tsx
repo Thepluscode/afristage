@@ -54,7 +54,7 @@ export default function PaymentsPage() {
                 <td>{p.provider}</td>
                 <td><UserCell name={p.user?.profile?.displayName || p.user?.profile?.username || p.user?.email || '—'} /></td>
                 <td><MoneyAmount minor={p.amountMinor} currency={p.currency} /></td>
-                <td>{p.coinAmount}</td>
+                <td>{p.coinAmount.toLocaleString()}</td>
                 <td><StatusBadge status={p.status} /></td>
                 <td><StatusBadge status={p.webhookStatus || 'PENDING'} /></td>
                 <td>{new Date(p.createdAt).toLocaleString()}</td>

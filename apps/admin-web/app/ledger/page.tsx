@@ -45,8 +45,8 @@ export default function LedgerPage() {
                   <td><StatusBadge status={d === c ? t.status : 'IMBALANCED'} /></td>
                   <td>{t.externalReference || '—'}</td>
                   <td>{t.entries?.length ?? 0}</td>
-                  <td>{d}</td>
-                  <td>{c}</td>
+                  <td>{d.toLocaleString()}</td>
+                  <td>{c.toLocaleString()}</td>
                   <td>{new Date(t.createdAt).toLocaleString()}</td>
                 </tr>
               );
