@@ -173,6 +173,15 @@ export class CreatorsService {
         select: { id: true, title: true, category: true, scheduledStartAt: true }
       })
     ]);
-    return { ...creator, followers, totalRooms, liveRoom, upcomingRoom, isFollowing: followCount > 0, peakViewers: peakAgg._max.peakViewers ?? 0 };
+    // Tell the viewer whether they already have a reminder for the next show,
+    // so the profile can render the correct toggle state.
+    let upcoming = upcomingRoom as (typeof upcomingRoom & { reminded?: boolean }) | null;
+    if (upcoming && viewerId) {
+      const reminder = await this.prisma.roomReminder.findUnique({
+        where: { roomId_userId: { roomId: upcoming.id, userId: viewerId } }
+      });
+      upcoming = { ...upcoming, reminded: !!reminder };
+    }
+    return { ...creator, followers, totalRooms, liveRoom, upcomingRoom: upcoming, isFollowing: followCount > 0, peakViewers: peakAgg._max.peakViewers ?? 0 };
   }
 }
