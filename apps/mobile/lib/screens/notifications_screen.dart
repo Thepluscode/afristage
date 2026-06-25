@@ -9,6 +9,7 @@ import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
+import 'payout_history_screen.dart';
 import 'room_screen.dart';
 
 /// Icon + accent for a notification type (CREATOR_LIVE / NEW_FOLLOWER /
@@ -55,18 +56,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  // Tapping a notification marks it read and, when it points at a room (e.g. a
-  // "creator is live" alert), opens that room if it is still live.
+  // Tapping a notification marks it read and routes to the relevant place:
+  // a "creator is live" alert opens that room (if still live); a payout update
+  // opens payout history.
   Future<void> _open(Map<String, dynamic> n) async {
     // Fire-and-forget: marking read is optimistic and self-rolls-back on error;
     // we don't want to delay opening the room on the read POST. unawaited() makes
     // that intent explicit so a stray error can't become an unhandled future.
     unawaited(_markRead(n));
-    final roomId = n['roomId'] as String?;
-    if (roomId == null) return;
     final api = context.read<AppState>().api;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+
+    // Payout updates deep-link to the payout history rather than dead-ending.
+    if ('${n['type'] ?? ''}' == 'PAYOUT_UPDATE') {
+      navigator.push(
+          MaterialPageRoute(builder: (_) => const PayoutHistoryScreen()));
+      return;
+    }
+
+    final roomId = n['roomId'] as String?;
+    if (roomId == null) return;
     try {
       final data = await api.get('/live-rooms/$roomId');
       if (!mounted) return;
