@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 
 class SupportTicketScreen extends StatefulWidget {
@@ -106,13 +108,29 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                     for (final m in messages)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: AfriChatBubble(
-                          message: ChatMessage(
-                            sender: m['senderId'] == context.read<AppState>().userId
-                                ? 'You'
-                                : 'Support',
-                            text: m['message'] as String? ?? '',
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AfriChatBubble(
+                              message: ChatMessage(
+                                sender: m['senderId'] ==
+                                        context.read<AppState>().userId
+                                    ? 'You'
+                                    : 'Support',
+                                text: m['message'] as String? ?? '',
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8, top: 2),
+                              child: Text(
+                                shortDateTime('${m['createdAt'] ?? ''}'),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AfriColors.mutedText),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],
