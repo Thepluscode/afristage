@@ -300,7 +300,9 @@ class AfriLiveCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final flag = countryFlag(country);
     return Semantics(
-      button: true,
+      // Only a button when it actually navigates — a non-interactive preview
+      // (e.g. the go-live feed preview) is described but not announced tappable.
+      button: onTap != null,
       // Replace the decorative cover + overlay pills with one spoken label.
       excludeSemantics: true,
       label: creator == null
