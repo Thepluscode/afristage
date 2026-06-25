@@ -54,6 +54,18 @@ class _LiveScreenState extends State<LiveScreen> {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
+            if (snap.hasError) {
+              // Distinguish a load failure from a genuinely empty stage — the
+              // null-coalesce below would otherwise show "nobody is live" on error.
+              return ListView(padding: const EdgeInsets.all(16), children: [
+                const SizedBox(height: 80),
+                AfriErrorState(
+                  title: 'Could not load live rooms',
+                  body: 'Check your connection and try again.',
+                  onRetry: _refresh,
+                ),
+              ]);
+            }
             final rooms = snap.data ?? const <LiveRoom>[];
             if (rooms.isEmpty) {
               return ListView(padding: const EdgeInsets.all(16), children: [
