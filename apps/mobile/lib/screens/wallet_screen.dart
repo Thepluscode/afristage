@@ -7,6 +7,7 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
+import 'gift_history_screen.dart';
 import 'history_screen.dart';
 import 'payout_history_screen.dart';
 import 'payout_methods_screen.dart';
@@ -217,6 +218,13 @@ class _WalletScreenState extends State<WalletScreen> {
                 accent: AfriColors.purple,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const HistoryScreen()))),
+            AfriMenuRow(
+                icon: Icons.card_giftcard,
+                title: 'Gifts sent',
+                subtitle: 'Every gift you have sent, by creator and room',
+                accent: AfriColors.gold,
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const GiftHistoryScreen()))),
             AfriMenuRow(
                 icon: Icons.receipt_long,
                 title: 'Payout history',
