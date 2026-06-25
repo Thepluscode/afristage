@@ -1747,6 +1747,7 @@ class AfriLiveTopBar extends StatelessWidget {
     required this.viewerCount,
     required this.onClose,
     this.onReport,
+    this.onCreatorTap,
     this.avatarUrl,
     this.category,
     this.language,
@@ -1758,6 +1759,8 @@ class AfriLiveTopBar extends StatelessWidget {
   final int viewerCount;
   final VoidCallback onClose;
   final VoidCallback? onReport;
+  // Tap the creator (avatar + name) to open their profile. Null = not tappable.
+  final VoidCallback? onCreatorTap;
   final String? avatarUrl;
   final String? category;
   final String? language;
@@ -1784,26 +1787,40 @@ class AfriLiveTopBar extends StatelessWidget {
                   onPressed: onClose,
                   icon: const Icon(Icons.keyboard_arrow_down,
                       color: Colors.white, size: 24)),
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: AfriColors.purple,
-                backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
-                child: hasPhoto ? null : Text(initial),
-              ),
-              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(creatorName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                  ],
+                child: Semantics(
+                  button: onCreatorTap != null,
+                  // When tappable, present one clean "<name>, view profile"
+                  // button; otherwise leave the name to be read normally.
+                  excludeSemantics: onCreatorTap != null,
+                  label:
+                      onCreatorTap == null ? null : '$creatorName, view profile',
+                  child: GestureDetector(
+                    onTap: onCreatorTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AfriColors.purple,
+                          backgroundImage:
+                              hasPhoto ? NetworkImage(avatarUrl!) : null,
+                          child: hasPhoto ? null : Text(initial),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(creatorName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               // Purple Follow pill (per mockup).
