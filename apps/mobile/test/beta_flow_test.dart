@@ -168,6 +168,43 @@ void main() {
     expect(find.textContaining('Zola Kim'), findsOneWidget);
   });
 
+  testWidgets('live card exposes a screen-reader label', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: AfriLiveCard(
+            title: 'Friday Afrobeats Live',
+            category: 'Music',
+            creator: 'Zola Kim',
+            country: 'NG',
+            viewerCount: 3200,
+          ),
+        ),
+      ),
+    ));
+    expect(find.bySemanticsLabel('Live room: Friday Afrobeats Live by Zola Kim'),
+        findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('profile avatar edit control is a labeled button',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: AfriProfileHeader(
+          role: 'VIEWER',
+          userId: 'user-1',
+          isCreator: false,
+          onEditAvatar: () {},
+        ),
+      ),
+    ));
+    expect(find.bySemanticsLabel('Change profile photo'), findsOneWidget);
+    handle.dispose();
+  });
+
   testWidgets('profile header uses circular avatar ring treatment',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(
