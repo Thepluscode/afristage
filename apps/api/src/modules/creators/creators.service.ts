@@ -154,7 +154,7 @@ export class CreatorsService {
     });
     if (!creator) return null;
     const creatorUserId = creator.userId;
-    const [followers, totalRooms, liveRoom, followCount, peakAgg] = await Promise.all([
+    const [followers, totalRooms, liveRoom, followCount, peakAgg, upcomingRoom] = await Promise.all([
       this.prisma.follow.count({ where: { followingId: creatorUserId } }),
       this.prisma.liveRoom.count({ where: { hostUserId: creatorUserId } }),
       this.prisma.liveRoom.findFirst({
@@ -164,8 +164,15 @@ export class CreatorsService {
       viewerId && viewerId !== creatorUserId
         ? this.prisma.follow.count({ where: { followerId: viewerId, followingId: creatorUserId } })
         : Promise.resolve(0),
-      this.prisma.liveRoom.aggregate({ where: { hostUserId: creatorUserId }, _max: { peakViewers: true } })
+      this.prisma.liveRoom.aggregate({ where: { hostUserId: creatorUserId }, _max: { peakViewers: true } }),
+      // The creator's next scheduled show, so a not-currently-live profile can
+      // advertise when they're next on instead of a dead "Not live" state.
+      this.prisma.liveRoom.findFirst({
+        where: { hostUserId: creatorUserId, status: RoomStatus.SCHEDULED, scheduledStartAt: { gte: new Date() } },
+        orderBy: { scheduledStartAt: 'asc' },
+        select: { id: true, title: true, category: true, scheduledStartAt: true }
+      })
     ]);
-    return { ...creator, followers, totalRooms, liveRoom, isFollowing: followCount > 0, peakViewers: peakAgg._max.peakViewers ?? 0 };
+    return { ...creator, followers, totalRooms, liveRoom, upcomingRoom, isFollowing: followCount > 0, peakViewers: peakAgg._max.peakViewers ?? 0 };
   }
 }
