@@ -34,6 +34,7 @@ Flutter mobile (`apps/mobile`).
 | Fix | Severity | Status | Evidence | PR |
 |-----|----------|--------|----------|----|
 | Coin **double-spend / overdraw race** — non-atomic balance check + debit; concurrent gifts/payouts (distinct idempotency keys) could mint coins / over-reserve payouts. Fixed with `FOR UPDATE` lock + in-transaction balance assertion (`guardNonNegative`). Gift `quantity` bounded `@Max(10000)`. | CRITICAL | DEPLOYED | new overdraw/covered-debit tests; API 152/152 | #29 |
+| Coin overdraw fix — **real-DB concurrency test**: 20 parallel gifts on a 1000-coin wallet → exactly 10 win, balance lands at 0, never negative. Proven to have teeth (removing the guard → 20 win, −1000). | — | DEPLOYED | `npm run test:concurrency` 1/1; excluded from default suite | #34 |
 | API **silent failures** — `.catch(()=>{})` dropped watch-time + peak-viewer writes; cron with no try/catch leaked zombie LIVE rooms. Now logged. | HIGH | DEPLOYED | tsc clean, chat+live-rooms 27/27 | #30 |
 | Mobile **reconnect-banner bug** ("Chat rejoined" on first connect) + swallowed auth-refresh / wallet-load errors now logged. | HIGH/MED | DEPLOYED | analyze clean, mobile 18/18 | #31 |
 | Schema note: `GiftTransaction.*Minor` fields hold **COINS** not fiat (immunize against a future wrong `/100` "fix"). | DOC | DEPLOYED | comment-only; `migrate diff` empty | #32 |
@@ -52,10 +53,11 @@ These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
 - All of the above — verified locally (host-GPU emulator captures, jest/flutter
   suites), not against a deployed environment. GitHub Actions is billing-blocked,
   so CI evidence is unavailable; merges rest on local green.
-- The coin-overdraw fix (#29) relies on Postgres row locks under real concurrency —
-  unit tests prove the in-transaction assertion; a production concurrency/load test
-  (N parallel gifts on one wallet → balance never negative) is the missing evidence
-  to promote it to `VERIFIED`.
+- The coin-overdraw fix (#29) relies on Postgres row locks under real concurrency.
+  ✅ Now covered by a real-DB concurrency test (#34) — proven under 20 parallel
+  gifts on a local Postgres, with teeth verified (guard removed → overdraw). The
+  remaining gap to `VERIFIED` is the same as everything else: evidence from a
+  deployed prod/staging environment, not just local.
 
 ## Notes
 
