@@ -32,6 +32,9 @@ class _RoomScreenState extends State<RoomScreen> {
   final _scroll = ScrollController();
   io.Socket? _socket;
   bool _connected = false;
+  // True once we've connected at least once, so the "rejoined" banner only
+  // fires on a genuine reconnect — not on the very first connect.
+  bool _everConnected = false;
   String? _error;
   String? _lkUrl;
   String? _lkToken;
@@ -57,8 +60,10 @@ class _RoomScreenState extends State<RoomScreen> {
   List<(String, String)> _topGifters = const [];
   AfriRoomState? _bannerState;
   String? _bannerMessage;
+  bool _disposed = false;
 
   AppState get _state => context.read<AppState>();
+  bool get _canUpdate => mounted && !_disposed;
 
   @override
   void initState() {
@@ -75,11 +80,15 @@ class _RoomScreenState extends State<RoomScreen> {
   // Top-supporters leaderboard for this room. Refreshed when gifts arrive.
   Future<void> _loadTopGifters() async {
     try {
-      final rows = await _state.api.getList('/live-rooms/${widget.room.id}/top-gifters');
-      if (!mounted) return;
+      final rows =
+          await _state.api.getList('/live-rooms/${widget.room.id}/top-gifters');
+      if (!_canUpdate) return;
       setState(() => _topGifters = rows
           .cast<Map<String, dynamic>>()
-          .map((r) => ((r['displayName'] as String?) ?? 'Supporter', '${r['totalCoins'] ?? 0}'))
+          .map((r) => (
+                (r['displayName'] as String?) ?? 'Supporter',
+                '${r['totalCoins'] ?? 0}'
+              ))
           .toList());
     } on ApiException {
       // Leaderboard is non-critical; leave it empty on failure (strip hides itself).
@@ -96,9 +105,11 @@ class _RoomScreenState extends State<RoomScreen> {
         _lkToken = join['viewerToken'] as String?;
       }
     } on ApiException catch (e) {
+      if (!_canUpdate) return;
       setState(() => _error = e.message);
       return;
     }
+    if (!_canUpdate) return;
 
     final socket = io.io(
       '${api.wsOrigin}/chat',
@@ -110,67 +121,68 @@ class _RoomScreenState extends State<RoomScreen> {
     );
     socket
       ..onConnect((_) {
+        if (!_canUpdate) return;
         socket.emit('room.join', {'roomId': widget.room.id});
-        if (mounted) {
-          final rejoined = !_connected;
-          setState(() {
-            _connected = true;
-            _poorNetwork = false;
-          });
-          if (rejoined) {
-            _showBanner(AfriRoomState.socketRejoined,
-                'Chat rejoined. You are back in the room.');
-          }
+        final rejoined = _everConnected;
+        setState(() {
+          _connected = true;
+          _everConnected = true;
+          _poorNetwork = false;
+        });
+        if (rejoined) {
+          _showBanner(AfriRoomState.socketRejoined,
+              'Chat rejoined. You are back in the room.');
         }
       })
       ..onDisconnect((_) {
-        if (mounted) {
-          setState(() {
-            _connected = false;
-            _poorNetwork = true;
-          });
-          _showBanner(AfriRoomState.reconnectingSocket,
-              'Chat is reconnecting. Video can continue while we retry.');
-        }
+        if (!_canUpdate) return;
+        setState(() {
+          _connected = false;
+          _poorNetwork = true;
+        });
+        _showBanner(AfriRoomState.reconnectingSocket,
+            'Chat is reconnecting. Video can continue while we retry.');
       })
       ..on('connect_error', (_) {
-        if (mounted) {
-          setState(() => _poorNetwork = true);
-          _showBanner(AfriRoomState.poorNetwork,
-              'Network is unstable. Low-data mode may help.');
-        }
+        if (!_canUpdate) return;
+        setState(() => _poorNetwork = true);
+        _showBanner(AfriRoomState.poorNetwork,
+            'Network is unstable. Low-data mode may help.');
       })
       ..on('chat.message_created', (data) {
+        if (!_canUpdate) return;
         if (data is Map) _addMessage(data);
       })
       ..on('gift.sent', (data) {
+        if (!_canUpdate) return;
         if (data is Map) {
           final name = data['giftName'] as String? ?? 'a gift';
           final qty = int.tryParse('${data['quantity'] ?? 1}') ?? 1;
           _flashGift('$name x$qty', data['animationUrl'] as String?);
           _addSystem('$name x$qty');
-          if (mounted) {
-            setState(() {
-              _giftCount += qty;
-            });
-          }
+          setState(() {
+            _giftCount += qty;
+          });
           _loadTopGifters(); // a gift changes the standings
         }
       })
       ..on('reaction.sent', (data) {
+        if (!_canUpdate) return;
         if (data is Map) {
           _addReaction(data['reactionType'] as String? ?? 'heart',
               emitSocket: false);
         }
       })
       ..on('room.viewer_count_updated', (data) {
+        if (!_canUpdate) return;
         final count = data is Map ? (data['count'] as num?)?.toInt() : null;
-        if (count != null && mounted) setState(() => _viewerCount = count);
+        if (count != null) setState(() => _viewerCount = count);
       })
       ..on('user.muted', (data) {
+        if (!_canUpdate) return;
         final userId = data is Map ? data['userId'] as String? : null;
         if (userId == _state.userId) {
-          if (mounted) setState(() => _userMuted = true);
+          setState(() => _userMuted = true);
           _showBanner(AfriRoomState.muted,
               'You can keep watching, but chat is muted in this room.');
         } else {
@@ -178,20 +190,22 @@ class _RoomScreenState extends State<RoomScreen> {
         }
       })
       ..on('room.suspended', (_) {
-        if (mounted) setState(() => _roomSuspended = true);
+        if (!_canUpdate) return;
+        setState(() => _roomSuspended = true);
         _showBanner(
             AfriRoomState.suspended, 'This room was suspended by moderation.');
       })
       ..on('user.banned', (data) {
+        if (!_canUpdate) return;
         final userId = data is Map ? data['userId'] as String? : null;
         if (userId == _state.userId) {
-          if (mounted) setState(() => _userBanned = true);
+          setState(() => _userBanned = true);
           _showBanner(AfriRoomState.banned,
               'You were removed from this room by moderation.');
         }
       })
       ..on('room.ended', (_) {
-        if (!mounted) {
+        if (!_canUpdate) {
           return;
         }
         setState(() => _roomEnded = true);
@@ -203,13 +217,13 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _showBanner(AfriRoomState state, String message) {
-    if (!mounted) return;
+    if (!_canUpdate) return;
     setState(() {
       _bannerState = state;
       _bannerMessage = message;
     });
     Future<void>.delayed(const Duration(seconds: 4), () {
-      if (mounted && _bannerMessage == message) {
+      if (_canUpdate && _bannerMessage == message) {
         setState(() {
           _bannerState = null;
           _bannerMessage = null;
@@ -219,7 +233,7 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _addSystem(String text) {
-    if (!mounted) {
+    if (!_canUpdate) {
       return;
     }
     setState(() => _messages.add(ChatMessage(sender: '•', text: text)));
@@ -452,6 +466,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     _socket?.dispose();
     _input.dispose();
     _scroll.dispose();
@@ -489,8 +504,10 @@ class _RoomScreenState extends State<RoomScreen> {
         Center(
           child: FilledButton.icon(
             onPressed: ready ? () => setState(() => _videoOn = true) : null,
-            icon: Icon(widget.isHost ? Icons.videocam : Icons.play_circle_outline),
-            label: Text(widget.isHost ? 'Go Live with Camera + Mic' : 'Connect Video'),
+            icon: Icon(
+                widget.isHost ? Icons.videocam : Icons.play_circle_outline),
+            label: Text(
+                widget.isHost ? 'Go Live with Camera + Mic' : 'Connect Video'),
           ),
         ),
       ],
@@ -571,7 +588,11 @@ class _RoomScreenState extends State<RoomScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${widget.room.category} · ${widget.room.country} · ${_connected ? 'Chat live' : 'Reconnecting'}',
+                    [
+                      widget.room.category,
+                      widget.room.country,
+                      widget.room.language,
+                    ].where((value) => value.trim().isNotEmpty).join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium,

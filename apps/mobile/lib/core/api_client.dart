@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'package:http/http.dart' as http;
 
 /// Resolves the API base URL. An explicit --dart-define=API_BASE always wins
@@ -99,13 +100,23 @@ class ApiClient {
       refreshToken = refresh;
       await onTokensRefreshed?.call(access, refresh);
       return true;
-    } catch (_) {
+    } catch (e) {
+      // A failed refresh logs the user out, so make transient failures (network
+      // blip, token-store write error) distinguishable from a genuinely revoked
+      // token instead of vanishing into a silent logout.
+      debugPrint('Token refresh failed: $e');
       return false;
     }
   }
 
   Future<Map<String, dynamic>> get(String path) async =>
       (await _send('GET', path)) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>?> getOptionalMap(String path) async {
+    final decoded = await _send('GET', path);
+    if (decoded == null) return null;
+    return decoded as Map<String, dynamic>;
+  }
 
   Future<List<dynamic>> getList(String path) async =>
       (await _send('GET', path)) as List<dynamic>;
@@ -125,7 +136,8 @@ class ApiClient {
   /// bearer token — the presigned URL carries its own signature.
   Future<void> putBytes(String url, List<int> bytes, String contentType) async {
     final res = await http
-        .put(Uri.parse(url), headers: {'Content-Type': contentType}, body: bytes)
+        .put(Uri.parse(url),
+            headers: {'Content-Type': contentType}, body: bytes)
         .timeout(const Duration(seconds: 30));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw ApiException(res.statusCode, 'Upload failed');
