@@ -89,9 +89,6 @@ export default function CreatorsPage() {
                   </button>
                   <ConfirmDialog title="Reject creator" body="Rejecting requires a reason and blocks creator live access." confirmLabel="Reject" disabled={c.approvalStatus === "REJECTED"} onConfirm={() => reject(c.userId)} />
                   <ConfirmDialog title="Suspend creator" body="Suspending disables creator live access and requires a reason." confirmLabel="Suspend" disabled={c.approvalStatus === "SUSPENDED"} onConfirm={() => suspend(c.userId)} />
-                  <button className="button secondary">Profile</button>
-                  <button className="button secondary">Payouts</button>
-                  <button className="button secondary">Reports</button>
                   </ActionMenu>
                 </td>
               </tr>

@@ -93,10 +93,6 @@ export default function UsersPage() {
                 <td>—</td>
                 <td>
                   <ActionMenu>
-                  <button className="button secondary">View User</button>
-                  <button className="button secondary">Wallet</button>
-                  <button className="button secondary">Support</button>
-                  <button className="button secondary">Audit Trail</button>
                   <ConfirmDialog title="Suspend user" body="Suspend this user? This affects account access." confirmLabel="Suspend" disabled={u.status !== "ACTIVE"} onConfirm={() => suspend(u.id)} />
                   <ConfirmDialog title="Ban user" body="Ban this user? This blocks login and should be reserved for severe abuse." confirmLabel="Ban" disabled={u.status === "BANNED"} onConfirm={() => ban(u.id)} />
                   <button
