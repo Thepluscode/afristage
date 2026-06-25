@@ -63,6 +63,21 @@ flows end-to-end with captured HTTP responses. This is stronger than unit tests
 | Overdraw via `quantity: 10000` (within Max, over balance) | 400 "Insufficient coin balance" (#29 balance guard); balance unchanged |
 | Ledger consistency | viewer COIN ledger balance = 1450, non-negative |
 
+### Reminder lifecycle (re-run 2026-06-25 against a container rebuilt with #50)
+
+| Step | Observed |
+|------|----------|
+| Creator schedules a room (`scheduledStartAt` future) | `SCHEDULED` |
+| Viewer GET `/creators/:id` | `upcomingRoom.reminded: false` (#43 + #50) |
+| `POST /live-rooms/:id/remind` | `reminded: true` |
+| GET `/creators/:id` again | `upcomingRoom.reminded: true` |
+| `DELETE /live-rooms/:id/remind` | `reminded: false` |
+| GET `/creators/:id` again | `upcomingRoom.reminded: false` |
+| `GET /gifts/me` (#44) | 17 rows, correct shape (giftName/creatorName/roomTitle/coins) |
+
+The remind-me toggle state round-trips correctly through set/cancel on the real
+server. Still localhost — not promoted to `VERIFIED`.
+
 Container has since been **stopped** (`docker stop afristage-api-1`; not removed). The
 local deps (Postgres/Redis/LiveKit/MinIO) and the host dev API on `:3000` were left
 running. Relaunch with `docker compose -f docker-compose.yml -f /tmp/afri-api-port.yml up -d api`.
