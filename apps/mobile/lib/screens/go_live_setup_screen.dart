@@ -276,7 +276,7 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
             country: _country,
             creator: 'Your stage',
             viewerCount: 0,
-            onTap: () {},
+            // Preview only — non-interactive (no dead tap, not a11y "button").
           ),
         ),
         const SizedBox(height: 16),

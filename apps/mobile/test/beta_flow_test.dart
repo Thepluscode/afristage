@@ -188,6 +188,28 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('live card is a semantics button only when interactive',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Column(children: [
+          AfriLiveCard(
+              title: 'Tappable',
+              category: 'Music',
+              creator: 'A',
+              onTap: () {}),
+          const AfriLiveCard(title: 'Preview', category: 'Music', creator: 'B'),
+        ]),
+      ),
+    ));
+    expect(tester.getSemantics(find.bySemanticsLabel('Live room: Tappable by A')),
+        matchesSemantics(isButton: true, label: 'Live room: Tappable by A'));
+    expect(tester.getSemantics(find.bySemanticsLabel('Live room: Preview by B')),
+        matchesSemantics(isButton: false, label: 'Live room: Preview by B'));
+    handle.dispose();
+  });
+
   testWidgets('profile avatar edit control is a labeled button',
       (tester) async {
     final handle = tester.ensureSemantics();
