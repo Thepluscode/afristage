@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -56,7 +58,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // Tapping a notification marks it read and, when it points at a room (e.g. a
   // "creator is live" alert), opens that room if it is still live.
   Future<void> _open(Map<String, dynamic> n) async {
-    _markRead(n);
+    // Fire-and-forget: marking read is optimistic and self-rolls-back on error;
+    // we don't want to delay opening the room on the read POST. unawaited() makes
+    // that intent explicit so a stray error can't become an unhandled future.
+    unawaited(_markRead(n));
     final roomId = n['roomId'] as String?;
     if (roomId == null) return;
     final api = context.read<AppState>().api;

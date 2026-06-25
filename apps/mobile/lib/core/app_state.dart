@@ -51,14 +51,17 @@ class AppState extends ChangeNotifier {
           await refreshWallet();
         } on ApiException {
           await logout(); // auth refresh also failed -> truly expired
-        } catch (_) {
+        } catch (e) {
           // Network/other error at startup: keep the session and continue into
           // the app. The wallet refetches on the wallet screen / pull-to-refresh.
-          // Never hang the splash on a transient connectivity blip.
+          // Never hang the splash on a transient blip — but log so a schema /
+          // parse bug doesn't hide behind the network case.
+          debugPrint('Wallet load during restore failed: $e');
         }
       }
-    } catch (_) {
+    } catch (e) {
       // Storage or any unexpected failure must not trap the user on the splash.
+      debugPrint('Session restore failed: $e');
     } finally {
       _restoring = false;
       notifyListeners();
@@ -102,10 +105,14 @@ class AppState extends ChangeNotifier {
     await _storage.write(key: _refreshKey, value: api.refreshToken);
     await _storage.write(key: _roleKey, value: role);
     await _storage.write(key: _userKey, value: userId);
-    // Wallet is non-critical to completing login — don't fail auth if it errors.
+    // Wallet is non-critical to completing login — don't fail auth if it errors,
+    // but log so a load failure isn't invisible (login would otherwise show a
+    // zero/stale balance with no trace).
     try {
       await refreshWallet();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Wallet load after auth failed: $e');
+    }
     notifyListeners();
   }
 
