@@ -63,9 +63,6 @@ export default function LiveRoomsPage() {
                 <td>{r.startedAt ? new Date(r.startedAt).toLocaleString() : '—'}</td>
                 <td>
                   <ActionMenu>
-                    <button className="button secondary">View Details</button>
-                    <button className="button secondary">View Reports</button>
-                    <button className="button secondary">Audit Trail</button>
                     <ConfirmDialog
                       title="Suspend room"
                       body={`Suspend "${r.title}" immediately? This removes the room from live operation.`}
