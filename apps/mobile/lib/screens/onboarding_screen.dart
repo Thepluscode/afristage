@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
+import 'creator_apply_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -54,7 +55,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (!mounted) {
         return;
       }
-      navigator.pop();
+      // "Creator" intent must lead somewhere — otherwise the choice is a no-op.
+      // Send aspiring creators straight into the application flow.
+      if (_intent == 'Creator') {
+        navigator.pushReplacement(
+            MaterialPageRoute(builder: (_) => const CreatorApplyScreen()));
+      } else {
+        navigator.pop();
+      }
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
