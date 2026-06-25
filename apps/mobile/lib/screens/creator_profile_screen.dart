@@ -5,6 +5,7 @@ import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'room_screen.dart';
 
@@ -138,6 +139,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
     final approved = d['approvalStatus'] == 'APPROVED';
     final sessions = (d['totalRooms'] as num?)?.toInt() ?? 0;
     final live = d['liveRoom'] as Map<String, dynamic>?;
+    final upcoming = d['upcomingRoom'] as Map<String, dynamic>?;
     final creatorUserId = d['userId'] as String?;
     final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
     final initial =
@@ -257,6 +259,36 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
             onPressed: () => _watchLive(live, d),
             icon: const Icon(Icons.live_tv),
             label: Text('Watch live · ${live['title'] ?? 'On stage now'}'),
+          )
+        else if (upcoming != null)
+          AfriCard(
+            child: Row(
+              children: [
+                const AfriIconBadge(
+                    icon: Icons.event_available, accent: AfriColors.gold),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Next live',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AfriColors.mutedText)),
+                      const SizedBox(height: 2),
+                      Text('${upcoming['title'] ?? 'Upcoming show'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(shortDateTime('${upcoming['scheduledStartAt'] ?? ''}'),
+                          style: Theme.of(context).textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           )
         else
           const AfriEmptyState(
