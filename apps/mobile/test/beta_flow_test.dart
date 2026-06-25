@@ -5,6 +5,7 @@ import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/screens/beta_accept_screen.dart';
 import 'package:afristage_mobile/screens/feed_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
+import 'package:afristage_mobile/screens/payout_methods_screen.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/search_screen.dart';
 import 'package:afristage_mobile/screens/wallet_screen.dart';
@@ -189,6 +190,25 @@ void main() {
     expect(ledgerMoney(100000, 'NGN'), '₦1000.00');
     expect(ledgerMoney(62040, 'USD'), r'$620.40');
     expect(ledgerMoney(500, 'GHS'), '₵5.00');
+  });
+
+  test('payoutMethodError flags missing fields and passes a complete form', () {
+    expect(
+        payoutMethodError(
+            label: '', reference: '123', country: 'NG', currency: 'NGN'),
+        isNotNull);
+    expect(
+        payoutMethodError(
+            label: 'GTBank', reference: '', country: 'NG', currency: 'NGN'),
+        isNotNull);
+    expect(
+        payoutMethodError(
+            label: 'GTBank', reference: '123', country: '', currency: ''),
+        isNotNull);
+    expect(
+        payoutMethodError(
+            label: 'GTBank', reference: '123', country: 'NG', currency: 'NGN'),
+        isNull);
   });
 
   test('notificationStyle maps known types and falls back for unknown', () {

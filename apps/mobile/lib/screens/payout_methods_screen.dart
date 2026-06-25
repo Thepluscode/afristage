@@ -6,6 +6,22 @@ import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_ui.dart';
 
+/// Client-side guard for the add-payout-method form. Returns the first problem
+/// as a user-facing message, or null when every required field is present.
+String? payoutMethodError({
+  required String label,
+  required String reference,
+  required String country,
+  required String currency,
+}) {
+  if (label.isEmpty) return 'Enter a label for this method.';
+  if (reference.isEmpty) return 'Enter the account or mobile money number.';
+  if (country.isEmpty || currency.isEmpty) {
+    return 'Country and currency are required.';
+  }
+  return null;
+}
+
 class PayoutMethodsScreen extends StatefulWidget {
   const PayoutMethodsScreen({super.key});
 
@@ -176,6 +192,18 @@ class _AddPayoutMethodSheetState extends State<_AddPayoutMethodSheet> {
   }
 
   Future<void> _submit() async {
+    final label = _label.text.trim();
+    final country = _country.text.trim().toUpperCase();
+    final currency = _currency.text.trim().toUpperCase();
+    final reference = _reference.text.trim();
+    // Validate on-device first — no point posting a payout destination that the
+    // server will only reject, and the user gets feedback instantly.
+    final validationError = payoutMethodError(
+        label: label, reference: reference, country: country, currency: currency);
+    if (validationError != null) {
+      setState(() => _error = validationError);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -183,10 +211,10 @@ class _AddPayoutMethodSheetState extends State<_AddPayoutMethodSheet> {
     try {
       await context.read<AppState>().api.post('/payouts/methods', {
         'provider': _provider,
-        'label': _label.text.trim(),
-        'country': _country.text.trim().toUpperCase(),
-        'currency': _currency.text.trim().toUpperCase(),
-        'destinationReference': _reference.text.trim(),
+        'label': label,
+        'country': country,
+        'currency': currency,
+        'destinationReference': reference,
       });
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
