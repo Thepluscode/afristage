@@ -210,6 +210,36 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('live top bar creator is a button only when tappable',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Column(children: [
+          AfriLiveTopBar(
+            creatorName: 'Zola',
+            following: false,
+            onFollow: () {},
+            viewerCount: 10,
+            onClose: () {},
+            onCreatorTap: () {},
+          ),
+          AfriLiveTopBar(
+            creatorName: 'Kofi',
+            following: false,
+            onFollow: () {},
+            viewerCount: 5,
+            onClose: () {},
+          ),
+        ]),
+      ),
+    ));
+    expect(tester.getSemantics(find.bySemanticsLabel('Zola, view profile')),
+        matchesSemantics(isButton: true, label: 'Zola, view profile'));
+    expect(find.bySemanticsLabel('Kofi, view profile'), findsNothing);
+    handle.dispose();
+  });
+
   testWidgets('profile avatar edit control is a labeled button',
       (tester) async {
     final handle = tester.ensureSemantics();

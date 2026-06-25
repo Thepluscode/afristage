@@ -9,6 +9,7 @@ import '../models/models.dart';
 import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'livekit_room_view.dart';
+import 'creator_profile_screen.dart';
 import 'report_screen.dart';
 
 class RoomScreen extends StatefulWidget {
@@ -558,6 +559,16 @@ class _RoomScreenState extends State<RoomScreen> {
           viewerCount: _viewerCount,
           onClose: () => Navigator.pop(context),
           onFollow: blocked ? null : _toggleFollow,
+          // Viewers can open the creator's profile; a host wouldn't tap into
+          // their own profile from their own room.
+          onCreatorTap: widget.isHost || widget.room.hostId == null
+              ? null
+              : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => CreatorProfileScreen(
+                            creatorId: widget.room.hostId!)),
+                  ),
           onReport: widget.isHost
               ? null
               : () => Navigator.push(
