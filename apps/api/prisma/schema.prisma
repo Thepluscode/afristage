@@ -362,6 +362,10 @@ model GiftTransaction {
   giftId              String   @map("gift_id")
   ledgerTransactionId String   @unique @map("ledger_transaction_id")
   quantity            Int
+  // NOTE: despite the "Minor" suffix, these three are denominated in COINS, not
+  // minor fiat units. They are a split of `coinPrice * quantity` and are credited
+  // to the COIN-currency EARNING/PLATFORM_REVENUE accounts. Do NOT divide by 100
+  // for display — that would 100x-deflate them. UI shows them as "<n> coins".
   totalCoinAmount     Int      @map("total_coin_amount")
   creatorEarningMinor BigInt   @map("creator_earning_minor")
   platformFeeMinor    BigInt   @map("platform_fee_minor")
