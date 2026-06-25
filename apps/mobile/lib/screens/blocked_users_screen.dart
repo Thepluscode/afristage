@@ -28,6 +28,12 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
 
   void _reload() => setState(() => _items = _load());
 
+  Future<void> _refresh() async {
+    final f = _load();
+    setState(() => _items = f);
+    await f;
+  }
+
   Future<void> _unblock(Map<String, dynamic> u) async {
     final id = u['id'] as String;
     setState(() => _unblocking.add(id));
@@ -37,8 +43,8 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _unblocking.remove(id));
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not unblock: ${e.message}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not unblock: ${e.message}')));
     }
   }
 
@@ -46,37 +52,44 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Blocked users')),
-      body: FutureBuilder<List<dynamic>>(
-        future: _items,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: AfriErrorState(
-                title: 'Could not load blocked users',
-                body: 'Check your connection and try again.',
-                onRetry: _reload,
-              ),
-            );
-          }
-          final rows = (snapshot.data ?? const []).cast<Map<String, dynamic>>();
-          if (rows.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: AfriEmptyState(
-                icon: Icons.block,
-                title: 'No blocked users',
-                body: 'Accounts you block won\'t be able to interact with you. '
-                    'You can unblock them here anytime.',
-              ),
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => _reload(),
-            child: ListView.separated(
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder<List<dynamic>>(
+          future: _items,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  AfriErrorState(
+                    title: 'Could not load blocked users',
+                    body: 'Check your connection and try again.',
+                    onRetry: _reload,
+                  ),
+                ],
+              );
+            }
+            final rows =
+                (snapshot.data ?? const []).cast<Map<String, dynamic>>();
+            if (rows.isEmpty) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: const [
+                  AfriEmptyState(
+                    icon: Icons.block,
+                    title: 'No blocked users',
+                    body:
+                        'Accounts you block won\'t be able to interact with you. '
+                        'You can unblock them here anytime.',
+                  ),
+                ],
+              );
+            }
+            return ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               itemCount: rows.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -90,11 +103,14 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                     children: [
                       CircleAvatar(
                         radius: 21,
-                        backgroundColor: AfriColors.warning.withValues(alpha: 0.16),
-                        backgroundImage:
-                            (avatar != null && avatar.isNotEmpty) ? NetworkImage(avatar) : null,
+                        backgroundColor:
+                            AfriColors.warning.withValues(alpha: 0.16),
+                        backgroundImage: (avatar != null && avatar.isNotEmpty)
+                            ? NetworkImage(avatar)
+                            : null,
                         child: (avatar == null || avatar.isEmpty)
-                            ? const Icon(Icons.person, color: AfriColors.warning)
+                            ? const Icon(Icons.person,
+                                color: AfriColors.warning)
                             : null,
                       ),
                       const SizedBox(width: 12),
@@ -115,9 +131,9 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                   ),
                 );
               },
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
