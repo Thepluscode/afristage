@@ -63,12 +63,14 @@ class _SupportScreenState extends State<SupportScreen> {
   }
 
   Future<void> _create() async {
+    final messenger = ScaffoldMessenger.of(context);
     if (_subject.text.trim().isEmpty || _description.text.trim().isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Add a subject and a short description first.')));
       return;
     }
     setState(() => _busy = true);
     final api = context.read<AppState>().api;
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await api.post('/support/tickets', {
         'type': _type,
