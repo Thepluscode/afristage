@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 
 class CreatorRoomsScreen extends StatefulWidget {
@@ -82,6 +83,14 @@ class _CreatorRoomsScreenState extends State<CreatorRoomsScreen> {
                         ),
                         AfriChip(label: '${r['status'] ?? ''}'),
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      shortDateTime('${r['startedAt'] ?? r['createdAt'] ?? ''}'),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AfriColors.mutedText),
                     ),
                     const SizedBox(height: 10),
                     Row(
