@@ -32,6 +32,12 @@ class _CreatorScreenState extends State<CreatorScreen> {
 
   void _reload() => setState(() => _dashboard = _load());
 
+  Future<void> _refresh() async {
+    final f = _load();
+    setState(() => _dashboard = f);
+    await f;
+  }
+
   // totalWatchSeconds is a BigInt server-side; it may arrive as a number or a
   // string, so parse defensively. Render as the largest sensible unit.
   String _formatWatch(dynamic raw) {
@@ -125,230 +131,235 @@ class _CreatorScreenState extends State<CreatorScreen> {
           const SizedBox(width: 6),
         ],
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: _dashboard,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _dashboard,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const SizedBox(height: 80),
+                  AfriEmptyState(
+                    icon: Icons.wifi_off,
+                    title: 'Creator hub unavailable',
+                    body:
+                        'Check your connection and retry. If the problem continues, contact support.',
+                    action: FilledButton(
+                      onPressed: _reload,
+                      child: const Text('Retry creator hub'),
+                    ),
+                  ),
+                ],
+              );
+            }
+            final data = snapshot.data;
+            final creator = data?['creator'] as Map<String, dynamic>?;
+            final status = creator?['status'] as String? ??
+                (creator == null ? 'PENDING' : 'APPROVED');
+            final stageName = creator?['stageName'] as String? ?? 'Creator';
+            final earnings = usd((data?['earnings'] as num?) ?? 0);
+            final supporters = (data?['topSupporters'] as List?)
+                    ?.cast<Map<String, dynamic>>() ??
+                const <Map<String, dynamic>>[];
             return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
-                const SizedBox(height: 80),
-                AfriEmptyState(
-                  icon: Icons.wifi_off,
-                  title: 'Creator hub unavailable',
-                  body:
-                      'Check your connection and retry. If the problem continues, contact support.',
-                  action: FilledButton(
-                    onPressed: _reload,
-                    child: const Text('Retry creator hub'),
+                _CreatorHeader(
+                    stageName: stageName,
+                    approved: status == 'APPROVED',
+                    avatarUrl: data?['avatarUrl'] as String?),
+                const SizedBox(height: 14),
+                AfriCreatorStatusBanner(
+                  status: status,
+                  message: status == 'APPROVED'
+                      ? "You're approved to go live and receive gifts."
+                      : 'Your creator profile is under review. Go Live unlocks once approved.',
+                ),
+                const SizedBox(height: 16),
+                // Earnings + actions hero.
+                AfriGradientPanel(
+                  colors: const [Color(0xFF1B2A18), Color(0xFF17171F)],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Available balance',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(earnings,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                      color: AfriColors.success,
+                                      fontWeight: FontWeight.w900)),
+                          const SizedBox(width: 6),
+                          Text('available',
+                              style: Theme.of(context).textTheme.bodyMedium),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _goLive,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AfriColors.purple,
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(Icons.live_tv),
+                              label: const Text('Go Live'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _requestPayout,
+                              icon: const Icon(Icons.payments_outlined),
+                              label: const Text('Request payout'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            );
-          }
-          final data = snapshot.data;
-          final creator = data?['creator'] as Map<String, dynamic>?;
-          final status = creator?['status'] as String? ??
-              (creator == null ? 'PENDING' : 'APPROVED');
-          final stageName = creator?['stageName'] as String? ?? 'Creator';
-          final earnings = usd((data?['earnings'] as num?) ?? 0);
-          final supporters =
-              (data?['topSupporters'] as List?)?.cast<Map<String, dynamic>>() ??
-                  const <Map<String, dynamic>>[];
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _CreatorHeader(
-                  stageName: stageName,
-                  approved: status == 'APPROVED',
-                  avatarUrl: data?['avatarUrl'] as String?),
-              const SizedBox(height: 14),
-              AfriCreatorStatusBanner(
-                status: status,
-                message: status == 'APPROVED'
-                    ? "You're approved to go live and receive gifts."
-                    : 'Your creator profile is under review. Go Live unlocks once approved.',
-              ),
-              const SizedBox(height: 16),
-              // Earnings + actions hero.
-              AfriGradientPanel(
-                colors: const [Color(0xFF1B2A18), Color(0xFF17171F)],
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 20),
+                const AfriSectionHeader(
+                  title: 'Overview',
+                  subtitle: 'Your stage performance so far',
+                ),
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    Text('Available balance',
-                        style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 4),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(earnings,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(
-                                    color: AfriColors.success,
-                                    fontWeight: FontWeight.w900)),
-                        const SizedBox(width: 6),
-                        Text('available',
-                            style: Theme.of(context).textTheme.bodyMedium),
-                      ],
+                    Expanded(
+                      child: AfriStatTile(
+                          label: 'Earnings',
+                          value: earnings,
+                          icon: Icons.payments_outlined,
+                          accent: AfriColors.success),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _goLive,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AfriColors.purple,
-                              foregroundColor: Colors.white,
-                            ),
-                            icon: const Icon(Icons.live_tv),
-                            label: const Text('Go Live'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _requestPayout,
-                            icon: const Icon(Icons.payments_outlined),
-                            label: const Text('Request payout'),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AfriStatTile(
+                          label: 'Gifts received',
+                          value: '${data?['totalGiftTransactions'] ?? 0}',
+                          icon: Icons.card_giftcard,
+                          accent: AfriColors.gold),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              const AfriSectionHeader(
-                title: 'Overview',
-                subtitle: 'Your stage performance so far',
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: AfriStatTile(
-                        label: 'Earnings',
-                        value: earnings,
-                        icon: Icons.payments_outlined,
-                        accent: AfriColors.success),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AfriStatTile(
-                        label: 'Gifts received',
-                        value: '${data?['totalGiftTransactions'] ?? 0}',
-                        icon: Icons.card_giftcard,
-                        accent: AfriColors.gold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: AfriStatTile(
-                        label: 'Live sessions',
-                        value: '${data?['totalRooms'] ?? 0}',
-                        icon: Icons.mic,
-                        accent: AfriColors.purple),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AfriStatTile(
-                        label: 'Followers',
-                        value: '${data?['followers'] ?? 0}',
-                        icon: Icons.group_outlined,
-                        accent: AfriColors.teal),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: AfriStatTile(
-                        label: 'Watch time',
-                        value: _formatWatch(data?['totalWatchSeconds']),
-                        icon: Icons.schedule,
-                        accent: AfriColors.teal),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const AfriSectionHeader(
-                title: 'Top supporters',
-                subtitle: 'Viewers who gifted you the most',
-              ),
-              const SizedBox(height: 10),
-              if (supporters.isEmpty)
-                const AfriEmptyState(
-                  icon: Icons.volunteer_activism,
-                  title: 'No supporters yet',
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AfriStatTile(
+                          label: 'Live sessions',
+                          value: '${data?['totalRooms'] ?? 0}',
+                          icon: Icons.mic,
+                          accent: AfriColors.purple),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AfriStatTile(
+                          label: 'Followers',
+                          value: '${data?['followers'] ?? 0}',
+                          icon: Icons.group_outlined,
+                          accent: AfriColors.teal),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AfriStatTile(
+                          label: 'Watch time',
+                          value: _formatWatch(data?['totalWatchSeconds']),
+                          icon: Icons.schedule,
+                          accent: AfriColors.teal),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const AfriSectionHeader(
+                  title: 'Top supporters',
+                  subtitle: 'Viewers who gifted you the most',
+                ),
+                const SizedBox(height: 10),
+                if (supporters.isEmpty)
+                  const AfriEmptyState(
+                    icon: Icons.volunteer_activism,
+                    title: 'No supporters yet',
+                    body:
+                        'When viewers send gifts in your rooms, your top supporters appear here.',
+                  )
+                else
+                  for (final s in supporters) ...[
+                    _SupporterRow(
+                      name: s['displayName'] as String? ?? 'Supporter',
+                      avatarUrl: s['avatarUrl'] as String?,
+                      coins: (s['coins'] as num?)?.toInt() ?? 0,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                const SizedBox(height: 16),
+                AfriActionRow(
+                  icon: Icons.account_balance,
+                  title: 'Payout methods',
                   body:
-                      'When viewers send gifts in your rooms, your top supporters appear here.',
-                )
-              else
-                for (final s in supporters) ...[
-                  _SupporterRow(
-                    name: s['displayName'] as String? ?? 'Supporter',
-                    avatarUrl: s['avatarUrl'] as String?,
-                    coins: (s['coins'] as num?)?.toInt() ?? 0,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              const SizedBox(height: 16),
-              AfriActionRow(
-                icon: Icons.account_balance,
-                title: 'Payout methods',
-                body:
-                    'Add a bank or mobile-money destination for your earnings.',
-                accent: AfriColors.teal,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const PayoutMethodsScreen())),
-              ),
-              const SizedBox(height: 10),
-              AfriActionRow(
-                icon: Icons.history,
-                title: 'Payout history',
-                body: 'Track every payout request from review to paid.',
-                accent: AfriColors.gold,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const PayoutHistoryScreen())),
-              ),
-              const SizedBox(height: 10),
-              AfriActionRow(
-                icon: Icons.insights,
-                title: 'Show performance',
-                body: 'Peak viewers, watch time, and gifts for each room.',
-                accent: AfriColors.purple,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const CreatorRoomsScreen())),
-              ),
-              const SizedBox(height: 10),
-              AfriActionRow(
-                icon: Icons.tune,
-                title: 'Prepare next room',
-                body: 'Set title, region, language, and viewer defaults.',
-                accent: AfriColors.teal,
-                onTap: _goLive,
-              ),
-            ],
-          );
-        },
+                      'Add a bank or mobile-money destination for your earnings.',
+                  accent: AfriColors.teal,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PayoutMethodsScreen())),
+                ),
+                const SizedBox(height: 10),
+                AfriActionRow(
+                  icon: Icons.history,
+                  title: 'Payout history',
+                  body: 'Track every payout request from review to paid.',
+                  accent: AfriColors.gold,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PayoutHistoryScreen())),
+                ),
+                const SizedBox(height: 10),
+                AfriActionRow(
+                  icon: Icons.insights,
+                  title: 'Show performance',
+                  body: 'Peak viewers, watch time, and gifts for each room.',
+                  accent: AfriColors.purple,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CreatorRoomsScreen())),
+                ),
+                const SizedBox(height: 10),
+                AfriActionRow(
+                  icon: Icons.tune,
+                  title: 'Prepare next room',
+                  body: 'Set title, region, language, and viewer defaults.',
+                  accent: AfriColors.teal,
+                  onTap: _goLive,
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -459,10 +470,8 @@ class _SupporterRow extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium),
           ),
           Text(usd(coins),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: AfriColors.success, fontWeight: FontWeight.w800)),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AfriColors.success, fontWeight: FontWeight.w800)),
         ],
       ),
     );
