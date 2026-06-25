@@ -43,6 +43,12 @@ class _PayoutMethodsScreenState extends State<PayoutMethodsScreen> {
 
   void _reload() => setState(() => _items = _load());
 
+  Future<void> _refresh() async {
+    final f = _load();
+    setState(() => _items = f);
+    await f;
+  }
+
   Future<void> _delete(Map<String, dynamic> m) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -75,92 +81,102 @@ class _PayoutMethodsScreenState extends State<PayoutMethodsScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Add method'),
       ),
-      body: FutureBuilder<List<dynamic>>(
-        future: _items,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: AfriErrorState(
-                title: 'Could not load payout methods',
-                body: 'Check your connection and try again.',
-                onRetry: _reload,
-              ),
-            );
-          }
-          final rows = (snapshot.data ?? const []).cast<Map<String, dynamic>>();
-          if (rows.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: AfriEmptyState(
-                icon: Icons.account_balance_outlined,
-                title: 'No payout methods yet',
-                body:
-                    'Add a bank account or mobile-money number so approved earnings have somewhere to settle.',
-                action: FilledButton(
-                    onPressed: _add, child: const Text('Add payout method')),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: rows.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, i) {
-              final m = rows[i];
-              final isBank = m['provider'] == 'BANK';
-              return AfriCard(
-                child: Row(
-                  children: [
-                    AfriIconBadge(
-                        icon: isBank
-                            ? Icons.account_balance
-                            : Icons.smartphone,
-                        accent: AfriColors.teal),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text('${m['label'] ?? 'Method'}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium),
-                              ),
-                              if (m['isDefault'] == true) ...[
-                                const SizedBox(width: 8),
-                                const AfriChip(label: 'Default', selected: true),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${isBank ? 'Bank' : 'Mobile money'} · ${_mask('${m['destinationReference'] ?? ''}')} · ${m['currency'] ?? ''}',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Remove',
-                      icon: const Icon(Icons.delete_outline,
-                          color: AfriColors.danger),
-                      onPressed: () => _delete(m),
-                    ),
-                  ],
-                ),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder<List<dynamic>>(
+          future: _items,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  AfriErrorState(
+                    title: 'Could not load payout methods',
+                    body: 'Check your connection and try again.',
+                    onRetry: _reload,
+                  ),
+                ],
               );
-            },
-          );
-        },
+            }
+            final rows =
+                (snapshot.data ?? const []).cast<Map<String, dynamic>>();
+            if (rows.isEmpty) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  AfriEmptyState(
+                    icon: Icons.account_balance_outlined,
+                    title: 'No payout methods yet',
+                    body:
+                        'Add a bank account or mobile-money number so approved earnings have somewhere to settle.',
+                    action: FilledButton(
+                        onPressed: _add,
+                        child: const Text('Add payout method')),
+                  ),
+                ],
+              );
+            }
+            return ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              itemCount: rows.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, i) {
+                final m = rows[i];
+                final isBank = m['provider'] == 'BANK';
+                return AfriCard(
+                  child: Row(
+                    children: [
+                      AfriIconBadge(
+                          icon:
+                              isBank ? Icons.account_balance : Icons.smartphone,
+                          accent: AfriColors.teal),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text('${m['label'] ?? 'Method'}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium),
+                                ),
+                                if (m['isDefault'] == true) ...[
+                                  const SizedBox(width: 8),
+                                  const AfriChip(
+                                      label: 'Default', selected: true),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${isBank ? 'Bank' : 'Mobile money'} · ${_mask('${m['destinationReference'] ?? ''}')} · ${m['currency'] ?? ''}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove',
+                        icon: const Icon(Icons.delete_outline,
+                            color: AfriColors.danger),
+                        onPressed: () => _delete(m),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -199,7 +215,10 @@ class _AddPayoutMethodSheetState extends State<_AddPayoutMethodSheet> {
     // Validate on-device first — no point posting a payout destination that the
     // server will only reject, and the user gets feedback instantly.
     final validationError = payoutMethodError(
-        label: label, reference: reference, country: country, currency: currency);
+        label: label,
+        reference: reference,
+        country: country,
+        currency: currency);
     if (validationError != null) {
       setState(() => _error = validationError);
       return;
@@ -246,8 +265,14 @@ class _AddPayoutMethodSheetState extends State<_AddPayoutMethodSheet> {
           const SizedBox(height: 14),
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(value: 'BANK', label: Text('Bank'), icon: Icon(Icons.account_balance)),
-              ButtonSegment(value: 'MOBILE_MONEY', label: Text('Mobile money'), icon: Icon(Icons.smartphone)),
+              ButtonSegment(
+                  value: 'BANK',
+                  label: Text('Bank'),
+                  icon: Icon(Icons.account_balance)),
+              ButtonSegment(
+                  value: 'MOBILE_MONEY',
+                  label: Text('Mobile money'),
+                  icon: Icon(Icons.smartphone)),
             ],
             selected: {_provider},
             onSelectionChanged: (s) => setState(() => _provider = s.first),
@@ -255,7 +280,8 @@ class _AddPayoutMethodSheetState extends State<_AddPayoutMethodSheet> {
           const SizedBox(height: 14),
           TextField(
             controller: _label,
-            decoration: const InputDecoration(labelText: 'Label (e.g. GTBank savings)'),
+            decoration:
+                const InputDecoration(labelText: 'Label (e.g. GTBank savings)'),
           ),
           const SizedBox(height: 10),
           TextField(
