@@ -93,22 +93,27 @@ class _CreatorScreenState extends State<CreatorScreen> {
   }
 
   Future<String?> _prompt(String label, String initial,
-      {required String confirmLabel}) {
+      {required String confirmLabel}) async {
     final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(label),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: Text(confirmLabel)),
-        ],
-      ),
-    );
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(label),
+          content: TextField(controller: controller, autofocus: true),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+                child: Text(confirmLabel)),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   @override
