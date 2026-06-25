@@ -27,6 +27,8 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
   bool _following = false;
   int _followers = 0;
   bool _followBusy = false;
+  bool _reminded = false;
+  bool _reminderBusy = false;
 
   @override
   void initState() {
@@ -49,6 +51,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
         _data = d as Map<String, dynamic>?;
         _following = _data?['isFollowing'] == true;
         _followers = (_data?['followers'] as num?)?.toInt() ?? 0;
+        _reminded = (_data?['upcomingRoom'] as Map?)?['reminded'] == true;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -84,6 +87,29 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
           .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _followBusy = false);
+    }
+  }
+
+  Future<void> _toggleReminder(String roomId) async {
+    final api = context.read<AppState>().api;
+    final wasReminded = _reminded;
+    setState(() {
+      _reminderBusy = true;
+      _reminded = !wasReminded;
+    });
+    try {
+      if (wasReminded) {
+        await api.delete('/live-rooms/$roomId/remind');
+      } else {
+        await api.post('/live-rooms/$roomId/remind');
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _reminded = wasReminded); // rollback
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _reminderBusy = false);
     }
   }
 
@@ -287,6 +313,25 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
+                _reminded
+                    ? OutlinedButton.icon(
+                        onPressed: _reminderBusy
+                            ? null
+                            : () => _toggleReminder('${upcoming['id']}'),
+                        icon: const Icon(Icons.notifications_active, size: 18),
+                        label: const Text('Reminder set'),
+                      )
+                    : FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                            backgroundColor: AfriColors.gold,
+                            foregroundColor: const Color(0xFF170B02)),
+                        onPressed: _reminderBusy
+                            ? null
+                            : () => _toggleReminder('${upcoming['id']}'),
+                        icon: const Icon(Icons.notifications_none, size: 18),
+                        label: const Text('Remind me'),
+                      ),
               ],
             ),
           )
