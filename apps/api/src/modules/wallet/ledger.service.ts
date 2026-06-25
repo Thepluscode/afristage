@@ -19,6 +19,12 @@ export class LedgerService {
     externalReference?: string;
     metadata?: Record<string, any>;
     entries: LedgerEntryInput[];
+    // Account ids whose balance must not go negative after this post. Each is
+    // row-locked inside the transaction so the check + debit are atomic — this
+    // closes the read-then-write overdraw race (concurrent gifts/payouts with
+    // distinct idempotency keys could otherwise both pass an out-of-transaction
+    // balance check and drive the account negative, minting spendable value).
+    guardNonNegative?: string[];
   }) {
     const existing = await this.prisma.ledgerTransaction.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
@@ -40,6 +46,23 @@ export class LedgerService {
     if (debits !== credits) throw new BadRequestException('Ledger transaction is unbalanced');
 
     return this.prisma.$transaction(async (tx) => {
+      // Lock each guarded account row FOR UPDATE so concurrent posts on it
+      // serialize, then recompute its balance INSIDE the transaction (seeing
+      // any already-committed debit) and reject if this post would overdraw it.
+      for (const accountId of input.guardNonNegative ?? []) {
+        await tx.$queryRaw`SELECT id FROM wallet_accounts WHERE id = ${accountId} FOR UPDATE`;
+        const entries = await tx.ledgerEntry.findMany({ where: { accountId } });
+        let balance = entries.reduce(
+          (sum, entry) =>
+            entry.direction === LedgerDirection.CREDIT ? sum + BigInt(entry.amountMinor) : sum - BigInt(entry.amountMinor),
+          0n
+        );
+        for (const entry of input.entries.filter((entry) => entry.accountId === accountId)) {
+          balance += entry.direction === LedgerDirection.CREDIT ? BigInt(entry.amountMinor) : -BigInt(entry.amountMinor);
+        }
+        if (balance < 0n) throw new BadRequestException('Insufficient balance');
+      }
+
       const transaction = await tx.ledgerTransaction.create({
         data: {
           type: input.type,
