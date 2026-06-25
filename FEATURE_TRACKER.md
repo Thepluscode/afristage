@@ -45,6 +45,26 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Observed behavior — local docker-compose stack (2026-06-25)
+
+Ran the **containerized API** (image built from current `main`, `apps/api/Dockerfile`)
+against the real local stack (Postgres/Redis/LiveKit/MinIO) on `:3002` and exercised
+flows end-to-end with captured HTTP responses. This is stronger than unit tests
+(real running artifact + real DB), but it is **localhost, not a deployed environment**
+— so nothing is promoted to `VERIFIED` (which still requires prod/staging evidence).
+
+| Flow | Observed result |
+|------|-----------------|
+| `POST /auth/login` (viewer + creator) | 200, JWT issued |
+| `POST /payments/coin-purchase-intents` + `mock/:id/complete` | wallet 1360→1460 coins (real ledger credit) |
+| `POST /live-rooms` + `/:id/start` | room `LIVE` |
+| `POST /live-rooms/:id/gifts` (1 Rose) | 200; balance 1460→1450; `creatorEarningMinor: 6` = 60% of 10 **coins** → live-confirms #32 (coins, not fiat) |
+| Overdraw via `quantity: 100000` | 400 "quantity must not be greater than 10000" (#29 `@Max`) |
+| Overdraw via `quantity: 10000` (within Max, over balance) | 400 "Insufficient coin balance" (#29 balance guard); balance unchanged |
+| Ledger consistency | viewer COIN ledger balance = 1450, non-negative |
+
+Container left running on `:3002` (coexists with the host dev API on `:3000`).
+
 ## Verification debt
 
 These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
