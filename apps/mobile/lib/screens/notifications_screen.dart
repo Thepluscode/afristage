@@ -14,8 +14,7 @@ import 'room_screen.dart';
 
 /// Icon + accent for a notification type (CREATOR_LIVE / NEW_FOLLOWER /
 /// PAYOUT_UPDATE today; unknown types fall back to a neutral bell).
-({IconData icon, Color color}) notificationStyle(String type) =>
-    switch (type) {
+({IconData icon, Color color}) notificationStyle(String type) => switch (type) {
       'CREATOR_LIVE' => (icon: Icons.live_tv, color: AfriColors.purple),
       'NEW_FOLLOWER' => (icon: Icons.person_add_alt_1, color: AfriColors.teal),
       'PAYOUT_UPDATE' => (
@@ -46,9 +45,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _reload() => setState(() => _items = _load());
 
+  Future<void> _refresh() async {
+    final f = _load();
+    setState(() => _items = f);
+    await f;
+  }
+
   Future<void> _markRead(Map<String, dynamic> n) async {
     if (n['readAt'] != null) return;
-    setState(() => n['readAt'] = DateTime.now().toIso8601String()); // optimistic
+    setState(
+        () => n['readAt'] = DateTime.now().toIso8601String()); // optimistic
     try {
       await context.read<AppState>().api.post('/notifications/${n['id']}/read');
     } on ApiException {
@@ -70,8 +76,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     // Payout updates deep-link to the payout history rather than dead-ending.
     if ('${n['type'] ?? ''}' == 'PAYOUT_UPDATE') {
-      navigator.push(
-          MaterialPageRoute(builder: (_) => const PayoutHistoryScreen()));
+      navigator
+          .push(MaterialPageRoute(builder: (_) => const PayoutHistoryScreen()));
       return;
     }
 
@@ -82,7 +88,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!mounted) return;
       final room = LiveRoom.fromJson(data);
       if (room.status == 'LIVE') {
-        navigator.push(MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
+        navigator
+            .push(MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
       } else {
         messenger.showSnackBar(
             const SnackBar(content: Text('This room has ended.')));
@@ -116,36 +123,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<dynamic>>(
-        future: _items,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: AfriErrorState(
-                title: 'Could not load notifications',
-                body: 'Check your connection and try again.',
-                onRetry: _reload,
-              ),
-            );
-          }
-          final rows = (snapshot.data ?? const []).cast<Map<String, dynamic>>();
-          if (rows.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: AfriEmptyState(
-                icon: Icons.notifications_none,
-                title: 'No notifications yet',
-                body: 'When creators you follow go live, you\'ll hear about it here.',
-              ),
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => _reload(),
-            child: ListView.separated(
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: FutureBuilder<List<dynamic>>(
+          future: _items,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  AfriErrorState(
+                    title: 'Could not load notifications',
+                    body: 'Check your connection and try again.',
+                    onRetry: _reload,
+                  ),
+                ],
+              );
+            }
+            final rows =
+                (snapshot.data ?? const []).cast<Map<String, dynamic>>();
+            if (rows.isEmpty) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: const [
+                  AfriEmptyState(
+                    icon: Icons.notifications_none,
+                    title: 'No notifications yet',
+                    body:
+                        'When creators you follow go live, you\'ll hear about it here.',
+                  ),
+                ],
+              );
+            }
+            return ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               itemCount: rows.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -198,9 +212,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 );
               },
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
