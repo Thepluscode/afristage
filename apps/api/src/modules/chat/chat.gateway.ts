@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
@@ -9,6 +10,8 @@ import { ChatService } from './chat.service';
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
+
+  private readonly logger = new Logger(ChatGateway.name);
 
   // Live presence: who is watching each room RIGHT NOW, keyed by socket id.
   // This is the display source of truth — it self-heals on disconnect (no ghost
@@ -77,7 +80,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (seconds <= 0) return;
     this.prisma.liveRoom
       .updateMany({ where: { id: roomId }, data: { totalWatchSeconds: { increment: BigInt(seconds) } } })
-      .catch(() => {});
+      .catch((err) => this.logger.warn(`finalizeWatch failed for room ${roomId} (+${seconds}s lost): ${err?.message}`));
   }
 
   // Lets HTTP services/controllers (gifts, room-end, mute/delete) push events
@@ -119,7 +122,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // failure must not break joining.
     this.prisma.liveRoom
       .updateMany({ where: { id: body.roomId, peakViewers: { lt: count } }, data: { peakViewers: count } })
-      .catch(() => {});
+      .catch((err) => this.logger.warn(`peakViewers update failed for room ${body.roomId}: ${err?.message}`));
     return { ok: true, count };
   }
 
