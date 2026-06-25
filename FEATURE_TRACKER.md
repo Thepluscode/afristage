@@ -63,7 +63,9 @@ flows end-to-end with captured HTTP responses. This is stronger than unit tests
 | Overdraw via `quantity: 10000` (within Max, over balance) | 400 "Insufficient coin balance" (#29 balance guard); balance unchanged |
 | Ledger consistency | viewer COIN ledger balance = 1450, non-negative |
 
-Container left running on `:3002` (coexists with the host dev API on `:3000`).
+Container has since been **stopped** (`docker stop afristage-api-1`; not removed). The
+local deps (Postgres/Redis/LiveKit/MinIO) and the host dev API on `:3000` were left
+running. Relaunch with `docker compose -f docker-compose.yml -f /tmp/afri-api-port.yml up -d api`.
 
 ## Verification debt
 
