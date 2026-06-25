@@ -106,8 +106,7 @@ class AfriBrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconSize = size * 0.56;
     if (flat) {
-      return Icon(Icons.auto_awesome,
-          size: iconSize, color: AfriColors.orange);
+      return Icon(Icons.auto_awesome, size: iconSize, color: AfriColors.orange);
     }
     return Container(
       width: size,
@@ -534,7 +533,7 @@ class AfriHeroEventCard extends StatelessWidget {
                     if (r != null)
                       Row(
                         children: [
-                          const Icon(Icons.visibility,
+                          const Icon(Icons.person,
                               color: Colors.white, size: 15),
                           const SizedBox(width: 4),
                           Text('${afriCompactCount(r.viewerCount)} watching',
@@ -690,7 +689,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         AfriChip(label: country),
                         const Spacer(),
-                        const Icon(Icons.visibility,
+                        const Icon(Icons.person,
                             color: AfriColors.secondaryText, size: 16),
                         const SizedBox(width: 4),
                         Text('$viewerCount',
@@ -786,25 +785,6 @@ IconData afriGiftIcon(String name) {
   return Icons.card_giftcard;
 }
 
-/// Emoji per gift name, matching the design mockup's gift drawer.
-String giftEmoji(String name) {
-  final n = name.toLowerCase();
-  if (n.contains('rose') || n.contains('flower')) return '🌹';
-  if (n.contains('fire') || n.contains('flame')) return '🔥';
-  if (n.contains('mic')) return '🎤';
-  if (n.contains('drum')) return '🥁';
-  if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
-    return '👑';
-  }
-  if (n.contains('spotlight') || n.contains('light')) return '💡';
-  if (n.contains('star')) return '⭐';
-  if (n.contains('stage') || n.contains('concert')) return '🎭';
-  if (n.contains('heart') || n.contains('love')) return '❤️';
-  if (n.contains('diamond') || n.contains('gem')) return '💎';
-  if (n.contains('rocket')) return '🚀';
-  return '🎁';
-}
-
 // Distinct gift tints so the gift panel reads colorful (matches the room mockup).
 const List<Color> kGiftTints = [
   Color(0xFFEC4899),
@@ -820,40 +800,78 @@ class AfriGiftTile extends StatelessWidget {
       {super.key,
       required this.gift,
       required this.onTap,
-      this.accent = AfriColors.gold});
+      this.accent = AfriColors.gold,
+      this.selected = false});
 
   final Gift gift;
   final VoidCallback onTap;
   final Color accent;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    return AfriCard(
+    return InkWell(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      borderRadius: BorderRadius.circular(16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(giftEmoji(gift.name), style: const TextStyle(fontSize: 30)),
-          const SizedBox(height: 8),
-          Text(gift.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AfriColors.text)),
-          const SizedBox(height: 3),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.monetization_on, size: 11, color: AfriColors.gold),
-            const SizedBox(width: 2),
-            Text('${gift.coinPrice}',
-                style: const TextStyle(
-                    fontSize: 11,
-                    color: AfriColors.gold,
-                    fontWeight: FontWeight.w800)),
-          ]),
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+              decoration: BoxDecoration(
+                color: AfriColors.elevated,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? AfriColors.purple : AfriColors.border,
+                  width: selected ? 1.8 : 1,
+                ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: AfriColors.purple.withValues(alpha: 0.26),
+                          blurRadius: 18,
+                        )
+                      ]
+                    : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.16),
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                        Icon(afriGiftIcon(gift.name), color: accent, size: 18),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(gift.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AfriColors.text)),
+                  const SizedBox(height: 1),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.monetization_on,
+                        size: 11, color: AfriColors.gold),
+                    const SizedBox(width: 2),
+                    Text('${gift.coinPrice}',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: AfriColors.gold,
+                            fontWeight: FontWeight.w800)),
+                  ]),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -893,7 +911,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
   Widget build(BuildContext context) {
     final selected = _selected;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -937,10 +955,11 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
             else
               GridView.count(
                 shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 4,
-                childAspectRatio: 0.82,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
+                childAspectRatio: 0.68,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
                 children: [
                   for (final entry in widget.gifts.asMap().entries)
                     Stack(
@@ -949,6 +968,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                           child: AfriGiftTile(
                             gift: entry.value,
                             accent: kGiftTints[entry.key % kGiftTints.length],
+                            selected: selected?.id == entry.value.id,
                             onTap: () =>
                                 setState(() => _selected = entry.value),
                           ),
@@ -993,6 +1013,10 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                     ),
                     FilledButton(
                       onPressed: () => widget.onGiftSelected(selected),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(84, 42),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
                       child: const Text('Send'),
                     ),
                   ],
@@ -1008,8 +1032,12 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
 
 // Stable per-name colour for chat usernames (matches the mockup's colorful names).
 const List<Color> _chatNameColors = [
-  Color(0xFF60A5FA), Color(0xFFF472B6), Color(0xFF34D399),
-  Color(0xFFFBBF24), Color(0xFFA78BFA), Color(0xFF22D3EE),
+  Color(0xFF60A5FA),
+  Color(0xFFF472B6),
+  Color(0xFF34D399),
+  Color(0xFFFBBF24),
+  Color(0xFFA78BFA),
+  Color(0xFF22D3EE),
 ];
 Color _chatNameColor(String name) {
   var h = 0;
@@ -1036,18 +1064,23 @@ class AfriChatBubble extends StatelessWidget {
           color: AfriColors.gold.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(message.text, style: const TextStyle(color: AfriColors.gold, fontSize: 12.5)),
+        child: Text(message.text,
+            style: const TextStyle(color: AfriColors.gold, fontSize: 12.5)),
       );
     }
     // Gift announcements ("X sent Rose") get a purple highlight pill.
     final lower = message.text.toLowerCase();
-    final isGift = lower.contains('sent ') || message.text.contains('🎁') || lower.contains('gift');
+    final isGift = lower.contains('sent ') ||
+        message.text.contains('🎁') ||
+        lower.contains('gift');
     final nameColor = _chatNameColor(message.sender);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: isGift
-          ? BoxDecoration(color: AfriColors.purple.withValues(alpha: 0.32), borderRadius: BorderRadius.circular(12))
+          ? BoxDecoration(
+              color: AfriColors.purple.withValues(alpha: 0.32),
+              borderRadius: BorderRadius.circular(12))
           : null,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         CircleAvatar(
@@ -1055,16 +1088,21 @@ class AfriChatBubble extends StatelessWidget {
           backgroundColor: nameColor.withValues(alpha: 0.6),
           child: Text(
             message.sender.characters.firstOrNull?.toUpperCase() ?? '?',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+            style: const TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(fontSize: 13, color: Colors.white, height: 1.25),
+              style: const TextStyle(
+                  fontSize: 13, color: Colors.white, height: 1.25),
               children: [
-                TextSpan(text: '${message.sender}  ', style: TextStyle(fontWeight: FontWeight.w800, color: nameColor)),
+                TextSpan(
+                    text: '${message.sender}  ',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, color: nameColor)),
                 TextSpan(text: message.text),
               ],
             ),
@@ -1378,41 +1416,45 @@ class _Avatar extends StatelessWidget {
       );
     }
 
-    return GestureDetector(
-      onTap: uploading ? null : onEdit,
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: size,
-              height: size,
-              padding: const EdgeInsets.all(3),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [
-                  AfriColors.purple,
-                  AfriColors.orange,
-                  AfriColors.gold
-                ]),
-              ),
-              child: face,
-            ),
-            if (onEdit != null && !uploading)
-              Positioned(
-                right: -4,
-                bottom: -4,
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: const BoxDecoration(
-                      color: AfriColors.gold, shape: BoxShape.circle),
-                  child: const Icon(Icons.edit,
-                      size: 13, color: Color(0xFF170B02)),
+    return Semantics(
+      button: onEdit != null,
+      label: onEdit != null ? 'Change profile photo' : null,
+      child: GestureDetector(
+        onTap: uploading ? null : onEdit,
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: size,
+                height: size,
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [
+                    AfriColors.purple,
+                    AfriColors.orange,
+                    AfriColors.gold
+                  ]),
                 ),
+                child: face,
               ),
-          ],
+              if (onEdit != null && !uploading)
+                Positioned(
+                  right: -4,
+                  bottom: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: const BoxDecoration(
+                        color: AfriColors.gold, shape: BoxShape.circle),
+                    child: const Icon(Icons.edit,
+                        size: 13, color: Color(0xFF170B02)),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -2538,90 +2580,95 @@ class AfriLiveTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatar = room.hostAvatarUrl;
     final hasCover = avatar != null && avatar.isNotEmpty;
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 188,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: hasCover
-                    ? Image.network(avatar,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const _TileGradient())
-                    : const _TileGradient(),
-              ),
-              const Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0x11000000), Color(0xE6000000)],
+    return Semantics(
+      button: true,
+      excludeSemantics: true,
+      label: 'Live room: ${room.title} by ${room.hostName ?? 'Creator'}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 188,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: hasCover
+                      ? Image.network(avatar,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const _TileGradient())
+                      : const _TileGradient(),
+                ),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x11000000), Color(0xE6000000)],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                left: 10,
-                top: 10,
-                right: 10,
-                child: Row(
-                  children: [
-                    const AfriLiveBadge(),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(20),
+                Positioned(
+                  left: 10,
+                  top: 10,
+                  right: 10,
+                  child: Row(
+                    children: [
+                      const AfriLiveBadge(),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person,
+                                color: Colors.white, size: 13),
+                            const SizedBox(width: 3),
+                            Text(afriCompactCount(room.viewerCount),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700)),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.visibility,
-                              color: Colors.white, size: 13),
-                          const SizedBox(width: 3),
-                          Text(afriCompactCount(room.viewerCount),
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700)),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(room.title,
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(room.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${room.hostName ?? 'Creator'}'
+                        '${room.country.isNotEmpty ? '  ·  ${room.country}' : ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${room.hostName ?? 'Creator'}'
-                      '${room.country.isNotEmpty ? '  ·  ${room.country}' : ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(0xFFD4D4D8), fontSize: 12),
-                    ),
-                  ],
+                            color: Color(0xFFD4D4D8), fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

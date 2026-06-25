@@ -121,7 +121,7 @@ class AfriViewerPill extends StatelessWidget {
           color: const Color(0x66000000),
           borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.visibility, size: 13, color: Colors.white),
+        const Icon(Icons.person, size: 13, color: Colors.white),
         const SizedBox(width: 4),
         Text(formatCount(count),
             style: const TextStyle(
@@ -299,83 +299,91 @@ class AfriLiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flag = countryFlag(country);
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: width,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: AspectRatio(
-            aspectRatio: 0.78,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                AfriCover(
-                    imageUrl: imageUrl, category: category, initial: creator),
-                const Positioned(top: 10, left: 10, child: AfriLivePill()),
-                Positioned(
-                    top: 10,
-                    right: 10,
-                    child: AfriViewerPill(count: viewerCount)),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 34, 12, 12),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xE607070A)],
+    return Semantics(
+      button: true,
+      // Replace the decorative cover + overlay pills with one spoken label.
+      excludeSemantics: true,
+      label: creator == null
+          ? 'Live room: $title'
+          : 'Live room: $title by $creator',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: width,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: AspectRatio(
+              aspectRatio: 0.78,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  AfriCover(
+                      imageUrl: imageUrl, category: category, initial: creator),
+                  const Positioned(top: 10, left: 10, child: AfriLivePill()),
+                  Positioned(
+                      top: 10,
+                      right: 10,
+                      child: AfriViewerPill(count: viewerCount)),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(12, 34, 12, 12),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Color(0xE607070A)],
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 15,
+                                  height: 1.12,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white)),
+                          const SizedBox(height: 5),
+                          Text(
+                              '${creator ?? 'Creator'}${flag.isNotEmpty ? '  $flag ${country!.toUpperCase()}' : ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFD4D4D8))),
+                        ],
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                height: 1.12,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white)),
-                        const SizedBox(height: 5),
-                        Text(
-                            '${creator ?? 'Creator'}${flag.isNotEmpty ? '  $flag ${country!.toUpperCase()}' : ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFD4D4D8))),
-                      ],
+                  ),
+                  Positioned(
+                    left: 10,
+                    bottom: 74,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AfriColors.purple.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                            color: AfriColors.purple.withValues(alpha: 0.42)),
+                      ),
+                      child: Text(category,
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFEDE9FE))),
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 10,
-                  bottom: 74,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AfriColors.purple.withValues(alpha: 0.72),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                          color: AfriColors.purple.withValues(alpha: 0.42)),
-                    ),
-                    child: Text(category,
-                        maxLines: 1,
-                        style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFEDE9FE))),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -549,9 +557,11 @@ class AfriBalanceCard extends StatelessWidget {
                   style: FilledButton.styleFrom(
                       backgroundColor: AfriColors.gold,
                       foregroundColor: const Color(0xFF170B02),
-                      minimumSize: const Size.fromHeight(46)),
+                      minimumSize: const Size.fromHeight(46),
+                      padding: const EdgeInsets.symmetric(horizontal: 12)),
                   icon: Icon(primaryIcon, size: 18),
-                  label: Text(primaryLabel))),
+                  label: Text(primaryLabel,
+                      maxLines: 1, overflow: TextOverflow.ellipsis))),
           const SizedBox(width: 10),
           Expanded(
               child: OutlinedButton(
@@ -559,8 +569,10 @@ class AfriBalanceCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                       foregroundColor: AfriColors.gold,
                       side: const BorderSide(color: Color(0x55FFC857)),
-                      minimumSize: const Size.fromHeight(46)),
-                  child: Text(secondaryLabel))),
+                      minimumSize: const Size.fromHeight(46),
+                      padding: const EdgeInsets.symmetric(horizontal: 10)),
+                  child: Text(secondaryLabel,
+                      maxLines: 1, overflow: TextOverflow.ellipsis))),
         ]),
       ]),
     );
@@ -580,8 +592,18 @@ String ledgerMoney(int amountMinor, String currency) {
 }
 
 const _monthAbbr = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
 ];
 
 /// Human-readable "Jun 24, 2026 · 9:05 PM" from an ISO timestamp.
@@ -626,11 +648,19 @@ class AfriStatTile extends StatelessWidget {
           child: Icon(icon, size: 19, color: accent),
         ),
         const SizedBox(height: 10),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: AfriColors.text)),
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value,
+                maxLines: 1,
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: AfriColors.text)),
+          ),
+        ),
         Text(label,
             style: const TextStyle(fontSize: 12, color: AfriColors.mutedText)),
       ]),
