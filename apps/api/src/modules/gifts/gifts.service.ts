@@ -136,7 +136,10 @@ export class GiftsService {
         { accountId: viewerCoin.id, direction: LedgerDirection.DEBIT, amountMinor: total, currency: 'COIN' },
         { accountId: creatorEarning.id, direction: LedgerDirection.CREDIT, amountMinor: creatorShare, currency: 'COIN' },
         { accountId: platformRevenue.id, direction: LedgerDirection.CREDIT, amountMinor: platformFee, currency: 'COIN' }
-      ]
+      ],
+      // Atomically re-check the viewer's coin balance under a row lock so two
+      // concurrent gifts can't both pass the pre-check above and overdraw.
+      guardNonNegative: [viewerCoin.id]
     });
 
     const existingGiftTx = await this.prisma.giftTransaction.findFirst({ where: { ledgerTransactionId: tx.id } });

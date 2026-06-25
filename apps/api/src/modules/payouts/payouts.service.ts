@@ -177,7 +177,10 @@ export class PayoutsService {
       entries: [
         { accountId: earning.id, direction: LedgerDirection.DEBIT, amountMinor: dto.coinAmount, currency: 'COIN' },
         { accountId: hold.id, direction: LedgerDirection.CREDIT, amountMinor: dto.coinAmount, currency: 'COIN' }
-      ]
+      ],
+      // Atomically re-check earnings under a row lock so two concurrent payout
+      // requests can't both reserve the same earnings into withdrawable holds.
+      guardNonNegative: [earning.id]
     });
 
     // 3. Advance to UNDER_REVIEW (or HELD), recording the hold transaction.
