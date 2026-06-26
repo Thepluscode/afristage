@@ -1,5 +1,8 @@
 import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
+import 'package:afristage_mobile/models/models.dart';
+import 'package:afristage_mobile/screens/search_screen.dart';
+import 'package:afristage_mobile/screens/wallet_screen.dart';
 import 'package:afristage_mobile/screens/creator_profile_screen.dart';
 import 'package:afristage_mobile/screens/gift_history_screen.dart';
 import 'package:afristage_mobile/screens/creator_rooms_screen.dart';
@@ -55,6 +58,12 @@ class _FakeApi extends ApiClient {
 
 Widget _wrap(ApiClient api, Widget child) => ChangeNotifierProvider(
       create: (_) => AppState(api: api),
+      child: MaterialApp(home: child),
+    );
+
+Widget _wrapState(AppState state, Widget child) =>
+    ChangeNotifierProvider<AppState>.value(
+      value: state,
       child: MaterialApp(home: child),
     );
 
@@ -295,5 +304,105 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Go Live Setup'), findsOneWidget);
     expect(find.text('Room details'), findsOneWidget);
+  });
+
+  testWidgets('WalletScreen renders balance + earnings from AppState',
+      (tester) async {
+    final state = AppState(api: _FakeApi())
+      ..wallet = const Wallet(
+          coinBalance: 1200, earningBalance: 620, payoutHoldBalance: 50);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Available balance'), findsOneWidget);
+    expect(find.text('Coin balance'), findsOneWidget);
+    expect(find.text('1200'), findsOneWidget);
+  });
+
+  testWidgets('PayoutMethods add-method sheet opens with provider segments',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add method'));
+    await tester.pumpAndSettle();
+    // 'Add payout method' appears as both the empty-state action + sheet header;
+    // the provider segments are unique to the sheet.
+    expect(find.text('Bank'), findsOneWidget);
+    expect(find.text('Mobile money'), findsOneWidget);
+  });
+
+  testWidgets('RegisterScreen advances to step 2 on Continue', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const RegisterScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Continue'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Step 2 · Public profile'), findsOneWidget);
+  });
+
+  testWidgets('SearchScreen category browse loads rooms', (tester) async {
+    final api = _FakeApi(lists: {
+      '/live-rooms?category=MUSIC': [
+        {
+          'id': 'r1',
+          'title': 'Amapiano Live',
+          'category': 'MUSIC',
+          'country': 'NG',
+          'language': 'pidgin',
+          'status': 'LIVE',
+          'host': {
+            'profile': {'displayName': 'DJ Tunde'}
+          },
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const SearchScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Music'));
+    await tester.pumpAndSettle();
+    expect(find.text('Amapiano Live'), findsOneWidget);
+  });
+
+  testWidgets('CreatorProfile shows a Watch-live CTA when live', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Zola Kim',
+        'approvalStatus': 'APPROVED',
+        'totalRooms': 5,
+        'followers': 12,
+        'isFollowing': false,
+        'userId': 'c1',
+        'liveRoom': {
+          'id': 'lr1',
+          'title': 'On Now',
+          'category': 'MUSIC',
+          'country': 'NG',
+          'language': 'pidgin',
+        },
+      },
+    });
+    await tester
+        .pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Watch live'), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen dashboard lists a top supporter', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola', 'status': 'APPROVED'},
+        'earnings': 620,
+        'topSupporters': [
+          {'displayName': 'Big Fan', 'coins': 300}
+        ],
+        'totalRooms': 8,
+        'followers': 12,
+        'totalWatchSeconds': 3600,
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Big Fan'), 250);
+    expect(find.text('Big Fan'), findsOneWidget);
   });
 }
