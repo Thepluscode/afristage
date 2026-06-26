@@ -3,13 +3,17 @@ import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/screens/creator_profile_screen.dart';
 import 'package:afristage_mobile/screens/gift_history_screen.dart';
 import 'package:afristage_mobile/screens/creator_rooms_screen.dart';
+import 'package:afristage_mobile/screens/creator_screen.dart';
+import 'package:afristage_mobile/screens/go_live_setup_screen.dart';
 import 'package:afristage_mobile/screens/history_screen.dart';
 import 'package:afristage_mobile/screens/live_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
 import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
 import 'package:afristage_mobile/screens/payout_methods_screen.dart';
+import 'package:afristage_mobile/screens/register_screen.dart';
 import 'package:afristage_mobile/screens/support_screen.dart';
+import 'package:afristage_mobile/screens/support_ticket_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -245,5 +249,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Tune your stage'), findsOneWidget);
     expect(find.text('Interests'), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen dashboard renders earnings hero', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
+        'earnings': 620,
+        'topSupporters': [],
+        'totalGiftTransactions': 5,
+        'totalRooms': 8,
+        'followers': 12,
+        'totalWatchSeconds': 3600,
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Available balance'), findsOneWidget);
+  });
+
+  testWidgets('SupportTicketScreen shows subject + no-replies state',
+      (tester) async {
+    final api = _FakeApi(maps: {
+      '/support/tickets/t1': {
+        'subject': 'Payment issue',
+        'status': 'OPEN',
+        'messages': [],
+      },
+    });
+    await tester.pumpWidget(_wrap(
+        api, const SupportTicketScreen(ticketId: 't1', subject: 'Payment issue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Payment issue'), findsWidgets); // app bar + card
+    expect(find.text('No replies yet'), findsOneWidget);
+  });
+
+  testWidgets('RegisterScreen renders the first step', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const RegisterScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Join AfriStage'), findsOneWidget);
+  });
+
+  testWidgets('GoLiveSetupScreen renders the room-details form', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Go Live Setup'), findsOneWidget);
+    expect(find.text('Room details'), findsOneWidget);
   });
 }
