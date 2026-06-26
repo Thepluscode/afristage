@@ -35,9 +35,12 @@ class ApiException implements Exception {
 /// once and retries the original request, so normal access-token expiry never
 /// bounces the user to login.
 class ApiClient {
-  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? _defaultApiBase();
+  ApiClient({String? baseUrl, http.Client? client})
+      : baseUrl = baseUrl ?? _defaultApiBase(),
+        _client = client ?? http.Client();
 
   final String baseUrl;
+  final http.Client _client;
   String? token;
   String? refreshToken;
 
@@ -60,7 +63,8 @@ class ApiClient {
     final request = http.Request(method, Uri.parse('$baseUrl$path'))
       ..headers.addAll(_headers);
     if (body != null) request.body = jsonEncode(body);
-    final streamed = await request.send().timeout(const Duration(seconds: 15));
+    final streamed =
+        await _client.send(request).timeout(const Duration(seconds: 15));
     return http.Response.fromStream(streamed);
   }
 
@@ -135,7 +139,7 @@ class ApiClient {
   /// Raw PUT to an absolute URL (e.g. a presigned upload URL). No base URL, no
   /// bearer token — the presigned URL carries its own signature.
   Future<void> putBytes(String url, List<int> bytes, String contentType) async {
-    final res = await http
+    final res = await _client
         .put(Uri.parse(url),
             headers: {'Content-Type': contentType}, body: bytes)
         .timeout(const Duration(seconds: 30));
