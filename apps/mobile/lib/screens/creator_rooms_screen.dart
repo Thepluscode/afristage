@@ -27,7 +27,9 @@ class _CreatorRoomsScreenState extends State<CreatorRoomsScreen> {
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _rooms = f);
+    setState(() {
+      _rooms = f;
+    });
     await f;
   }
 
@@ -59,7 +61,9 @@ class _CreatorRoomsScreenState extends State<CreatorRoomsScreen> {
                   AfriErrorState(
                     title: 'Could not load your shows',
                     body: 'Check your connection and try again.',
-                    onRetry: () => setState(() => _rooms = _load()),
+                    onRetry: () => setState(() {
+                      _rooms = _load();
+                    }),
                   ),
                 ],
               );

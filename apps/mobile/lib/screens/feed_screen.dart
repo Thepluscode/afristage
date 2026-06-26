@@ -155,20 +155,6 @@ class _FeedScreenState extends State<FeedScreen> {
         ]),
         actions: [
           IconButton(
-            tooltip: 'Search',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SearchScreen())),
-            icon: const Icon(Icons.search),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: AfriCoinPill(
-              coins: coins,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const WalletScreen())),
-            ),
-          ),
-          IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
               await Navigator.push(
@@ -181,6 +167,12 @@ class _FeedScreenState extends State<FeedScreen> {
                 count: _unread,
                 isLabelVisible: _unread > 0,
                 child: const Icon(Icons.notifications_none)),
+          ),
+          IconButton(
+            tooltip: 'Search',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SearchScreen())),
+            icon: const Icon(Icons.search),
           ),
           const SizedBox(width: 6),
         ],
@@ -250,10 +242,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
                 _HomeWalletPanel(
                   coins: coins,
-                  onWallet: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const WalletScreen())),
+                  onWallet: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const WalletScreen())),
                   onSendGift: hero == null ? null : () => _openRoom(hero),
                 ),
                 const SizedBox(height: 22),
@@ -505,9 +495,7 @@ class _HomeWalletPanel extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
             child: _WalletActionTile(
-                icon: Icons.history,
-                label: 'History',
-                onTap: onWallet)),
+                icon: Icons.history, label: 'History', onTap: onWallet)),
       ]),
     ]);
   }

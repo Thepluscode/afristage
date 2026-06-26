@@ -60,7 +60,8 @@ class _SearchScreenState extends State<SearchScreen> {
       });
       return;
     }
-    _run(query, () => _fetch('/live-rooms?q=${Uri.encodeQueryComponent(query)}'));
+    _run(query,
+        () => _fetch('/live-rooms?q=${Uri.encodeQueryComponent(query)}'));
   }
 
   void _browse(String label, String category) {

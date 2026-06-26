@@ -35,7 +35,9 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _rooms = f);
+    setState(() {
+      _rooms = f;
+    });
     await f;
   }
 

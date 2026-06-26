@@ -30,11 +30,15 @@ class _CreatorScreenState extends State<CreatorScreen> {
   Future<Map<String, dynamic>> _load() =>
       context.read<AppState>().api.get('/creators/me/dashboard');
 
-  void _reload() => setState(() => _dashboard = _load());
+  void _reload() => setState(() {
+        _dashboard = _load();
+      });
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _dashboard = f);
+    setState(() {
+      _dashboard = f;
+    });
     await f;
   }
 

@@ -123,8 +123,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
       status: 'LIVE',
       hostName: d['stageName'] as String?,
       hostId: d['userId'] as String?,
-      hostAvatarUrl:
-          (d['user'] as Map?)?['profile']?['avatarUrl'] as String?,
+      hostAvatarUrl: (d['user'] as Map?)?['profile']?['avatarUrl'] as String?,
     );
     Navigator.push(
         context, MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
@@ -180,8 +179,8 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
               padding: const EdgeInsets.all(2.5),
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient:
-                    LinearGradient(colors: [AfriColors.gold, AfriColors.purple]),
+                gradient: LinearGradient(
+                    colors: [AfriColors.gold, AfriColors.purple]),
               ),
               child: CircleAvatar(
                 radius: 36,
@@ -265,16 +264,14 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
         if (creatorUserId != null)
           _following
               ? OutlinedButton.icon(
-                  onPressed: _followBusy
-                      ? null
-                      : () => _toggleFollow(creatorUserId),
+                  onPressed:
+                      _followBusy ? null : () => _toggleFollow(creatorUserId),
                   icon: const Icon(Icons.check),
                   label: const Text('Following'),
                 )
               : FilledButton.icon(
-                  onPressed: _followBusy
-                      ? null
-                      : () => _toggleFollow(creatorUserId),
+                  onPressed:
+                      _followBusy ? null : () => _toggleFollow(creatorUserId),
                   icon: const Icon(Icons.person_add_alt),
                   label: const Text('Follow'),
                 ),
@@ -308,7 +305,9 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 2),
-                      Text(shortDateTime('${upcoming['scheduledStartAt'] ?? ''}'),
+                      Text(
+                          shortDateTime(
+                              '${upcoming['scheduledStartAt'] ?? ''}'),
                           style: Theme.of(context).textTheme.bodyMedium),
                     ],
                   ),

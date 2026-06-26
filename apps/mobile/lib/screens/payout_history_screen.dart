@@ -27,7 +27,9 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _payouts = f);
+    setState(() {
+      _payouts = f;
+    });
     await f;
   }
 
@@ -65,7 +67,9 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
                   AfriErrorState(
                     title: 'Could not load payouts',
                     body: 'Check your connection and try again.',
-                    onRetry: () => setState(() => _payouts = _load()),
+                    onRetry: () => setState(() {
+                      _payouts = _load();
+                    }),
                   ),
                 ],
               );

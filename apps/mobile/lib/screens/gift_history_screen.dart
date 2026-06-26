@@ -42,7 +42,9 @@ class _GiftHistoryScreenState extends State<GiftHistoryScreen> {
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _gifts = f);
+    setState(() {
+      _gifts = f;
+    });
     await f;
   }
 
@@ -65,7 +67,9 @@ class _GiftHistoryScreenState extends State<GiftHistoryScreen> {
                   AfriErrorState(
                     title: 'Could not load your gifts',
                     body: 'Check your connection and try again.',
-                    onRetry: () => setState(() => _gifts = _load()),
+                    onRetry: () => setState(() {
+                      _gifts = _load();
+                    }),
                   ),
                 ],
               );

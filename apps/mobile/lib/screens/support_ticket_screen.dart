@@ -31,7 +31,9 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
   Future<Map<String, dynamic>> _load() =>
       context.read<AppState>().api.get('/support/tickets/${widget.ticketId}');
 
-  void _reload() => setState(() => _ticket = _load());
+  void _reload() => setState(() {
+        _ticket = _load();
+      });
 
   @override
   void dispose() {
@@ -45,10 +47,8 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
     setState(() => _sending = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await context
-          .read<AppState>()
-          .api
-          .post('/support/tickets/${widget.ticketId}/messages', {'message': text});
+      await context.read<AppState>().api.post(
+          '/support/tickets/${widget.ticketId}/messages', {'message': text});
       _reply.clear();
       _reload();
     } on ApiException catch (e) {
@@ -82,8 +82,9 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                   );
                 }
                 final ticket = snapshot.data ?? const {};
-                final messages =
-                    (ticket['messages'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+                final messages = (ticket['messages'] as List?)
+                        ?.cast<Map<String, dynamic>>() ??
+                    const [];
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -91,10 +92,12 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(ticket['subject'] as String? ?? 'Ticket',
+                            child: Text(
+                                ticket['subject'] as String? ?? 'Ticket',
                                 style: Theme.of(context).textTheme.titleMedium),
                           ),
-                          AfriChip(label: ticket['status'] as String? ?? 'OPEN'),
+                          AfriChip(
+                              label: ticket['status'] as String? ?? 'OPEN'),
                         ],
                       ),
                     ),
@@ -103,7 +106,8 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                       const AfriEmptyState(
                         icon: Icons.forum_outlined,
                         title: 'No replies yet',
-                        body: 'Add a message below and our team will respond here.',
+                        body:
+                            'Add a message below and our team will respond here.',
                       ),
                     for (final m in messages)
                       Padding(
