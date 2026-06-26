@@ -15,6 +15,7 @@ import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
 import 'package:afristage_mobile/screens/payout_methods_screen.dart';
 import 'package:afristage_mobile/screens/register_screen.dart';
+import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:afristage_mobile/screens/support_ticket_screen.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +67,14 @@ Widget _wrapState(AppState state, Widget child) =>
       value: state,
       child: MaterialApp(home: child),
     );
+
+/// Tall surface so long forms / bottom sheets don't overflow the 800px default.
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
 
 void main() {
   testWidgets('GiftHistoryScreen lists sent gifts with creator + room',
@@ -404,5 +413,51 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Big Fan'), 250);
     expect(find.text('Big Fan'), findsOneWidget);
+  });
+
+  testWidgets('CreatorProfile Follow toggles to Following + posts', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Zola Kim',
+        'approvalStatus': 'APPROVED',
+        'totalRooms': 5,
+        'followers': 12,
+        'isFollowing': false,
+        'userId': 'c1',
+      },
+    });
+    await tester
+        .pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Follow'));
+    await tester.pumpAndSettle();
+    expect(find.text('Following'), findsOneWidget);
+    expect(api.posts, contains('/users/c1/follow'));
+  });
+
+  testWidgets('WalletScreen Buy-coins opens the package sheet', (tester) async {
+    _tall(tester);
+    final state = AppState(api: _FakeApi())
+      ..wallet = const Wallet(
+          coinBalance: 100, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pumpAndSettle();
+    // The sheet adds a second 'Buy coins' header.
+    expect(find.text('Buy coins'), findsNWidgets(2));
+  });
+
+  testWidgets('ReportScreen submit posts a report', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(
+        _wrap(api, const ReportScreen(roomId: 'r1', label: 'room')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nudity'));
+    await tester.tap(find.text('Submit Report'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/reports'));
+    expect(find.text('Report submitted'), findsOneWidget);
   });
 }
