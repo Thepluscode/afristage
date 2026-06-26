@@ -27,11 +27,15 @@ class _FakeSocket implements io.Socket {
 }
 
 class _RoomApi extends ApiClient {
+  final posts = <String>[];
   @override
-  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async =>
-      path.endsWith('/join-token')
-          ? {'livekitUrl': 'ws://x', 'viewerToken': 'tok'}
-          : const {};
+  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+    posts.add(path);
+    return path.endsWith('/join-token')
+        ? {'livekitUrl': 'ws://x', 'viewerToken': 'tok'}
+        : const {};
+  }
+
   @override
   Future<List<dynamic>> getList(String path) async => const [];
 }
@@ -95,7 +99,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final socket = _FakeSocket();
-    final state = AppState(api: _RoomApi())..userId = 'h1';
+    final api = _RoomApi();
+    final state = AppState(api: api)..userId = 'h1';
     await tester.pumpWidget(_wrap(
         state,
         RoomScreen(
@@ -108,5 +113,12 @@ void main() {
 
     expect(find.byType(AfriVideoStage), findsOneWidget);
     expect(find.byType(AfriHostControlsPanel), findsOneWidget);
+
+    // End the room: panel button -> confirmation dialog -> confirm -> POST /end.
+    await tester.tap(find.text('End Room'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('End Room').last); // dialog confirm
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/live-rooms/r1/end'));
   });
 }
