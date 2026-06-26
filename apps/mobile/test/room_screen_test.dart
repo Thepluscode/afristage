@@ -44,6 +44,13 @@ Widget _wrap(AppState state, Widget child) =>
     ChangeNotifierProvider<AppState>.value(
         value: state, child: MaterialApp(home: child));
 
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 LiveRoom _room() => const LiveRoom(
     id: 'r1',
     title: 'Live Now',
@@ -92,12 +99,27 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
+  testWidgets('viewer can type chat and open the gift sheet', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.enterText(find.byType(TextField).first, 'hello room');
+    await tester.testTextInput.receiveAction(TextInputAction.done); // onSend
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.card_giftcard)); // onGift -> sheet
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriGiftDrawer), findsOneWidget);
+  });
+
   testWidgets('host room renders host controls', (tester) async {
     // Tall surface: host controls + stage exceed the default 800px height.
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    _tall(tester);
     final socket = _FakeSocket();
     final api = _RoomApi();
     final state = AppState(api: api)..userId = 'h1';
