@@ -2,10 +2,14 @@ import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/screens/creator_profile_screen.dart';
 import 'package:afristage_mobile/screens/gift_history_screen.dart';
+import 'package:afristage_mobile/screens/creator_rooms_screen.dart';
 import 'package:afristage_mobile/screens/history_screen.dart';
 import 'package:afristage_mobile/screens/live_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
+import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
+import 'package:afristage_mobile/screens/payout_methods_screen.dart';
+import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -181,5 +185,65 @@ void main() {
     await tester.pumpAndSettle();
     // Deep-linked to the Payout history screen (its app-bar title).
     expect(find.text('Payout history'), findsOneWidget);
+  });
+
+  testWidgets('CreatorRoomsScreen lists a past show', (tester) async {
+    final api = _FakeApi(lists: {
+      '/creators/me/rooms': [
+        {
+          'title': 'Afrobeats Night',
+          'status': 'ENDED',
+          'peakViewers': 120,
+          'totalWatchSeconds': 3600,
+          'giftVolumeCoins': 500,
+          'giftCount': 8,
+          'startedAt': '2026-06-20T20:00:00Z',
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorRoomsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Afrobeats Night'), findsOneWidget);
+    expect(find.text('Show performance'), findsOneWidget); // app bar
+  });
+
+  testWidgets('PayoutMethodsScreen lists a saved method', (tester) async {
+    final api = _FakeApi(lists: {
+      '/payouts/methods': [
+        {
+          'id': 'm1',
+          'provider': 'BANK',
+          'label': 'GTBank savings',
+          'destinationReference': '0123456789',
+          'currency': 'NGN',
+          'isDefault': true,
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('GTBank savings'), findsOneWidget);
+    expect(find.text('Default'), findsOneWidget);
+  });
+
+  testWidgets('PayoutMethodsScreen shows empty state', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No payout methods yet'), findsOneWidget);
+  });
+
+  testWidgets('SupportScreen renders the support hub + ticket form',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const SupportScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Support hub'), findsOneWidget);
+    expect(find.text('New ticket'), findsOneWidget);
+  });
+
+  testWidgets('OnboardingScreen renders the discovery form', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const OnboardingScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Tune your stage'), findsOneWidget);
+    expect(find.text('Interests'), findsOneWidget);
   });
 }
