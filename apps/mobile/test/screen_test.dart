@@ -2,23 +2,35 @@ import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/screens/creator_profile_screen.dart';
 import 'package:afristage_mobile/screens/gift_history_screen.dart';
+import 'package:afristage_mobile/screens/history_screen.dart';
+import 'package:afristage_mobile/screens/live_screen.dart';
+import 'package:afristage_mobile/screens/notifications_screen.dart';
+import 'package:afristage_mobile/screens/payout_history_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 /// Configurable fake: canned get/getList responses by path; records writes.
+/// Paths in [errors] throw, so error-state branches are testable.
 class _FakeApi extends ApiClient {
-  _FakeApi({this.lists = const {}, this.maps = const {}});
+  _FakeApi({this.lists = const {}, this.maps = const {}, this.errors = const {}});
   final Map<String, List<dynamic>> lists;
   final Map<String, Map<String, dynamic>> maps;
+  final Set<String> errors;
   final posts = <String>[];
   final deletes = <String>[];
 
   @override
-  Future<List<dynamic>> getList(String path) async => lists[path] ?? const [];
+  Future<List<dynamic>> getList(String path) async {
+    if (errors.contains(path)) throw const ApiException(500, 'boom');
+    return lists[path] ?? const [];
+  }
 
   @override
-  Future<Map<String, dynamic>> get(String path) async => maps[path] ?? const {};
+  Future<Map<String, dynamic>> get(String path) async {
+    if (errors.contains(path)) throw const ApiException(500, 'boom');
+    return maps[path] ?? const {};
+  }
 
   @override
   Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
@@ -98,5 +110,76 @@ void main() {
 
     expect(find.text('Reminder set'), findsOneWidget);
     expect(api.posts, contains('/live-rooms/r1/remind'));
+  });
+
+  testWidgets('HistoryScreen renders a ledger row with formatted coin amount',
+      (tester) async {
+    final api = _FakeApi(lists: {
+      '/wallet/me/ledger': [
+        {
+          'direction': 'DEBIT',
+          'amountMinor': 100,
+          'currency': 'COIN',
+          'createdAt': '2026-06-24T12:00:00Z',
+          'transaction': {'type': 'GIFT'},
+          'account': {'accountType': 'COIN'},
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const HistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('100 coins'), findsOneWidget);
+  });
+
+  testWidgets('PayoutHistoryScreen shows coin amount, fiat, and status',
+      (tester) async {
+    final api = _FakeApi(lists: {
+      '/payouts/me': [
+        {
+          'coinAmount': 500,
+          'fiatMinor': 50000,
+          'fiatCurrency': 'NGN',
+          'status': 'PAID',
+          'createdAt': '2026-06-24T12:00:00Z',
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const PayoutHistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('500 coins'), findsOneWidget);
+    expect(find.textContaining('₦500.00'), findsOneWidget);
+    expect(find.text('PAID'), findsOneWidget);
+  });
+
+  testWidgets('LiveScreen shows an error state when the rooms fetch fails',
+      (tester) async {
+    final api = _FakeApi(errors: {'/live-rooms'});
+    await tester.pumpWidget(_wrap(api, const LiveScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load live rooms'), findsOneWidget);
+  });
+
+  testWidgets('Tapping a payout notification opens payout history (#46)',
+      (tester) async {
+    final api = _FakeApi(lists: {
+      '/notifications/me': [
+        {
+          'id': 'n1',
+          'type': 'PAYOUT_UPDATE',
+          'title': 'Payout paid',
+          'body': 'Your payout was sent.',
+          'createdAt': '2026-06-24T12:00:00Z',
+          'readAt': null,
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Payout paid'), findsOneWidget);
+
+    await tester.tap(find.text('Payout paid'));
+    await tester.pumpAndSettle();
+    // Deep-linked to the Payout history screen (its app-bar title).
+    expect(find.text('Payout history'), findsOneWidget);
   });
 }
