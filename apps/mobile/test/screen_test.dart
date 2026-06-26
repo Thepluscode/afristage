@@ -476,6 +476,31 @@ void main() {
     expect(api.posts, contains('/payouts/methods'));
   });
 
+  testWidgets('GoLiveSetup low-data toggle flips', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Low-data mode'));
+    await tester.pumpAndSettle();
+    expect(find.text('Low-data mode'), findsOneWidget); // toggled without error
+  });
+
+  testWidgets('WalletScreen buying a package posts a purchase intent',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    final state = AppState(api: api)
+      ..wallet = const Wallet(
+          coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('₦1,000 → 100 coins'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/payments/coin-purchase-intents'));
+  });
+
   testWidgets('SupportTicketScreen sends a reply', (tester) async {
     _tall(tester);
     final api = _FakeApi(maps: {
