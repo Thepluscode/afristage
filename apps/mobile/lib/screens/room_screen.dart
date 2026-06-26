@@ -14,12 +14,18 @@ import 'report_screen.dart';
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen(
-      {super.key, required this.room, this.hostToken, this.livekitUrl});
+      {super.key,
+      required this.room,
+      this.hostToken,
+      this.livekitUrl,
+      this.socketFactory});
   final LiveRoom room;
   // When present, this screen is the host's own session (publishes camera/mic).
   // Absent => viewer (fetches a viewer token and subscribes).
   final String? hostToken;
   final String? livekitUrl;
+  // Seam for tests: defaults to io.io (a real socket) in production.
+  final io.Socket Function(String uri, dynamic opts)? socketFactory;
 
   bool get isHost => hostToken != null;
 
@@ -112,7 +118,7 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     if (!_canUpdate) return;
 
-    final socket = io.io(
+    final socket = (widget.socketFactory ?? io.io)(
       '${api.wsOrigin}/chat',
       io.OptionBuilder()
           .setTransports(['websocket'])
