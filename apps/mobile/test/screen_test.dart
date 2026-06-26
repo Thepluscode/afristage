@@ -460,4 +460,33 @@ void main() {
     expect(api.posts, contains('/reports'));
     expect(find.text('Report submitted'), findsOneWidget);
   });
+
+  testWidgets('PayoutMethods saves a new method', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add method'));
+    await tester.pumpAndSettle();
+    // Label + account number; country/currency are pre-filled.
+    await tester.enterText(find.byType(TextField).at(0), 'GTBank savings');
+    await tester.enterText(find.byType(TextField).at(1), '0123456789');
+    await tester.tap(find.text('Save payout method'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/payouts/methods'));
+  });
+
+  testWidgets('SupportTicketScreen sends a reply', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/support/tickets/t1': {'subject': 'Issue', 'status': 'OPEN', 'messages': []},
+    });
+    await tester.pumpWidget(_wrap(
+        api, const SupportTicketScreen(ticketId: 't1', subject: 'Issue')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Please help');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/support/tickets/t1/messages'));
+  });
 }

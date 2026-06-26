@@ -43,11 +43,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<List<dynamic>> _load() =>
       context.read<AppState>().api.getList('/notifications/me');
 
-  void _reload() => setState(() => _items = _load());
+  void _reload() => setState(() {
+        _items = _load();
+      });
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _items = f);
+    setState(() {
+      _items = f;
+    });
     await f;
   }
 

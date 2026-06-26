@@ -93,8 +93,12 @@ class _ReportScreenState extends State<ReportScreen> {
         content: const Text(
             "You won't see their rooms and they can't interact with you. You can unblock later."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Block')),
         ],
       ),
     );

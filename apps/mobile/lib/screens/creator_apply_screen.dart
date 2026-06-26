@@ -47,8 +47,12 @@ class _CreatorApplyScreenState extends State<CreatorApplyScreen> {
 
   Future<void> _loadStatus() async {
     try {
-      final me = await context.read<AppState>().api.get('/creators/me');
+      final me =
+          await context.read<AppState>().api.getOptionalMap('/creators/me');
       if (!mounted) {
+        return;
+      }
+      if (me == null) {
         return;
       }
       setState(() {

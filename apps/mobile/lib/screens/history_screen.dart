@@ -27,7 +27,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _entries = f);
+    setState(() {
+      _entries = f;
+    });
     await f;
   }
 
@@ -50,7 +52,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   AfriErrorState(
                     title: 'Could not load history',
                     body: 'Check your connection and try again.',
-                    onRetry: () => setState(() => _entries = _load()),
+                    onRetry: () => setState(() {
+                      _entries = _load();
+                    }),
                   ),
                 ],
               );

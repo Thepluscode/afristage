@@ -41,11 +41,15 @@ class _PayoutMethodsScreenState extends State<PayoutMethodsScreen> {
   Future<List<dynamic>> _load() =>
       context.read<AppState>().api.getList('/payouts/methods');
 
-  void _reload() => setState(() => _items = _load());
+  void _reload() => setState(() {
+        _items = _load();
+      });
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _items = f);
+    setState(() {
+      _items = f;
+    });
     await f;
   }
 

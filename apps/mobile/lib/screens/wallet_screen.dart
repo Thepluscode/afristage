@@ -223,8 +223,10 @@ class _WalletScreenState extends State<WalletScreen> {
                 title: 'Gifts sent',
                 subtitle: 'Every gift you have sent, by creator and room',
                 accent: AfriColors.gold,
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const GiftHistoryScreen()))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const GiftHistoryScreen()))),
             AfriMenuRow(
                 icon: Icons.receipt_long,
                 title: 'Payout history',

@@ -44,7 +44,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final me = await context.read<AppState>().api.get('/users/me');
       final profile = me['profile'] as Map<String, dynamic>?;
-      if (mounted) setState(() => _avatarUrl = profile?['avatarUrl'] as String?);
+      if (mounted) {
+        setState(() => _avatarUrl = profile?['avatarUrl'] as String?);
+      }
     } on ApiException {
       // non-critical: header just falls back to the default avatar
     }
@@ -68,29 +70,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _changeAvatar() async {
     final api = context.read<AppState>().api;
     final messenger = ScaffoldMessenger.of(context);
-    final XFile? picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 85);
+    final XFile? picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery, maxWidth: 1024, imageQuality: 85);
     if (picked == null) return;
 
     final ext = picked.name.split('.').last.toLowerCase();
     final contentType = _avatarContentTypes[ext];
     if (contentType == null) {
-      messenger.showSnackBar(
-          const SnackBar(content: Text('Pick a JPG, PNG, WebP, or GIF image.')));
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Pick a JPG, PNG, WebP, or GIF image.')));
       return;
     }
 
     setState(() => _uploadingAvatar = true);
     try {
       final bytes = await picked.readAsBytes();
-      final presign = await api
-          .post('/uploads/presign', {'contentType': contentType, 'kind': 'avatar'});
+      final presign = await api.post(
+          '/uploads/presign', {'contentType': contentType, 'kind': 'avatar'});
       await api.putBytes(presign['uploadUrl'] as String, bytes, contentType);
       final fileUrl = presign['fileUrl'] as String;
       await api.patch('/users/me', {'avatarUrl': fileUrl});
       if (mounted) setState(() => _avatarUrl = fileUrl);
-      messenger
-          .showSnackBar(const SnackBar(content: Text('Profile photo updated.')));
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Profile photo updated.')));
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {

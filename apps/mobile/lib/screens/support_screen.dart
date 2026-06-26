@@ -193,7 +193,8 @@ class _SupportScreenState extends State<SupportScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => SupportTicketScreen(
-                      ticketId: t['id'] as String, subject: t['subject'] as String?),
+                      ticketId: t['id'] as String,
+                      subject: t['subject'] as String?),
                 ),
               ),
               child: AfriSupportTicketCard(ticket: t),
