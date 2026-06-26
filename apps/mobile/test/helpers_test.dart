@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+
   group('usd', () {
     test('formats whole and fractional coin counts as 2dp dollars', () {
       expect(usd(0), r'$0.00');
