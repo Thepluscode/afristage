@@ -1,3 +1,4 @@
+import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,181 @@ import 'package:flutter_test/flutter_test.dart';
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
+  group('afri_ui widget smoke + render', () {
+    testWidgets('AfriSectionHeader shows title + subtitle', (t) async {
+      await t.pumpWidget(_host(const AfriSectionHeader(
+          title: 'Earnings', subtitle: 'This week')));
+      expect(find.text('Earnings'), findsOneWidget);
+      expect(find.text('This week'), findsOneWidget);
+    });
+
+    testWidgets('AfriActionRow shows title/body and is tappable', (t) async {
+      var tapped = false;
+      await t.pumpWidget(_host(AfriActionRow(
+          icon: Icons.mic,
+          title: 'Become a creator',
+          body: 'Apply to host rooms',
+          onTap: () => tapped = true)));
+      expect(find.text('Become a creator'), findsOneWidget);
+      expect(find.text('Apply to host rooms'), findsOneWidget);
+      await t.tap(find.text('Become a creator'));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('AfriStatCard shows label + value', (t) async {
+      await t.pumpWidget(_host(const AfriStatCard(
+          label: 'Followers', value: '1.2K', icon: Icons.group)));
+      expect(find.text('Followers'), findsOneWidget);
+      expect(find.text('1.2K'), findsOneWidget);
+    });
+
+    testWidgets('AfriLiveBadge shows LIVE', (t) async {
+      await t.pumpWidget(_host(const AfriLiveBadge()));
+      expect(find.text('LIVE'), findsOneWidget);
+    });
+
+    testWidgets('AfriChip shows its label', (t) async {
+      await t.pumpWidget(_host(const AfriChip(label: 'Music')));
+      expect(find.text('Music'), findsOneWidget);
+    });
+
+    testWidgets('AfriEmptyState shows title + body', (t) async {
+      await t.pumpWidget(_host(const AfriEmptyState(
+          icon: Icons.inbox, title: 'Nothing here', body: 'Come back later')));
+      expect(find.text('Nothing here'), findsOneWidget);
+      expect(find.text('Come back later'), findsOneWidget);
+    });
+
+    testWidgets('AfriErrorState shows title and retries', (t) async {
+      var retried = false;
+      await t.pumpWidget(_host(AfriErrorState(
+          title: 'Oops', body: 'Try again', onRetry: () => retried = true)));
+      expect(find.text('Oops'), findsOneWidget);
+      await t.tap(find.byType(FilledButton));
+      expect(retried, isTrue);
+    });
+
+    testWidgets('AfriLoadingState renders a label', (t) async {
+      await t.pumpWidget(_host(const AfriLoadingState()));
+      expect(find.text('Restoring session'), findsOneWidget);
+    });
+
+    testWidgets('AfriCard renders child and fires onTap', (t) async {
+      var tapped = false;
+      await t.pumpWidget(_host(
+          AfriCard(onTap: () => tapped = true, child: const Text('inside'))));
+      expect(find.text('inside'), findsOneWidget);
+      await t.tap(find.text('inside'));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('AfriGradientPanel renders its child', (t) async {
+      await t.pumpWidget(
+          _host(const AfriGradientPanel(child: Text('panel'))));
+      expect(find.text('panel'), findsOneWidget);
+    });
+
+    testWidgets('AfriIconBadge / AfriBrandMark / AfriLegalLinks build', (t) async {
+      await t.pumpWidget(_host(const Column(mainAxisSize: MainAxisSize.min, children: [
+        AfriIconBadge(icon: Icons.star),
+        AfriBrandMark(),
+        AfriLegalLinks(),
+      ])));
+      expect(find.byType(AfriIconBadge), findsOneWidget);
+      expect(find.byType(AfriBrandMark), findsOneWidget);
+    });
+
+    testWidgets('AfriCreatorStatusBanner shows its message', (t) async {
+      await t.pumpWidget(_host(const AfriCreatorStatusBanner(
+          status: 'APPROVED', message: 'You can go live')));
+      expect(find.text('You can go live'), findsOneWidget);
+    });
+
+    testWidgets('AfriMutedStateNotice shows the default label', (t) async {
+      await t.pumpWidget(_host(const AfriMutedStateNotice()));
+      expect(find.textContaining('muted'), findsOneWidget);
+    });
+
+    testWidgets('AfriChatBubble builds a message (RichText spans)', (t) async {
+      await t.pumpWidget(_host(const AfriChatBubble(
+          message: ChatMessage(sender: 'Zola', text: 'hello room'))));
+      expect(find.byType(AfriChatBubble), findsOneWidget);
+    });
+
+    testWidgets('AfriGiftTile shows the gift name + price', (t) async {
+      await t.pumpWidget(_host(AfriGiftTile(
+          gift: const Gift(id: 'g', name: 'Rose', coinPrice: 10),
+          onTap: () {})));
+      expect(find.text('Rose'), findsOneWidget);
+    });
+
+    testWidgets('AfriCategoryChips renders + selects', (t) async {
+      String? picked;
+      await t.pumpWidget(_host(AfriCategoryChips(
+          items: const ['Music', 'Comedy'],
+          selected: 'Music',
+          onSelected: (v) => picked = v)));
+      expect(find.text('Comedy'), findsOneWidget);
+      await t.tap(find.text('Comedy'));
+      expect(picked, 'Comedy');
+    });
+
+    testWidgets('AfriCoinPackageCard shows label/body and taps', (t) async {
+      var tapped = false;
+      await t.pumpWidget(_host(AfriCoinPackageCard(
+          label: '100 coins', body: '₦1,000', onTap: () => tapped = true)));
+      expect(find.text('100 coins'), findsOneWidget);
+      expect(find.text('₦1,000'), findsOneWidget);
+      await t.tap(find.text('100 coins'));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('AfriPayoutStatusCard / AfriWalletBalanceCard build', (t) async {
+      await t.pumpWidget(_host(const Column(mainAxisSize: MainAxisSize.min, children: [
+        AfriPayoutStatusCard(available: 500, pending: 100, hold: 50),
+        AfriWalletBalanceCard(coinBalance: 1200, modeLabel: 'USD'),
+      ])));
+      expect(find.byType(AfriPayoutStatusCard), findsOneWidget);
+      expect(find.byType(AfriWalletBalanceCard), findsOneWidget);
+    });
+
+    testWidgets('AfriReportReasonTile shows label and selects', (t) async {
+      var tapped = false;
+      await t.pumpWidget(_host(AfriReportReasonTile(
+          label: 'Spam', selected: false, onTap: () => tapped = true)));
+      expect(find.text('Spam'), findsOneWidget);
+      await t.tap(find.text('Spam'));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('AfriTopGifterStrip shows a gifter', (t) async {
+      await t.pumpWidget(_host(SizedBox(
+          width: 360,
+          child: const AfriTopGifterStrip(gifters: [('Zola', '500')]))));
+      expect(find.textContaining('Zola'), findsOneWidget);
+    });
+
+    testWidgets('AfriSupportTicketCard builds from a ticket map', (t) async {
+      await t.pumpWidget(_host(const AfriSupportTicketCard(
+          ticket: {'subject': 'Help me', 'status': 'OPEN'})));
+      expect(find.byType(AfriSupportTicketCard), findsOneWidget);
+    });
+
+    testWidgets('AfriHeroEventCard builds + fires onJoin', (t) async {
+      var joined = false;
+      await t.pumpWidget(_host(SizedBox(
+          width: 360,
+          child: AfriHeroEventCard(onJoin: () => joined = true))));
+      expect(find.byType(AfriHeroEventCard), findsOneWidget);
+    });
+
+    testWidgets('AfriScaffold renders title + children', (t) async {
+      await t.pumpWidget(MaterialApp(
+          home: AfriScaffold(title: 'Wallet', children: const [Text('body')])));
+      expect(find.text('Wallet'), findsOneWidget);
+      expect(find.text('body'), findsOneWidget);
+    });
+  });
   testWidgets('AfriBalanceCard renders fields and fires button callbacks',
       (tester) async {
     var paid = false, txns = false;
