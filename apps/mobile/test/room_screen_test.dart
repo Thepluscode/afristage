@@ -1,0 +1,84 @@
+import 'package:afristage_mobile/core/api_client.dart';
+import 'package:afristage_mobile/core/app_state.dart';
+import 'package:afristage_mobile/models/models.dart';
+import 'package:afristage_mobile/screens/room_screen.dart';
+import 'package:afristage_mobile/widgets/afri_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+
+/// Fake socket: captures every `on(event, handler)` (including the connect/
+/// disconnect extension methods, which delegate to `on`) so a test can fire
+/// server events. connect/emit/dispose are no-ops.
+class _FakeSocket implements io.Socket {
+  final handlers = <String, Function>{};
+  void fire(String event, [dynamic data]) => handlers[event]?.call(data);
+
+  @override
+  dynamic noSuchMethod(Invocation i) {
+    if (i.memberName == #on && i.positionalArguments.length >= 2) {
+      handlers[i.positionalArguments[0] as String] =
+          i.positionalArguments[1] as Function;
+    }
+    if (i.memberName == #connect || i.memberName == #open) return this;
+    return null;
+  }
+}
+
+class _RoomApi extends ApiClient {
+  @override
+  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async =>
+      path.endsWith('/join-token')
+          ? {'livekitUrl': 'ws://x', 'viewerToken': 'tok'}
+          : const {};
+  @override
+  Future<List<dynamic>> getList(String path) async => const [];
+}
+
+Widget _wrap(AppState state, Widget child) =>
+    ChangeNotifierProvider<AppState>.value(
+        value: state, child: MaterialApp(home: child));
+
+LiveRoom _room() => const LiveRoom(
+    id: 'r1',
+    title: 'Live Now',
+    category: 'MUSIC',
+    country: 'NG',
+    language: 'pidgin',
+    status: 'LIVE',
+    hostName: 'Zola',
+    hostId: 'h1');
+
+void main() {
+  testWidgets('viewer room renders the stage and reacts to server events',
+      (tester) async {
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(), socketFactory: (uri, opts) => socket)));
+    // Let initState's async _connect (join-token + handler registration) settle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+
+    // Drive the socket lifecycle + a few room events through the captured handlers.
+    socket.fire('connect', null);
+    socket.fire('room.viewer_count_updated', {'count': 99});
+    socket.fire('gift.sent', {'giftName': 'Rose', 'quantity': 2});
+    socket.fire('chat.message_created',
+        {'senderName': 'Zola', 'message': 'hello'});
+    await tester.pump();
+
+    // Ending the room shows a snackbar.
+    socket.fire('room.ended', null);
+    await tester.pump();
+    expect(find.text('This room has ended.'), findsOneWidget);
+
+    // Flush the SnackBar's auto-dismiss timer so none is pending at teardown.
+    await tester.pump(const Duration(seconds: 6));
+  });
+}
