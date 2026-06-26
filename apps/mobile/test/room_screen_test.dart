@@ -65,12 +65,18 @@ void main() {
 
     expect(find.byType(AfriVideoStage), findsOneWidget);
 
-    // Drive the socket lifecycle + a few room events through the captured handlers.
+    // Drive the socket lifecycle + room events through the captured handlers.
     socket.fire('connect', null);
     socket.fire('room.viewer_count_updated', {'count': 99});
     socket.fire('gift.sent', {'giftName': 'Rose', 'quantity': 2});
     socket.fire('chat.message_created',
         {'senderName': 'Zola', 'message': 'hello'});
+    socket.fire('reaction.sent', {'reactionType': 'heart'});
+    socket.fire('connect_error', null);
+    socket.fire('disconnect', null);
+    socket.fire('connect', null); // reconnect -> "rejoined" banner branch
+    socket.fire('user.muted', {'userId': 'v1'});
+    socket.fire('room.suspended', null);
     await tester.pump();
 
     // Ending the room shows a snackbar.
@@ -78,7 +84,29 @@ void main() {
     await tester.pump();
     expect(find.text('This room has ended.'), findsOneWidget);
 
-    // Flush the SnackBar's auto-dismiss timer so none is pending at teardown.
+    // Flush pending banner/snackbar auto-dismiss timers before teardown.
     await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('host room renders host controls', (tester) async {
+    // Tall surface: host controls + stage exceed the default 800px height.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'h1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(),
+            hostToken: 'htok',
+            livekitUrl: 'ws://x',
+            socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+    expect(find.byType(AfriHostControlsPanel), findsOneWidget);
   });
 }
