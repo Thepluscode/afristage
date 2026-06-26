@@ -182,6 +182,127 @@ void main() {
       expect(find.text('body'), findsOneWidget);
     });
   });
+
+  group('afri_ui live-room widgets', () {
+    LiveRoom room() => const LiveRoom(
+        id: 'r1',
+        title: 'Afro Night',
+        category: 'MUSIC',
+        country: 'NG',
+        language: 'pidgin',
+        status: 'LIVE',
+        hostName: 'Zola',
+        hostId: 'h1');
+
+    testWidgets('AfriSplash builds', (t) async {
+      await t.pumpWidget(_host(const AfriSplash()));
+      expect(find.byType(AfriSplash), findsOneWidget);
+    });
+
+    testWidgets('AfriLiveRoomCard shows the room title', (t) async {
+      await t.pumpWidget(_host(
+          SizedBox(width: 360, child: AfriLiveRoomCard(room: room(), onTap: () {}))));
+      expect(find.text('Afro Night'), findsOneWidget);
+    });
+
+    testWidgets('AfriLiveTile builds', (t) async {
+      await t.pumpWidget(_host(AfriLiveTile(room: room(), onTap: () {})));
+      expect(find.byType(AfriLiveTile), findsOneWidget);
+    });
+
+    testWidgets('AfriNetworkStatusPill builds', (t) async {
+      await t.pumpWidget(_host(AfriNetworkStatusPill(
+          connected: true,
+          lowData: false,
+          poorNetwork: false,
+          onToggleLowData: (_) {})));
+      expect(find.byType(AfriNetworkStatusPill), findsOneWidget);
+    });
+
+    testWidgets('AfriChatInput builds', (t) async {
+      final c = TextEditingController();
+      addTearDown(c.dispose);
+      await t.pumpWidget(_host(AfriChatInput(
+          controller: c,
+          enabled: true,
+          onSend: () {},
+          onGift: () {},
+          onReaction: (_) {})));
+      expect(find.byType(AfriChatInput), findsOneWidget);
+    });
+
+    testWidgets('AfriReactionButton builds', (t) async {
+      await t.pumpWidget(_host(AfriReactionButton(onReaction: (_) {})));
+      expect(find.byType(AfriReactionButton), findsOneWidget);
+    });
+
+    testWidgets('AfriChatOverlay builds', (t) async {
+      final s = ScrollController();
+      addTearDown(s.dispose);
+      await t.pumpWidget(_host(SizedBox(
+          height: 200,
+          child: AfriChatOverlay(
+              messages: const [ChatMessage(sender: 'A', text: 'hi')],
+              controller: s))));
+      expect(find.byType(AfriChatOverlay), findsOneWidget);
+    });
+
+    testWidgets('AfriReactionLayer + AfriGiftAnimationLayer build', (t) async {
+      await t.pumpWidget(_host(const SizedBox(
+          height: 200,
+          width: 200,
+          child: Stack(children: [
+            AfriReactionLayer(reactions: ['heart']),
+            AfriGiftAnimationLayer(giftLabel: 'Rose x1'),
+          ]))));
+      expect(find.byType(AfriReactionLayer), findsOneWidget);
+      expect(find.byType(AfriGiftAnimationLayer), findsOneWidget);
+    });
+
+    testWidgets('AfriVideoStage builds (viewer, waiting)', (t) async {
+      await t.pumpWidget(_host(SizedBox(
+          height: 300,
+          width: 300,
+          child: AfriVideoStage(
+              video: const SizedBox(),
+              ready: false,
+              isHost: false,
+              videoOn: false,
+              roomEnded: false,
+              onStartVideo: () {}))));
+      expect(find.byType(AfriVideoStage), findsOneWidget);
+    });
+
+    testWidgets('AfriHostControlsPanel builds', (t) async {
+      await t.pumpWidget(_host(AfriHostControlsPanel(
+          viewerCount: 10,
+          giftCount: 5,
+          earningsEstimate: 100,
+          cameraOn: true,
+          micOn: true,
+          chatVisible: true,
+          lowData: false,
+          poorNetwork: false,
+          socketConnected: true,
+          onCameraChanged: (_) {},
+          onMicChanged: (_) {},
+          onChatVisibleChanged: (_) {},
+          onLowDataChanged: (_) {},
+          onMuteUser: () {},
+          onSafety: () {},
+          onEndRoom: () {})));
+      expect(find.byType(AfriHostControlsPanel), findsOneWidget);
+    });
+
+    testWidgets('AfriLiveRoomShell builds', (t) async {
+      await t.pumpWidget(_host(const SizedBox(
+          height: 600,
+          width: 360,
+          child: AfriLiveRoomShell(
+              stage: SizedBox(), chat: SizedBox(), input: SizedBox()))));
+      expect(find.byType(AfriLiveRoomShell), findsOneWidget);
+    });
+  });
   testWidgets('AfriBalanceCard renders fields and fires button callbacks',
       (tester) async {
     var paid = false, txns = false;
