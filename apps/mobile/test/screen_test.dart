@@ -31,11 +31,19 @@ class _FakeApi extends ApiClient {
   final Set<String> errors;
   final posts = <String>[];
   final deletes = <String>[];
+  final patches = <String>[];
 
   @override
   Future<List<dynamic>> getList(String path) async {
     if (errors.contains(path)) throw const ApiException(500, 'boom');
     return lists[path] ?? const [];
+  }
+
+  @override
+  Future<Map<String, dynamic>> patch(String path, [Map<String, dynamic>? body]) async {
+    if (errors.contains(path)) throw const ApiException(500, 'boom');
+    patches.add(path);
+    return maps[path] ?? const {};
   }
 
   @override
@@ -571,5 +579,103 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Choose a clear title before going live.'), findsOneWidget);
     expect(api.posts, isEmpty); // never hit the API
+  });
+
+  testWidgets('Wallet card mode surfaces a missing-checkout-URL error',
+      (tester) async {
+    _tall(tester);
+    final state = AppState(api: _FakeApi())
+      ..wallet = const Wallet(
+          coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch)); // flip Mock -> Card; reopens sheet
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('₦1,000 → 100 coins')); // _buyWithCard, no URL
+    await tester.pumpAndSettle();
+    expect(find.text('No checkout URL returned'), findsOneWidget);
+  });
+
+  testWidgets('Wallet menu rows show their guidance snackbars', (tester) async {
+    _tall(tester);
+    final state = AppState(api: _FakeApi())
+      ..wallet = const Wallet(
+          coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profile'));
+    await tester.pump();
+    expect(find.text('Use the Profile tab to manage your account.'),
+        findsOneWidget);
+    await tester.pump(const Duration(seconds: 5)); // flush snackbar
+  });
+
+  testWidgets('Notifications empty state when there are none', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No notifications yet'), findsOneWidget);
+  });
+
+  testWidgets('Notifications error state when the load fails', (tester) async {
+    final api = _FakeApi(errors: {'/notifications/me'});
+    await tester.pumpWidget(_wrap(api, const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load notifications'), findsOneWidget);
+  });
+
+  testWidgets('Notifications mark-all-read posts to the endpoint',
+      (tester) async {
+    final api = _FakeApi(lists: {
+      '/notifications/me': [
+        {'id': 'n1', 'type': 'NEW_FOLLOWER', 'title': 'New follower', 'body': 'x'},
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark all read'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/notifications/read-all'));
+  });
+
+  testWidgets('Register reaches step 3 and blocks create until age confirmed',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const RegisterScreen()));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 2; i++) {
+      await tester.scrollUntilVisible(find.text('Continue'), 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('Step 3 · Country and language'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create Account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirm your age before creating an account'),
+        findsOneWidget);
+  });
+
+  testWidgets('Onboarding toggles interests and creator intent', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const OnboardingScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Football')); // select an interest
+    await tester.tap(find.text('Creator')); // switch intent segment
+    await tester.pumpAndSettle();
+    expect(find.text('Set Up Discovery'), findsOneWidget);
+  });
+
+  testWidgets('Onboarding surfaces a save error', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(errors: {'/users/me'});
+    await tester.pumpWidget(_wrap(api, const OnboardingScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.text('Save Discovery Preferences'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Save Discovery Preferences'));
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
   });
 }
