@@ -27,9 +27,17 @@ class _FakeSocket implements io.Socket {
 }
 
 class _RoomApi extends ApiClient {
+  _RoomApi({this.failJoin = false, this.gifts = const []});
+  final bool failJoin;
+  final List<Map<String, dynamic>> gifts;
   final posts = <String>[];
+  final deletes = <String>[];
+
   @override
   Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+    if (failJoin && path.endsWith('/join-token')) {
+      throw const ApiException(503, 'room offline');
+    }
     posts.add(path);
     return path.endsWith('/join-token')
         ? {'livekitUrl': 'ws://x', 'viewerToken': 'tok'}
@@ -37,7 +45,14 @@ class _RoomApi extends ApiClient {
   }
 
   @override
-  Future<List<dynamic>> getList(String path) async => const [];
+  Future<Map<String, dynamic>> delete(String path) async {
+    deletes.add(path);
+    return const {};
+  }
+
+  @override
+  Future<List<dynamic>> getList(String path) async =>
+      path == '/gifts' ? gifts : const [];
 }
 
 Widget _wrap(AppState state, Widget child) =>
@@ -142,5 +157,97 @@ void main() {
     await tester.tap(find.text('End Room').last); // dialog confirm
     await tester.pumpAndSettle();
     expect(api.posts, contains('/live-rooms/r1/end'));
+  });
+
+  testWidgets('host can toggle camera, mic, chat, and mute with no viewer',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'h1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(),
+            hostToken: 'htok',
+            livekitUrl: 'ws://x',
+            socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Camera on'));
+    await tester.pump();
+    expect(find.text('Camera off'), findsOneWidget);
+
+    await tester.tap(find.text('Mic on'));
+    await tester.pump();
+    expect(find.text('Mic off'), findsOneWidget);
+
+    await tester.tap(find.text('Mute user')); // no chat messages yet
+    await tester.pump();
+    expect(find.text('No recent viewer to mute yet.'), findsOneWidget);
+
+    await tester.tap(find.text('Chat visible'));
+    await tester.pump();
+    expect(find.text('Chat hidden by host controls'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 6)); // flush snackbar timer
+  });
+
+  testWidgets('viewer follow posts to the creator follow endpoint',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi();
+    final state = AppState(api: api)..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Follow'));
+    await tester.pump();
+    expect(api.posts, contains('/users/h1/follow'));
+    expect(find.text('Following'), findsOneWidget);
+  });
+
+  testWidgets('viewer with no coins gets an insufficient-coins toast',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(gifts: [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50},
+    ]);
+    final state = AppState(api: api)..userId = 'v1'; // wallet defaults to 0 coins
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byIcon(Icons.card_giftcard)); // open gift sheet
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rose').first); // ensure the gift is selected
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send')); // confirm -> _sendGift
+    await tester.pumpAndSettle();
+
+    expect(api.posts, isNot(contains('/live-rooms/r1/gifts'))); // never charged
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('viewer join-token failure is handled without crashing',
+      (tester) async {
+    _tall(tester);
+    final api = _RoomApi(failJoin: true);
+    final socket = _FakeSocket();
+    final state = AppState(api: api)..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // The join-token POST threw, so it was never recorded and the screen still
+    // renders the stage (the _connect catch-block set _error and bailed out).
+    expect(api.posts, isEmpty);
+    expect(find.byType(AfriVideoStage), findsOneWidget);
   });
 }
