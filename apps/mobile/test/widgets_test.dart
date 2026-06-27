@@ -1,3 +1,4 @@
+import 'package:afristage_mobile/core/afri_theme.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
@@ -7,6 +8,22 @@ import 'package:flutter_test/flutter_test.dart';
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
+  testWidgets('AfriTheme.dark builds the full dark ThemeData', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: AfriTheme.dark(),
+      home: Scaffold(
+        body: const Center(child: Text('themed')),
+        bottomNavigationBar: NavigationBar(destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.person), label: 'Me'),
+        ]),
+      ),
+    ));
+    final theme = Theme.of(tester.element(find.text('themed')));
+    expect(theme.brightness, Brightness.dark);
+    expect(theme.scaffoldBackgroundColor, AfriColors.stage);
+  });
+
   group('afri_ui widget smoke + render', () {
     testWidgets('AfriSectionHeader shows title + subtitle', (t) async {
       await t.pumpWidget(_host(const AfriSectionHeader(

@@ -514,4 +514,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.posts, contains('/support/tickets/t1/messages'));
   });
+
+  testWidgets('CreatorScreen shows the error state', (tester) async {
+    final api = _FakeApi(errors: {'/creators/me/dashboard'});
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Creator hub unavailable'), findsOneWidget);
+    expect(find.text('Retry creator hub'), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen formats multi-hour watch time', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola', 'status': 'APPROVED'},
+        'earnings': 10,
+        'topSupporters': [],
+        'totalWatchSeconds': 7325, // 2h 2m
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('2h 2m'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('2h 2m'), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen payout with no method nudges to add one',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola', 'status': 'APPROVED'},
+        'earnings': 100,
+        'topSupporters': [],
+      },
+    }); // getList('/payouts/methods') defaults to []
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Request payout'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a payout method first so earnings can settle.'),
+        findsOneWidget);
+  });
+
+  testWidgets('GoLiveSetup blocks an empty title before going live',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '   ');
+    await tester.scrollUntilVisible(find.text('Start Live Room'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Start Live Room'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a clear title before going live.'), findsOneWidget);
+    expect(api.posts, isEmpty); // never hit the API
+  });
 }
