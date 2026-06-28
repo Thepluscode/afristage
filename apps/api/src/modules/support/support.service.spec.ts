@@ -90,3 +90,44 @@ describe('SupportService error paths', () => {
     await expect(service.addMessage('intruder', UserRole.VIEWER, 't1', 'hi')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe('SupportService CRUD', () => {
+  it('createTicket persists the requester + fields', async () => {
+    const { service, prisma } = build(null);
+    prisma.supportTicket.create = jest.fn().mockResolvedValue({ id: 't1' });
+    await service.createTicket('u1', { type: 'PAYMENT', subject: 'S', description: 'D' } as any);
+    expect(prisma.supportTicket.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ requesterId: 'u1', type: 'PAYMENT', subject: 'S' }) })
+    );
+  });
+
+  it('myTickets lists a requester’s tickets', async () => {
+    const { service, prisma } = build(null);
+    prisma.supportTicket.findMany = jest.fn().mockResolvedValue([]);
+    await service.myTickets('u1');
+    expect(prisma.supportTicket.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { requesterId: 'u1' } }));
+  });
+
+  it('adminList lists all tickets by priority then recency', async () => {
+    const { service, prisma } = build(null);
+    prisma.supportTicket.findMany = jest.fn().mockResolvedValue([]);
+    await service.adminList();
+    expect(prisma.supportTicket.findMany).toHaveBeenCalled();
+  });
+
+  it('assign sets the admin + IN_REVIEW', async () => {
+    const { service, prisma } = build(null);
+    await service.assign('admin', 't1');
+    expect(prisma.supportTicket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ assignedAdminId: 'admin', status: 'IN_REVIEW' }) })
+    );
+  });
+
+  it('resolve sets RESOLVED + resolvedAt', async () => {
+    const { service, prisma } = build(null);
+    await service.resolve('t1');
+    expect(prisma.supportTicket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'RESOLVED' }) })
+    );
+  });
+});

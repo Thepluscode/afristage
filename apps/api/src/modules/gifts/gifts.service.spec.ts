@@ -152,3 +152,84 @@ describe('GiftsService.topGifters', () => {
     expect(prisma.giftTransaction.groupBy).toHaveBeenCalledWith(expect.objectContaining({ take: 10 })); // 0 -> default 10
   });
 });
+
+describe('GiftsService catalog CRUD', () => {
+  it('list returns active gifts cheapest-first', async () => {
+    const { service, prisma } = build();
+    prisma.gift.findMany = jest.fn().mockResolvedValue([]);
+    await service.list();
+    expect(prisma.gift.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true } }));
+  });
+
+  it('create inserts a new gift', async () => {
+    const { service, prisma } = build();
+    prisma.gift.create = jest.fn().mockResolvedValue({ id: 'g9' });
+    await service.create({ name: 'Crown', coinPrice: 50 } as any);
+    expect(prisma.gift.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ name: 'Crown' }) }));
+  });
+
+  it('update mutates a gift by id', async () => {
+    const { service, prisma } = build();
+    prisma.gift.update = jest.fn().mockResolvedValue({ id: 'g1' });
+    await service.update('g1', { coinPrice: 99 } as any);
+    expect(prisma.gift.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'g1' } }));
+  });
+});
+
+describe('GiftsService fallback branches', () => {
+  it('topGifters falls back username -> Anonymous and coerces null sums', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.groupBy = jest.fn().mockResolvedValue([
+      { viewerId: 'a', _sum: { totalCoinAmount: 100, quantity: 2 } },
+      { viewerId: 'b', _sum: { totalCoinAmount: null, quantity: null } }
+    ]);
+    prisma.profile.findMany.mockResolvedValue([{ userId: 'a', username: 'ay', displayName: null }]);
+    const res = await service.topGifters('r1');
+    expect(res[0].displayName).toBe('ay'); // username fallback when displayName is null
+    expect(res[1]).toMatchObject({ displayName: 'Anonymous', totalCoins: 0, giftCount: 0 });
+  });
+
+  it('myGifts tolerates a null animation URL and an unresolved creator', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.findMany = jest.fn().mockResolvedValue([
+      { id: 't1', gift: { name: 'Rose', animationUrl: null }, quantity: 1, totalCoinAmount: 10, roomId: 'r1', room: { title: 'Show' }, creatorId: 'c1', createdAt: new Date() }
+    ]);
+    prisma.profile.findMany.mockResolvedValue([]); // creator profile missing
+    const res = await service.myGifts('v1');
+    expect(res[0]).toMatchObject({ animationUrl: null, creatorName: 'Creator' });
+  });
+
+  it('honours a configured CREATOR_SHARE_BPS split', async () => {
+    const prev = process.env.CREATOR_SHARE_BPS;
+    process.env.CREATOR_SHARE_BPS = '5000';
+    try {
+      const { service, prisma } = build();
+      prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1' });
+      await service.send('v1', 'r1', dto);
+    } finally {
+      if (prev === undefined) delete process.env.CREATOR_SHARE_BPS;
+      else process.env.CREATOR_SHARE_BPS = prev;
+    }
+  });
+});
+
+describe('GiftsService limit + share defaults', () => {
+  it('myGifts falls back to the default page size for a zero limit', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.findMany = jest.fn().mockResolvedValue([]);
+    await service.myGifts('v1', 0); // Math.trunc(0) || 50 -> 50
+    expect(prisma.giftTransaction.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+  });
+
+  it('uses the default creator share when CREATOR_SHARE_BPS is unset', async () => {
+    const prev = process.env.CREATOR_SHARE_BPS;
+    delete process.env.CREATOR_SHARE_BPS;
+    try {
+      const { service, prisma } = build();
+      prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1' });
+      await service.send('v1', 'r1', dto);
+    } finally {
+      if (prev !== undefined) process.env.CREATOR_SHARE_BPS = prev;
+    }
+  });
+});
