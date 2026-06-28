@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { SupportService } from './support.service';
 
@@ -71,5 +71,22 @@ describe('SupportService', () => {
     const { service, prisma } = build({ id: 't1', requesterId: 'owner', status: 'OPEN' });
     await service.addMessage('owner', UserRole.VIEWER, 't1', 'more info', false);
     expect(prisma.supportTicket.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('SupportService error paths', () => {
+  it('getTicket throws NotFound for a missing ticket', async () => {
+    const { service } = build(null);
+    await expect(service.getTicket('owner', UserRole.VIEWER, 't1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('addMessage throws NotFound for a missing ticket', async () => {
+    const { service } = build(null);
+    await expect(service.addMessage('owner', UserRole.VIEWER, 't1', 'hi')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('addMessage forbids a non-owner non-admin', async () => {
+    const { service } = build({ id: 't1', requesterId: 'someone-else', status: 'OPEN' });
+    await expect(service.addMessage('intruder', UserRole.VIEWER, 't1', 'hi')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
