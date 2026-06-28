@@ -9,6 +9,41 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-06-28 — API service error-path coverage
+
+Raised `apps/api` service unit-test coverage, focused on guard/throw (error)
+paths. Overall service **branch 41.3% → 62.9%**, statements **57.7% → 73.5%**;
+**152 → 260 tests** (+108). Shipped as PRs #77–#81. Status: `DEPLOYED`
+(jest unit tests green; mocked Prisma, not production evidence).
+
+Per-service branch coverage:
+
+| service | before → after | PR |
+|---------|----------------|----|
+| auth | 24% → 71% | #77 |
+| payouts | 60% → 91% | #77 |
+| payments | 60% → 83% | #77 |
+| creators | 23% → 83% | #77 |
+| live-rooms | 11% → 43% | #78 |
+| wallet | 0% → 100% | #79 |
+| support | 76% → 100% | #79 |
+| admin | 0% → 100% | #80 |
+| fraud | 0% → 100% | #80 |
+| chat | 0% → 100% | #81 |
+| ledger-integrity | 0% → 100% | #81 |
+
+Notes:
+- Pure test additions — no production code changed.
+- `wallet`, `admin`, `fraud`, `chat`, `ledger-integrity` had **no spec** before.
+- `live-rooms` residual is the ranking `list` + stale-room sweep (not error paths).
+- Dropped a redundant moderation batch that added 0% (existing helper already
+  covered those branches) rather than ship dead tests.
+- Caveat: unit-level (mocked Prisma) — verifies guard/throw logic, not real DB
+  behaviour. DB-level money invariants are covered by the `.int-spec.ts`
+  concurrency test (overdraw fix).
+- Untouched (thin infra glue, low value): `redis`, `room-cleanup`,
+  `notifications`, `analytics`.
+
 ## Session 2026-06-26 → 2026-06-28 — mobile test suite to the 80% floor
 
 Built the Flutter mobile test suite from **33.6% → 80.2%** line coverage
