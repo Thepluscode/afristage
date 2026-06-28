@@ -211,3 +211,155 @@ describe('LiveRoomsService.adminEnd', () => {
     expect(chat.emitToRoom).toHaveBeenCalledWith('r1', 'room.ended', expect.objectContaining({ reason: 'ADMIN_ENDED' }));
   });
 });
+
+function buildFeed() {
+  const prisma: any = {
+    liveRoom: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+    roomParticipant: { findMany: jest.fn().mockResolvedValue([]) },
+    giftTransaction: { groupBy: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+    report: { findMany: jest.fn().mockResolvedValue([]) },
+    chatMessage: { findFirst: jest.fn().mockResolvedValue(null) }
+  };
+  const livekit: any = { createToken: jest.fn(), url: jest.fn() };
+  const chat: any = { countFor: jest.fn().mockReturnValue(0), emitToRoom: jest.fn() };
+  return { service: new LiveRoomsService(prisma, livekit, chat), prisma, chat };
+}
+
+const liveRoom = (over: any = {}) => ({
+  id: 'r1', hostUserId: 'h1', status: 'LIVE', peakViewers: 5,
+  language: 'pidgin', country: 'NG', startedAt: new Date(), createdAt: new Date(),
+  host: { creatorProfile: { createdAt: new Date() } }, ...over
+});
+
+describe('LiveRoomsService.list (ranked feed)', () => {
+  it('returns [] when nothing is live', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    expect(await service.list({})).toEqual([]);
+  });
+
+  it('takes the trivial path for a single room (text search + locale match)', async () => {
+    const { service, prisma, chat } = buildFeed();
+    chat.countFor.mockReturnValue(0); // -> peakViewers fallback
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom()]);
+    const res = await service.list({ q: 'afro', viewerLanguage: 'pidgin', viewerCountry: 'NG' });
+    expect(res).toHaveLength(1);
+    expect(res[0].viewerCount).toBe(5); // peakViewers fallback
+    expect(res[0].ranking).toBeDefined();
+  });
+
+  it('ranks multiple rooms using participants, gifts, and report risk', async () => {
+    const { service, prisma, chat } = buildFeed();
+    chat.countFor.mockImplementation((id: string) => (id === 'r1' ? 42 : 0)); // exercise both || arms
+    prisma.liveRoom.findMany.mockResolvedValue([
+      liveRoom({ id: 'r1', hostUserId: 'h1' }),
+      liveRoom({ id: 'r2', hostUserId: 'h2', host: { creatorProfile: null } }) // creatorAge null arm
+    ]);
+    prisma.roomParticipant.findMany.mockResolvedValue([
+      { roomId: 'r1', joinedAt: new Date(Date.now() - 120_000) },
+      { roomId: 'r1', joinedAt: new Date(Date.now() - 60_000) }
+    ]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: 300 } }]);
+    prisma.report.findMany
+      .mockResolvedValueOnce([{ roomId: 'r1', priority: 'HIGH' }]) // room reports
+      .mockResolvedValueOnce([{ targetUserId: 'h2', priority: 'CRITICAL' }]); // host reports
+    const res = await service.list({ viewerLanguage: 'pidgin', viewerCountry: 'NG' });
+    expect(res).toHaveLength(2);
+    expect(res[0].viewerCount).toBe(42); // chat.countFor left arm for r1
+    expect(res.every((r: any) => r.ranking?.score !== undefined)).toBe(true);
+  });
+});
+
+describe('LiveRoomsService.endStaleRooms', () => {
+  it('auto-ends rooms idle past the window, keeps active ones', async () => {
+    const { service, prisma } = buildFeed();
+    const old = new Date(Date.now() - 60 * 60_000); // 1h ago
+    prisma.liveRoom.findMany.mockResolvedValue([
+      { id: 'stale', startedAt: old, createdAt: old },
+      { id: 'active', startedAt: new Date(), createdAt: new Date() }
+    ]);
+    // 'stale' has no chat/gift; 'active' has a recent chat
+    prisma.chatMessage.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.roomId === 'active' ? { createdAt: new Date() } : null));
+    const res = await service.endStaleRooms(30);
+    expect(res.ended).toEqual(['stale']);
+    expect(prisma.liveRoom.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns no rooms ended for an empty live set', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    expect(await service.endStaleRooms()).toMatchObject({ ended: [] });
+  });
+
+  it('uses createdAt as the activity floor when a room never started', async () => {
+    const { service, prisma } = buildFeed();
+    const old = new Date(Date.now() - 60 * 60_000);
+    prisma.liveRoom.findMany.mockResolvedValue([{ id: 'never', startedAt: null, createdAt: old }]);
+    const res = await service.endStaleRooms(30);
+    expect(res.ended).toEqual(['never']);
+  });
+});
+
+describe('LiveRoomsService.get', () => {
+  it('returns the room with a live viewer count', async () => {
+    const { service, prisma, chat } = buildFeed();
+    prisma.liveRoom.findUnique = jest.fn().mockResolvedValue({ id: 'r1', peakViewers: 9 });
+    chat.countFor.mockReturnValue(0); // peakViewers fallback
+    expect(await service.get('r1')).toMatchObject({ id: 'r1', viewerCount: 9 });
+  });
+
+  it('returns null for a missing room', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findUnique = jest.fn().mockResolvedValue(null);
+    expect(await service.get('gone')).toBeNull();
+  });
+});
+
+describe('LiveRoomsService.list single-room creatorAge null arm', () => {
+  it('handles a single room whose host has no creator profile', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ host: { creatorProfile: null } })]);
+    const res = await service.list({});
+    expect(res).toHaveLength(1);
+  });
+});
+
+describe('LiveRoomsService.upcoming + null gift sum', () => {
+  it('upcoming falls back to the default page size for a zero limit', async () => {
+    const { service, prisma } = buildFeed();
+    await service.upcoming(0); // Math.trunc(0) || 50 -> 50
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+    await service.upcoming(10);
+    expect(prisma.liveRoom.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ take: 10 }));
+  });
+
+  it('coerces a null gift sum to zero in the ranking aggregation', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([
+      liveRoom({ id: 'r1' }),
+      liveRoom({ id: 'r2', hostUserId: 'h2' })
+    ]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: null } }]);
+    const res = await service.list({});
+    expect(res).toHaveLength(2);
+  });
+});
+
+describe('LiveRoomsService.upcoming limit clamps', () => {
+  it('clamps a negative limit up to 1 and a huge limit down to 100', async () => {
+    const { service, prisma } = buildFeed();
+    await service.upcoming(-3); // trunc(-3) is truthy -> max(-3,1) = 1
+    expect(prisma.liveRoom.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ take: 1 }));
+    await service.upcoming(9999); // min(9999,100) = 100
+    expect(prisma.liveRoom.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ take: 100 }));
+  });
+});
+
+describe('LiveRoomsService.upcoming default param', () => {
+  it('defaults to 50 when called with no argument', async () => {
+    const { service, prisma } = buildFeed();
+    await service.upcoming();
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+  });
+});
