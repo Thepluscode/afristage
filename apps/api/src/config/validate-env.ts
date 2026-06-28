@@ -27,7 +27,9 @@ export function validateEnv(): void {
   }
 
   const unsafe = Object.entries(UNSAFE_VALUES)
-    .filter(([key, vals]) => vals.includes(process.env[key] ?? ''))
+    // Every UNSAFE_VALUES key is also in PROD_REQUIRED, so it is guaranteed
+    // present by the missing-vars check above; the '' fallback is defensive.
+    .filter(([key, vals]) => vals.includes(process.env[key] ?? /* istanbul ignore next */ ''))
     .map(([key]) => key);
   if (unsafe.length) {
     throw new Error(`Refusing to start: unsafe placeholder values in production for ${unsafe.join(', ')}`);
