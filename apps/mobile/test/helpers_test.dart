@@ -1,9 +1,37 @@
+import 'package:afristage_mobile/screens/payout_methods_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+
+  group('payoutMethodError', () {
+    test('flags the first missing field in order', () {
+      expect(
+          payoutMethodError(
+              label: '', reference: '123', country: 'NG', currency: 'NGN'),
+          'Enter a label for this method.');
+      expect(
+          payoutMethodError(
+              label: 'GT', reference: '', country: 'NG', currency: 'NGN'),
+          'Enter the account or mobile money number.');
+      expect(
+          payoutMethodError(
+              label: 'GT', reference: '123', country: '', currency: 'NGN'),
+          'Country and currency are required.');
+      expect(
+          payoutMethodError(
+              label: 'GT', reference: '123', country: 'NG', currency: ''),
+          'Country and currency are required.');
+    });
+    test('returns null when every field is present', () {
+      expect(
+          payoutMethodError(
+              label: 'GT', reference: '123', country: 'NG', currency: 'NGN'),
+          isNull);
+    });
+  });
 
   group('usd', () {
     test('formats whole and fractional coin counts as 2dp dollars', () {
