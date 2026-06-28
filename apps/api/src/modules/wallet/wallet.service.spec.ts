@@ -88,3 +88,16 @@ describe('WalletService.summary', () => {
     expect(res).toEqual({ coinBalance: '0', earningBalance: '0', payoutHoldBalance: '0' });
   });
 });
+
+describe('WalletService.ledgerHistory', () => {
+  it('returns recent entries across all of the user’s accounts', async () => {
+    const { service, prisma } = build();
+    prisma.walletAccount.findMany.mockResolvedValue([{ id: 'a1' }, { id: 'a2' }]);
+    prisma.ledgerEntry.findMany.mockResolvedValue([{ id: 'e1' }]);
+    const res = await service.ledgerHistory('u1');
+    expect(prisma.ledgerEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { accountId: { in: ['a1', 'a2'] } }, take: 100 })
+    );
+    expect(res).toEqual([{ id: 'e1' }]);
+  });
+});

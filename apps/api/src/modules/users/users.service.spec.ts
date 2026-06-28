@@ -85,3 +85,47 @@ describe('UsersService block management', () => {
     expect(prisma.block.deleteMany).toHaveBeenCalledWith({ where: { blockerId: 'me', blockedId: 'x' } });
   });
 });
+
+describe('UsersService basics', () => {
+  function svc2() {
+    const prisma: any = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'u1' }) },
+      profile: { update: jest.fn().mockResolvedValue({ userId: 'u1' }), findUnique: jest.fn() },
+      follow: { create: jest.fn(), deleteMany: jest.fn().mockResolvedValue({ count: 1 }), findUniqueOrThrow: jest.fn() },
+      block: { upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({ count: 1 }) }
+    };
+    const notifications: any = { notifyUser: jest.fn() };
+    return { svc: new UsersService(prisma, notifications), prisma };
+  }
+
+  it('me includes profile + creatorProfile', async () => {
+    const { svc, prisma } = svc2();
+    await svc.me('u1');
+    expect(prisma.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u1' }, include: { profile: true, creatorProfile: true } })
+    );
+  });
+
+  it('updateProfile updates the profile row', async () => {
+    const { svc, prisma } = svc2();
+    await svc.updateProfile('u1', { displayName: 'X' } as any);
+    expect(prisma.profile.update).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u1' } }));
+  });
+
+  it('unfollow is idempotent', async () => {
+    const { svc } = svc2();
+    expect(await svc.unfollow('a', 'b')).toEqual({ ok: true });
+  });
+
+  it('block upserts a block row', async () => {
+    const { svc, prisma } = svc2();
+    await svc.block('a', 'b');
+    expect(prisma.block.upsert).toHaveBeenCalled();
+  });
+
+  it('follow rethrows a non-unique-violation error', async () => {
+    const { svc, prisma } = svc2();
+    prisma.follow.create.mockRejectedValue(new Error('db down'));
+    await expect(svc.follow('a', 'b')).rejects.toThrow('db down');
+  });
+});
