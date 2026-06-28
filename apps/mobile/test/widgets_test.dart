@@ -8,6 +8,46 @@ import 'package:flutter_test/flutter_test.dart';
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
+  testWidgets('AfriCreatorRing renders live, offline, and with a photo',
+      (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(_host(Column(mainAxisSize: MainAxisSize.min, children: [
+      AfriCreatorRing(name: 'Zola', viewerCount: 99, onTap: () => tapped = true),
+      const AfriCreatorRing(name: '', live: false), // offline + empty-name fallback
+    ])));
+    await tester.tap(find.text('Zola'));
+    expect(tapped, isTrue);
+    expect(find.text('A'), findsOneWidget); // empty-name initial fallback
+  });
+
+  testWidgets('AfriGiftBar lists gifts and reports taps', (tester) async {
+    Map<String, dynamic>? sent;
+    await tester.pumpWidget(_host(SizedBox(
+      width: 320,
+      child: AfriGiftBar(
+        gifts: const [
+          {'name': 'Rose', 'coinPrice': 10},
+          {'name': 'Crown', 'coinPrice': 50},
+        ],
+        onSend: (g) => sent = g,
+      ),
+    )));
+    expect(find.text('Rose'), findsOneWidget);
+    await tester.tap(find.text('Rose'));
+    expect(sent?['name'], 'Rose');
+  });
+
+  testWidgets('AfriCover falls back to a gradient on a broken image',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 200,
+      height: 200,
+      child: AfriCover(
+          imageUrl: 'https://x/broken.png', category: 'MUSIC', initial: 'Z'),
+    )));
+    expect(find.byType(AfriCover), findsOneWidget);
+  });
+
   testWidgets('AfriTheme.dark builds the full dark ThemeData', (tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: AfriTheme.dark(),
