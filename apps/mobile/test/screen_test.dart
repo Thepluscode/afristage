@@ -768,4 +768,94 @@ void main() {
     expect(find.text('Could not reach the server'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
   });
+
+  testWidgets('CreatorProfile shows an error state', (tester) async {
+    final api = _FakeApi(errors: {'/creators/c1'});
+    await tester
+        .pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load this creator'), findsOneWidget);
+  });
+
+  testWidgets('CreatorProfile shows not-live state and bio', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Zola Kim',
+        'approvalStatus': 'APPROVED',
+        'userId': 'c1',
+        'totalRooms': 3,
+        'followers': 9,
+        'user': {
+          'profile': {'bio': 'Lagos amapiano selector.'}
+        },
+      },
+    });
+    await tester
+        .pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Lagos amapiano selector.'), findsOneWidget);
+    expect(find.text('Not live right now'), findsOneWidget);
+  });
+
+  testWidgets('CreatorProfile unfollow deletes the follow', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Zola Kim',
+        'approvalStatus': 'APPROVED',
+        'userId': 'c1',
+        'isFollowing': true,
+        'followers': 10,
+      },
+    });
+    await tester
+        .pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Following'));
+    await tester.pump();
+    expect(api.deletes, contains('/users/c1/follow'));
+    expect(find.text('Follow'), findsOneWidget); // flipped back
+  });
+
+  testWidgets('PayoutHistory empty state', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const PayoutHistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No payouts yet'), findsOneWidget);
+  });
+
+  testWidgets('PayoutHistory error state', (tester) async {
+    final api = _FakeApi(errors: {'/payouts/me'});
+    await tester.pumpWidget(_wrap(api, const PayoutHistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load payouts'), findsOneWidget);
+  });
+
+  testWidgets('PayoutHistory lists paid and rejected payouts with notes',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/payouts/me': [
+        {
+          'id': 'p1',
+          'coinAmount': 500,
+          'status': 'PAID',
+          'fiatMinor': 500000,
+          'fiatCurrency': 'NGN',
+          'providerReference': 'TRX-123',
+          'createdAt': '2026-06-20T10:00:00Z',
+        },
+        {
+          'id': 'p2',
+          'coinAmount': 200,
+          'status': 'REJECTED',
+          'rejectionReason': 'Bank details invalid',
+          'createdAt': '2026-06-21T10:00:00Z',
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const PayoutHistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('500 coins'), findsOneWidget);
+    expect(find.text('Ref: TRX-123'), findsOneWidget);
+    expect(find.text('Bank details invalid'), findsOneWidget);
+  });
 }
