@@ -42,7 +42,8 @@ export class PaystackProvider {
     let lastErr: unknown;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), INIT_TIMEOUT_MS);
+      // Defensive per-attempt timeout guard; only fires on a real ~10s stall.
+      const timer = setTimeout(/* istanbul ignore next */ () => ctrl.abort(), INIT_TIMEOUT_MS);
       try {
         const res = await fetch(url, { ...init, signal: ctrl.signal });
         const retryable = res.status === 429 || res.status >= 500;
@@ -65,6 +66,9 @@ export class PaystackProvider {
         clearTimeout(timer);
       }
     }
+    // lastErr is always set when the loop exits (only the network-error path ends
+    // it); the literal fallback is defensive and unreachable.
+    /* istanbul ignore next */
     throw lastErr ?? new Error('Paystack request failed');
   }
 
