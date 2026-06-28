@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PayoutsService } from './payouts.service';
 
 function build() {
@@ -161,5 +162,135 @@ describe('PayoutsService', () => {
     prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'REJECTED' });
     await expect(service.reject('admin', 'p1', 'fraud')).resolves.toMatchObject({ status: 'REJECTED' });
     expect(ledger.postTransaction).toHaveBeenCalled(); // hold -> earnings reversal
+  });
+});
+
+// Extends build() with payout-method storage + a pass-through $transaction so the
+// method-CRUD and remaining request/admin error paths are exercised.
+function buildFull() {
+  const prisma: any = {
+    payoutRequest: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn(), create: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    creatorProfile: { findUnique: jest.fn() },
+    payoutMethod: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      updateMany: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockResolvedValue({ id: 'm1', isDefault: true }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 })
+    },
+    adminAuditLog: { create: jest.fn().mockResolvedValue({}) },
+    $transaction: jest.fn(async (cb: any) => cb(prisma))
+  };
+  const wallet: any = {
+    balance: jest.fn().mockResolvedValue('1000000'),
+    account: jest.fn().mockResolvedValue({ id: 'acc' }),
+    ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'clearing' })
+  };
+  const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
+  const notifications: any = { notifyUser: jest.fn().mockResolvedValue({}) };
+  const service = new PayoutsService(prisma, wallet, ledger, notifications);
+  return { service, prisma, wallet, ledger, notifications };
+}
+
+describe('PayoutsService payout methods', () => {
+  it('lists methods default-first', async () => {
+    const { service, prisma } = buildFull();
+    await service.listMethods('c1');
+    expect(prisma.payoutMethod.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'c1' } })
+    );
+  });
+
+  it('forces the first method to be the default', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutMethod.count.mockResolvedValue(0);
+    await service.createMethod('c1', { provider: 'BANK', country: 'ng', currency: 'ngn', destinationReference: '123', label: 'GTB' } as any);
+    expect(prisma.payoutMethod.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isDefault: true, country: 'NG', currency: 'NGN' }) })
+    );
+  });
+
+  it('demotes other defaults when a new explicit default is added', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutMethod.count.mockResolvedValue(2);
+    await service.createMethod('c1', { provider: 'BANK', country: 'NG', currency: 'NGN', destinationReference: '123', label: 'GTB', isDefault: true } as any);
+    expect(prisma.payoutMethod.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'c1', isDefault: true }, data: { isDefault: false } })
+    );
+  });
+
+  it('deletes a method scoped to its owner', async () => {
+    const { service, prisma } = buildFull();
+    await expect(service.deleteMethod('c1', 'm1')).resolves.toEqual({ ok: true });
+    expect(prisma.payoutMethod.deleteMany).toHaveBeenCalledWith({ where: { id: 'm1', userId: 'c1' } });
+  });
+});
+
+describe('PayoutsService.request (remaining error paths)', () => {
+  const dto = { coinAmount: 1000, idempotencyKey: 'k' };
+
+  it('rejects when earnings are insufficient', async () => {
+    const { service, prisma, wallet } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() });
+    wallet.balance.mockResolvedValue('500'); // < 1000 requested
+    await expect(service.request('c1', dto)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a payout method that is not the creator’s', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() });
+    prisma.payoutMethod.findFirst.mockResolvedValue(null); // not found / foreign
+    await expect(
+      service.request('c1', { ...dto, payoutMethodId: 'foreign' })
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('returns the existing payout when a concurrent insert wins the unique key (P2002)', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() });
+    prisma.payoutRequest.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' } as any)
+    );
+    prisma.payoutRequest.findUniqueOrThrow.mockResolvedValue({ id: 'winner' });
+    await expect(service.request('c1', dto)).resolves.toMatchObject({ id: 'winner' });
+  });
+
+  it('holds a large payout from a brand-new creator for review', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() }); // age ~0 days
+    prisma.payoutRequest.create.mockResolvedValue({ id: 'p1' });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'HELD' });
+    const big = { coinAmount: 1_000_000, idempotencyKey: 'big' };
+    await service.request('c1', big);
+    expect(prisma.payoutRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'HELD' }) })
+    );
+    expect(prisma.adminAuditLog.create).toHaveBeenCalled(); // payout.held audit
+  });
+});
+
+describe('PayoutsService admin transitions (not-found + release)', () => {
+  it('release moves HELD -> UNDER_REVIEW', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'HELD', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW' });
+    await expect(service.release('admin', 'p1')).resolves.toMatchObject({ status: 'UNDER_REVIEW' });
+  });
+
+  it.each([
+    ['approve', (s: PayoutsService) => s.approve('a', 'missing')],
+    ['hold', (s: PayoutsService) => s.hold('a', 'missing')],
+    ['release', (s: PayoutsService) => s.release('a', 'missing')],
+    ['reject', (s: PayoutsService) => s.reject('a', 'missing', 'r')],
+    ['markPaid', (s: PayoutsService) => s.markPaid('a', 'missing')]
+  ])('%s throws NotFound for a missing payout', async (_name, act) => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    await expect(act(service)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

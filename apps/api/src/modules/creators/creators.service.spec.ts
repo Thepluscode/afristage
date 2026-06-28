@@ -80,3 +80,71 @@ describe('CreatorsService.myRooms', () => {
     expect(prisma.liveRoom.findMany.mock.calls[0][0].take).toBe(100);
   });
 });
+
+function buildFull() {
+  const prisma: any = {
+    creatorProfile: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'cp1' }),
+      findFirst: jest.fn(),
+      update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'cp1', ...data }))
+    },
+    user: { update: jest.fn() },
+    adminAuditLog: { create: jest.fn().mockResolvedValue({}) },
+    profile: { findUnique: jest.fn().mockResolvedValue({ avatarUrl: null, displayName: 'D' }), findMany: jest.fn().mockResolvedValue([]) },
+    giftTransaction: { count: jest.fn().mockResolvedValue(0), groupBy: jest.fn().mockResolvedValue([]) },
+    liveRoom: {
+      count: jest.fn().mockResolvedValue(0),
+      findFirst: jest.fn().mockResolvedValue(null),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { totalWatchSeconds: null }, _max: { peakViewers: null } })
+    },
+    follow: { count: jest.fn().mockResolvedValue(0) },
+    roomReminder: { findUnique: jest.fn().mockResolvedValue(null) }
+  };
+  const wallet: any = { balance: jest.fn().mockResolvedValue('0'), ensureUserWallets: jest.fn() };
+  return { service: new CreatorsService(prisma, wallet), prisma, wallet };
+}
+
+describe('CreatorsService.suspendCreator', () => {
+  it('sets SUSPENDED with a reason + writes an audit log', async () => {
+    const { service, prisma } = build();
+    await service.suspendCreator('admin', 'u1', 'ToS breach');
+    expect(prisma.creatorProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ approvalStatus: 'SUSPENDED', rejectionReason: 'ToS breach' }) })
+    );
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_SUSPENDED' }) })
+    );
+  });
+});
+
+describe('CreatorsService.getPublic', () => {
+  it('returns null for an unknown creator', async () => {
+    const { service, prisma } = buildFull();
+    prisma.creatorProfile.findFirst.mockResolvedValue(null);
+    expect(await service.getPublic('nope', 'v1')).toBeNull();
+  });
+
+  it('enriches the profile with follow state + upcoming reminder for a viewer', async () => {
+    const { service, prisma } = buildFull();
+    prisma.creatorProfile.findFirst.mockResolvedValue({ id: 'cp1', userId: 'c1', user: { profile: {} } });
+    prisma.follow.count.mockResolvedValue(1); // followers + isFollowing
+    prisma.liveRoom.findFirst.mockResolvedValue({ id: 'r1', title: 'Next', category: 'MUSIC', scheduledStartAt: new Date() });
+    prisma.roomReminder.findUnique.mockResolvedValue({ id: 'rem1' }); // already reminded
+    const res = await service.getPublic('c1', 'v1');
+    expect(res).toMatchObject({ isFollowing: true });
+    expect((res as any).upcomingRoom.reminded).toBe(true);
+  });
+});
+
+describe('CreatorsService.dashboard', () => {
+  it('aggregates earnings, totals, and resolves top supporters', async () => {
+    const { service, prisma } = buildFull();
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ viewerId: 's1', _sum: { totalCoinAmount: 50 } }]);
+    prisma.profile.findMany.mockResolvedValue([{ userId: 's1', displayName: 'Big Fan', avatarUrl: null }]);
+    const res = await service.dashboard('c1');
+    expect(res.topSupporters).toEqual([
+      { userId: 's1', displayName: 'Big Fan', avatarUrl: null, coins: 50 }
+    ]);
+    expect(res).toMatchObject({ totalGiftTransactions: 0, totalRooms: 0, followers: 0 });
+  });
+});

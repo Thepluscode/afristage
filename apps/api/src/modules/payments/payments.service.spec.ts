@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PaymentsService } from './payments.service';
 import { PaystackProvider } from './providers/paystack.provider';
@@ -216,5 +216,68 @@ describe('PaymentsService.handlePaystackWebhook (boundary)', () => {
     const res = await service.handlePaystackWebhook(raw, signature);
     expect(res).toEqual({ received: true, matched: true });
     expect(ledger.postTransaction).not.toHaveBeenCalled(); // creditCoins short-circuits on SUCCEEDED
+  });
+});
+
+const mockIntent = (over: any = {}) => ({
+  id: 'pi1', userId: 'u1', provider: 'mock', status: 'PENDING',
+  amountMinor: 100000, currency: 'NGN', coinAmount: 100, providerReference: 'mock_ref', ...over
+});
+
+describe('PaymentsService.completeMock (guards)', () => {
+  it('is forbidden in production unless explicitly enabled', async () => {
+    const { service } = build({ intent: mockIntent() });
+    const prevEnv = process.env.NODE_ENV;
+    const prevFlag = process.env.ENABLE_MOCK_PAYMENTS;
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENABLE_MOCK_PAYMENTS;
+    try {
+      await expect(service.completeMock('u1', 'pi1')).rejects.toBeInstanceOf(ForbiddenException);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevFlag === undefined) delete process.env.ENABLE_MOCK_PAYMENTS;
+      else process.env.ENABLE_MOCK_PAYMENTS = prevFlag;
+    }
+  });
+
+  it('throws NotFound for a missing intent', async () => {
+    const { service } = build({ intent: undefined });
+    await expect(service.completeMock('u1', 'gone')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('forbids completing another user’s intent', async () => {
+    const { service } = build({ intent: mockIntent({ userId: 'someone-else' }) });
+    await expect(service.completeMock('u1', 'pi1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects a non-mock intent', async () => {
+    const { service } = build({ intent: mockIntent({ provider: 'paystack' }) });
+    await expect(service.completeMock('u1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('credits coins on a valid mock completion', async () => {
+    const { service, ledger } = build({ intent: mockIntent() });
+    const res = await service.completeMock('u1', 'pi1');
+    expect(ledger.postTransaction).toHaveBeenCalled();
+    expect(res).toMatchObject({ status: 'SUCCEEDED' });
+  });
+
+  it('rejects crediting an intent that is not PENDING (e.g. FAILED)', async () => {
+    const { service } = build({ intent: mockIntent({ status: 'FAILED' }) });
+    await expect(service.completeMock('u1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('returns the intent unchanged when it is already SUCCEEDED', async () => {
+    const { service, ledger } = build({ intent: mockIntent({ status: 'SUCCEEDED' }) });
+    const res = await service.completeMock('u1', 'pi1');
+    expect(res).toMatchObject({ status: 'SUCCEEDED' });
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaymentsService.verifyPaystack (intent-type guard)', () => {
+  it('rejects verifying a non-Paystack (mock) intent', async () => {
+    const { service } = build({ intent: mockIntent({ provider: 'mock' }) });
+    await expect(service.verifyPaystack('u1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });
