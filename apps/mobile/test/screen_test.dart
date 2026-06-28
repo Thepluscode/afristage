@@ -19,6 +19,7 @@ import 'package:afristage_mobile/screens/register_screen.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:afristage_mobile/screens/support_ticket_screen.dart';
+import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -857,5 +858,82 @@ void main() {
     expect(find.text('500 coins'), findsOneWidget);
     expect(find.text('Ref: TRX-123'), findsOneWidget);
     expect(find.text('Bank details invalid'), findsOneWidget);
+  });
+
+  testWidgets('Search text query with no matches shows an empty state',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const SearchScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'afro');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.text('No live rooms for "afro"'), findsOneWidget);
+  });
+
+  testWidgets('SupportTicket shows an error state', (tester) async {
+    final api = _FakeApi(errors: {'/support/tickets/t1'});
+    await tester.pumpWidget(_wrap(
+        api, const SupportTicketScreen(ticketId: 't1', subject: 'Issue')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load ticket'), findsOneWidget);
+  });
+
+  testWidgets('SupportTicket renders your and support replies', (tester) async {
+    final state = AppState(api: _FakeApi(maps: {
+      '/support/tickets/t1': {
+        'subject': 'Issue',
+        'status': 'OPEN',
+        'messages': [
+          {'senderId': 'me', 'message': 'My payout is stuck'},
+          {'senderId': 'agent', 'message': 'Looking into it now'},
+        ],
+      },
+    }))
+      ..userId = 'me';
+    await tester.pumpWidget(_wrapState(
+        state, const SupportTicketScreen(ticketId: 't1', subject: 'Issue')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriChatBubble), findsNWidgets(2));
+  });
+
+  testWidgets('PayoutMethods shows the load error state', (tester) async {
+    final api = _FakeApi(errors: {'/payouts/methods'});
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load payout methods'), findsOneWidget);
+  });
+
+  testWidgets('PayoutMethods lists a method and deletes it', (tester) async {
+    final api = _FakeApi(lists: {
+      '/payouts/methods': [
+        {
+          'id': 'pm1',
+          'provider': 'BANK',
+          'label': 'GTBank savings',
+          'destinationReference': '1234567890',
+          'currency': 'NGN',
+          'isDefault': true,
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('GTBank savings'), findsOneWidget);
+    expect(find.text('Default'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    expect(api.deletes, contains('/payouts/methods/pm1'));
+  });
+
+  testWidgets('PayoutMethods add-sheet validates an empty label',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add method'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save payout method'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a label for this method.'), findsOneWidget);
   });
 }
