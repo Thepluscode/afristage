@@ -9,6 +9,23 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-06-26 → 2026-06-28 — mobile test suite to the 80% floor
+
+Built the Flutter mobile test suite from **33.6% → 80.2%** line coverage
+(3078/3838), meeting the engineering-standards Rule 2 / 80% floor. Shipped as
+PRs #53–#75; 159 tests across `helpers_test`, `widgets_test`, `screen_test`,
+`room_screen_test`, `app_state_test`, `api_client_test`. Status: `DEPLOYED`
+(tests green in CI; not production evidence).
+
+Highlights:
+- Reusable harness: `_FakeApi` (canned get/getList/patch, records post/delete/patch,
+  per-path errors), `_FakeStorage`, `_FakeSocket`, and a `socketFactory` seam on
+  `RoomScreen` + an `http.Client` seam on `ApiClient` for transport-layer tests.
+- The suite earned its keep: caught the debug-only `setState(() => _x = <Future>)`
+  bug across 11 screens (fixed in #65).
+- Coverage deliberately excludes WIP/WebRTC surfaces (`feed_screen`,
+  `creator_apply_screen`, `livekit_room_view` ≈ 212 lines).
+
 ## Session 2026-06-24 → 2026-06-25 — design replication, then defect hunt
 
 ### Mobile interface replication (from `apps/mobile/design/` mockups)
