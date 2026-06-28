@@ -294,3 +294,45 @@ describe('PayoutsService admin transitions (not-found + release)', () => {
     await expect(act(service)).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('PayoutsService.request rethrow + admin reads', () => {
+  it('rethrows a non-unique create failure', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() });
+    prisma.payoutRequest.create.mockRejectedValue(new Error('db down'));
+    await expect(service.request('c1', { coinAmount: 1000, idempotencyKey: 'k' })).rejects.toThrow('db down');
+  });
+
+  it('mine lists the creator’s payouts', async () => {
+    const { service, prisma } = buildFull();
+    await service.mine('c1');
+    expect(prisma.payoutRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { creatorUserId: 'c1' } }));
+  });
+
+  it('adminList filters by status when provided, else lists all', async () => {
+    const { service, prisma } = buildFull();
+    await service.adminList('UNDER_REVIEW');
+    expect(prisma.payoutRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'UNDER_REVIEW' } }));
+    await service.adminList();
+    expect(prisma.payoutRequest.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: {} }));
+  });
+});
+
+describe('PayoutsService remaining branches', () => {
+  it('rejects a reused idempotency key that belongs to a different creator', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', creatorUserId: 'someone-else', coinAmount: 1000n });
+    await expect(service.request('c1', { coinAmount: 1000, idempotencyKey: 'k' })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('hold without a reason records the default audit reason', async () => {
+    const { service, prisma } = buildFull();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'HELD' });
+    await service.hold('admin', 'p1');
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ metadata: expect.objectContaining({ reason: 'admin hold' }) }) })
+    );
+  });
+});
