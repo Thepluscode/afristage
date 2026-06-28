@@ -10,6 +10,7 @@ import 'package:afristage_mobile/screens/creator_screen.dart';
 import 'package:afristage_mobile/screens/go_live_setup_screen.dart';
 import 'package:afristage_mobile/screens/history_screen.dart';
 import 'package:afristage_mobile/screens/live_screen.dart';
+import 'package:afristage_mobile/screens/login_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
 import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
@@ -677,5 +678,94 @@ void main() {
     await tester.tap(find.text('Save Discovery Preferences'));
     await tester.pumpAndSettle();
     expect(find.text('boom'), findsOneWidget);
+  });
+
+  testWidgets('Support create with blank fields warns', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const SupportScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create ticket'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a subject and a short description first.'),
+        findsOneWidget);
+  });
+
+  testWidgets('Support create posts a ticket and confirms', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const SupportScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'Cannot cash out');
+    await tester.enterText(find.byType(TextField).at(1), 'Payout stuck 3 days');
+    await tester.tap(find.text('Create ticket'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/support/tickets'));
+    expect(find.text('Ticket created'), findsOneWidget);
+  });
+
+  testWidgets('Support shows a load error with retry', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(errors: {'/support/tickets/me'});
+    await tester.pumpWidget(_wrap(api, const SupportScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Could not load tickets'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Could not load tickets'), findsOneWidget);
+  });
+
+  testWidgets('LiveScreen empty state when nobody is live', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const LiveScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No rooms live right now'), findsOneWidget);
+  });
+
+  testWidgets('LiveScreen renders a live room card', (tester) async {
+    final api = _FakeApi(lists: {
+      '/live-rooms': [
+        {
+          'id': 'r1',
+          'title': 'Amapiano All Night',
+          'category': 'MUSIC',
+          'country': 'NG',
+          'language': 'pidgin',
+          'status': 'LIVE',
+          'hostName': 'DJ Tunde',
+        },
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const LiveScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Amapiano All Night'), findsOneWidget);
+  });
+
+  testWidgets('ReportScreen block-user flow posts a block', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(
+        api, const ReportScreen(targetUserId: 'u9', label: 'user')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Scam')); // pick a reason tile
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Block this user'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Block this user'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Block')); // confirm
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/users/u9/block'));
+    expect(find.text('User blocked.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('LoginScreen fills a seed account and reports unreachable server',
+      (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const LoginScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Creator')); // _fill seed credentials
+    await tester.pump();
+    await tester.tap(find.text('Log in to AfriStage'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not reach the server'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
   });
 }
