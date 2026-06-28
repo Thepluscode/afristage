@@ -95,3 +95,59 @@ describe('ModerationService', () => {
     expect(prisma.adminAuditLog.create).toHaveBeenCalled();
   });
 });
+
+describe('ModerationService reports + action default', () => {
+  function rich() {
+    const prisma: any = {
+      report: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'rep1', ...data })) },
+      moderationAction: { create: jest.fn().mockResolvedValue({}) },
+      adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
+    };
+    return { service: new ModerationService(prisma), prisma };
+  }
+
+  it('reports() applies status/priority/reason filters', async () => {
+    const { service, prisma } = rich();
+    await service.reports({ status: 'OPEN', priority: 'HIGH', reason: 'SPAM' });
+    expect(prisma.report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'OPEN', priority: 'HIGH', reason: 'SPAM' } })
+    );
+  });
+
+  it('reports() uses an empty filter when none supplied', async () => {
+    const { service, prisma } = rich();
+    await service.reports();
+    expect(prisma.report.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+
+  it('an unrecognised action verb maps to ACTIONED', async () => {
+    const { service, prisma } = rich();
+    await service.action('mod', 'rep1', 'WARN');
+    expect(prisma.report.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'ACTIONED' }) })
+    );
+  });
+});
+
+describe('ModerationService action/audit edge branches', () => {
+  function rich() {
+    const prisma: any = {
+      report: { update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'rep1', ...data })) },
+      moderationAction: { create: jest.fn().mockResolvedValue({}) },
+      adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
+    };
+    return { service: new ModerationService(prisma), prisma };
+  }
+
+  it('REVIEWING action maps to REVIEWING status', async () => {
+    const { service, prisma } = rich();
+    await service.action('mod', 'rep1', 'REVIEWING');
+    expect(prisma.report.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'REVIEWING' }) }));
+  });
+
+  it('audit defaults metadata to an empty object when omitted', async () => {
+    const { service, prisma } = rich();
+    await service.audit('mod', 'some.action', 'target1');
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ metadata: {} }) }));
+  });
+});

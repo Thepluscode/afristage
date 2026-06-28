@@ -49,3 +49,29 @@ describe('AnalyticsService.dailySeries', () => {
     expect(await svc.dailySeries(-5)).toHaveLength(1); // clamped up to 1
   });
 });
+
+describe('AnalyticsService.overview', () => {
+  function ov(giftSum: number | null) {
+    const prisma: any = {
+      user: { count: jest.fn().mockResolvedValue(10) },
+      creatorProfile: { count: jest.fn().mockResolvedValue(3) },
+      liveRoom: { count: jest.fn().mockResolvedValue(2) },
+      giftTransaction: { aggregate: jest.fn().mockResolvedValue({ _sum: { totalCoinAmount: giftSum }, _count: 7 }) }
+    };
+    return new AnalyticsService(prisma);
+  }
+  it('aggregates platform totals', async () => {
+    expect(await ov(500).overview()).toEqual({ users: 10, creators: 3, rooms: 2, giftTransactions: 7, giftVolumeCoins: 500 });
+  });
+  it('coerces a null gift volume to 0', async () => {
+    expect((await ov(null).overview()).giftVolumeCoins).toBe(0);
+  });
+});
+
+describe('AnalyticsService.dailySeries defaults', () => {
+  it('uses the default 30-day window when called with no argument', async () => {
+    const prisma: any = { user: { findMany: jest.fn().mockResolvedValue([]) }, giftTransaction: { findMany: jest.fn().mockResolvedValue([]) } };
+    const svc = new AnalyticsService(prisma);
+    expect(await svc.dailySeries()).toHaveLength(30);
+  });
+});

@@ -103,3 +103,31 @@ describe('BetaService.inviteFromRequest', () => {
     expect(prisma.betaInvite.create).not.toHaveBeenCalled();
   });
 });
+
+describe('BetaService admin listing', () => {
+  it('listRequests filters by status when provided', async () => {
+    const { service, prisma } = build();
+    await service.listRequests('PENDING');
+    expect(prisma.betaRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'PENDING' } }));
+  });
+
+  it('listRequests omits the filter when no status is given', async () => {
+    const { service, prisma } = build();
+    await service.listRequests();
+    expect(prisma.betaRequest.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: undefined }));
+  });
+
+  it('list returns redacted invites (no codeHash leaks)', async () => {
+    const { service, prisma } = build();
+    prisma.betaInvite.findMany.mockResolvedValue([{ id: 'i1', email: 'a@b.c', codeHash: 'secret' }]);
+    const res = await service.list();
+    expect(res[0]).not.toHaveProperty('codeHash');
+  });
+
+  it('revoke marks an invite REVOKED and redacts it', async () => {
+    const { service, prisma } = build();
+    const res = await service.revoke('i1');
+    expect(prisma.betaInvite.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'REVOKED' } }));
+    expect(res).not.toHaveProperty('codeHash');
+  });
+});
