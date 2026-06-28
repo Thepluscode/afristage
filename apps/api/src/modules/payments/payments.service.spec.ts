@@ -281,3 +281,66 @@ describe('PaymentsService.verifyPaystack (intent-type guard)', () => {
     await expect(service.verifyPaystack('u1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('PaymentsService catalog + history', () => {
+  it('listPackages returns the server-authoritative catalog', () => {
+    const { service } = build();
+    expect(Array.isArray(service.listPackages())).toBe(true);
+    expect(service.listPackages().length).toBeGreaterThan(0);
+  });
+
+  it('mine lists a user’s payment intents newest-first', async () => {
+    const { service, prisma } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([]);
+    await service.mine('u1');
+    expect(prisma.paymentIntent.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u1' } }));
+  });
+});
+
+describe('PaymentsService remaining branches', () => {
+  it('creditCoins uses the intent id as external ref when providerReference is null', async () => {
+    const { service, ledger } = build({ intent: mockIntent({ providerReference: null }) });
+    await service.completeMock('u1', 'pi1');
+    expect(ledger.postTransaction).toHaveBeenCalledWith(expect.objectContaining({ externalReference: 'pi1' }));
+  });
+
+  it('webhook rejects a charge.success event with no reference', async () => {
+    const { service } = build();
+    const { raw, signature } = signed({ event: 'charge.success', data: {} });
+    await expect(service.handlePaystackWebhook(raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('webhook treats a missing amount as -1 and rejects the mismatch', async () => {
+    const { service } = build({ intent: { ...paystackIntent } });
+    const { raw, signature } = signed({ event: 'charge.success', data: { reference: 'psk_ref', currency: 'NGN' } });
+    await expect(service.handlePaystackWebhook(raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('PaymentsService final branch arms', () => {
+  it('verifyPaystack uses the intent id when providerReference is null', async () => {
+    const { service } = build({ intent: { ...paystackIntent, providerReference: null } });
+    okVerify();
+    const res = await service.verifyPaystack('owner-1', 'pi1');
+    expect(res).toEqual({ credited: true, status: 'succeeded' });
+  });
+
+  it('verifyPaystack rejects a currency mismatch even when the amount matches', async () => {
+    const { service } = build({ intent: { ...paystackIntent } });
+    okVerify(500000, 'GHS', 'success'); // right amount, wrong currency
+    await expect(service.verifyPaystack('owner-1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('webhook labels an event with no event field as unknown', async () => {
+    const { service } = build();
+    const { raw, signature } = signed({ data: {} }); // no `event` field
+    expect(await service.handlePaystackWebhook(raw, signature)).toEqual({ received: true, ignored: 'unknown' });
+  });
+});
+
+describe('PaymentsService.verifyPaystack not-found', () => {
+  it('throws NotFound when the intent does not exist', async () => {
+    const { service } = build({ intent: undefined });
+    await expect(service.verifyPaystack('u1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
