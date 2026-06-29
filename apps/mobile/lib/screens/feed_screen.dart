@@ -103,7 +103,9 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _refresh() async {
     final rooms = _load();
-    setState(() => _rooms = rooms);
+    setState(() {
+      _rooms = rooms;
+    });
     _loadUnread();
     _loadUpcoming();
     await rooms;

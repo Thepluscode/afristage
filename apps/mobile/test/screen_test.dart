@@ -24,6 +24,7 @@ import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:afristage_mobile/screens/support_ticket_screen.dart';
 import 'package:afristage_mobile/screens/beta_accept_screen.dart';
 import 'package:afristage_mobile/screens/creator_apply_screen.dart';
+import 'package:afristage_mobile/screens/feed_screen.dart';
 import 'package:afristage_mobile/screens/room_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
@@ -1701,6 +1702,98 @@ void main() {
     await tester.tap(find.text('Report').first); // snackbar guidance
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  Map<String, dynamic> _feedRoom(String id, String cat, String host) => <String, dynamic>{
+        'id': id, 'title': 'Show $id', 'category': cat, 'country': 'NG', 'language': 'pidgin',
+        'status': 'LIVE', 'hostName': host, 'hostUserId': 'host-$id', 'hostAvatarUrl': 'https://x/$id.png', 'viewerCount': 1200,
+      };
+
+  testWidgets('FeedScreen full render: hero, rail, creators, nav, remind', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _FakeApi(lists: {
+      '/live-rooms': [_feedRoom('r1', 'MUSIC', 'DJ'), _feedRoom('r2', 'COMEDY', 'Ada')],
+      '/live-rooms/upcoming': [
+        {'id': 'up1', 'title': 'Next Week', 'host': {'creatorProfile': {'stageName': 'Bo'}}, 'scheduledStartAt': '2030-01-01T19:30:00Z'},
+      ],
+    }, maps: {'/notifications/unread-count': {'count': 3}});
+    final state = AppState(api: api)..wallet = const Wallet(coinBalance: 1234, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const FeedScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Live now'), findsWidgets); // section header + live badge
+    expect(find.text('1,234'), findsOneWidget); // wallet coins formatted
+    expect(find.text('Next Week'), findsOneWidget); // upcoming tile
+    // notifications nav
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    // search nav
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    // remind on the upcoming tile
+    await tester.scrollUntilVisible(find.text('Remind me'), 150, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Remind me'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/live-rooms/up1/remind'));
+    await tester.pump(const Duration(seconds: 5));
+    // category filter
+    await tester.scrollUntilVisible(find.text('Comedy'), 150, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Comedy'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('FeedScreen opens a room from the hero', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _FakeApi(lists: {'/live-rooms': [_feedRoom('r1', 'MUSIC', 'DJ'), _feedRoom('r2', 'COMEDY', 'Ada')]});
+    final state = AppState(api: api)..wallet = const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const FeedScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(AfriHeroLive)); // -> RoomScreen
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('FeedScreen opens a creator profile from the ring', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _FakeApi(lists: {'/live-rooms': [_feedRoom('r1', 'MUSIC', 'DJ'), _feedRoom('r2', 'COMEDY', 'Ada')]});
+    final state = AppState(api: api)..wallet = const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const FeedScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Creators to watch'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(AfriCreatorRing).first); // -> CreatorProfile
+    await tester.pumpAndSettle();
+    expect(find.text('Creator'), findsWidgets);
+  });
+
+  testWidgets('FeedScreen empty -> warming up; create -> apply', (tester) async {
+    _tall(tester);
+    final state = AppState(api: _FakeApi())..wallet = const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const FeedScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('warming up'), findsOneWidget);
+    await tester.tap(find.text('Apply to Go Live')); // not a creator -> CreatorApplyScreen
+    await tester.pumpAndSettle();
+    expect(find.text('Creator Application'), findsOneWidget);
+  });
+
+  testWidgets('FeedScreen error -> retry; remind error rolls back', (tester) async {
+    _tall(tester);
+    final api = _RetryApi('/live-rooms', [_feedRoom('r1', 'MUSIC', 'DJ')]);
+    final state = AppState(api: api)..wallet = const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const FeedScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load live rooms'), findsOneWidget);
+    await tester.tap(find.text('Retry live feed'));
+    await tester.pumpAndSettle();
+    expect(find.text('Show r1'), findsWidgets); // hero + rail
   });
 
   testWidgets('CreatorApply: no profile -> apply, success, and error', (tester) async {
