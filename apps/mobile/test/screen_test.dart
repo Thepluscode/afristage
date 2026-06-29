@@ -21,6 +21,7 @@ import 'package:afristage_mobile/screens/register_screen.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:afristage_mobile/screens/support_ticket_screen.dart';
+import 'package:afristage_mobile/screens/beta_accept_screen.dart';
 import 'package:afristage_mobile/screens/room_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
@@ -32,10 +33,11 @@ import 'package:provider/provider.dart';
 /// Configurable fake: canned get/getList responses by path; records writes.
 /// Paths in [errors] throw, so error-state branches are testable.
 class _FakeApi extends ApiClient {
-  _FakeApi({this.lists = const {}, this.maps = const {}, this.errors = const {}});
+  _FakeApi({this.lists = const {}, this.maps = const {}, this.errors = const {}, this.postErrors = const {}});
   final Map<String, List<dynamic>> lists;
   final Map<String, Map<String, dynamic>> maps;
   final Set<String> errors;
+  final Set<String> postErrors; // paths whose POST (not GET) throws
   final posts = <String>[];
   final deletes = <String>[];
   final patches = <String>[];
@@ -61,12 +63,14 @@ class _FakeApi extends ApiClient {
 
   @override
   Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+    if (errors.contains(path) || postErrors.contains(path)) throw const ApiException(500, 'boom');
     posts.add(path);
-    return const {};
+    return maps[path] ?? const {};
   }
 
   @override
   Future<Map<String, dynamic>> delete(String path) async {
+    if (errors.contains(path)) throw const ApiException(500, 'boom');
     deletes.add(path);
     return const {};
   }
@@ -125,6 +129,23 @@ class _QueueApi extends ApiClient {
   @override
   Future<List<dynamic>> getList(String p) =>
       i < _q.length ? _q[i++]() : Future.value(const <dynamic>[]);
+}
+
+/// Push [screen] onto a launcher route so the screen's Navigator.pop() returns
+/// cleanly (instead of popping the only/root route).
+Future<void> _pushScreen(WidgetTester tester, ApiClient api, Widget screen) async {
+  await tester.pumpWidget(_wrap(
+      api,
+      Builder(
+          builder: (ctx) => Scaffold(
+              body: Center(
+                  child: ElevatedButton(
+                      onPressed: () => Navigator.push(ctx,
+                          MaterialPageRoute<void>(builder: (_) => screen)),
+                      child: const Text('__open__')))))));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('__open__'));
+  await tester.pumpAndSettle();
 }
 
 /// Pull-to-refresh: fling the first scrollable down and let it settle.
@@ -1118,5 +1139,311 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
     expect(find.text('Find a live room'), findsOneWidget);
+  });
+
+  testWidgets('BetaAccept ignores an empty code, posts a valid one', (tester) async {
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const BetaAcceptScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Accept Beta Invite')); // empty -> early return
+    await tester.pump();
+    expect(api.posts, isEmpty);
+    await tester.enterText(find.byType(TextField), 'INVITE-1');
+    await tester.tap(find.text('Accept Beta Invite'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(api.posts, contains('/beta/accept'));
+  });
+
+  testWidgets('BetaAccept shows the error message on a bad code', (tester) async {
+    final api = _FakeApi(errors: {'/beta/accept'});
+    await tester.pumpWidget(_wrap(api, const BetaAcceptScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'BAD');
+    await tester.tap(find.text('Accept Beta Invite'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('SupportTicket without a subject sends a reply (default title)',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/support/tickets/t1': {'subject': 'S', 'status': 'OPEN', 'messages': []},
+    });
+    await tester.pumpWidget(_wrap(api, const SupportTicketScreen(ticketId: 't1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Support ticket'), findsOneWidget); // default app-bar title
+    await tester.enterText(find.byType(TextField).first, 'hello');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/support/tickets/t1/messages'));
+  });
+
+  testWidgets('Onboarding dropdowns, interest toggle, and viewer save', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const OnboardingScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Music')); // remove a pre-selected interest
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Save Discovery Preferences'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Save Discovery Preferences')); // Viewer intent -> patch + pop
+    await tester.pumpAndSettle();
+    expect(api.patches, contains('/users/me'));
+  });
+
+  testWidgets('Onboarding Skip does not save', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const OnboardingScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Skip'));
+    await tester.pumpAndSettle();
+    expect(api.patches, isEmpty);
+  });
+
+  testWidgets('Onboarding changes locale dropdowns and saves as creator',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await _pushScreen(tester, api, const OnboardingScreen());
+    await tester.tap(find.text('Country').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('GH').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Creator')); // creator intent
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Save Discovery Preferences'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Save Discovery Preferences'));
+    await tester.pumpAndSettle();
+    expect(api.patches, contains('/users/me')); // saved, then routed to apply
+  });
+
+  testWidgets('Report submit shows the confirmation then closes', (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await _pushScreen(tester, api, const ReportScreen(label: 'room', roomId: 'r1'));
+    await tester.tap(find.text('Scam'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Submit Report'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Submit Report'));
+    await tester.pumpAndSettle();
+    expect(find.text('Report submitted'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/reports'));
+  });
+
+  testWidgets('Report block: cancel does nothing, error surfaces', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(errors: {'/users/u9/block'});
+    await tester.pumpWidget(_wrap(api, const ReportScreen(label: 'user', targetUserId: 'u9')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Block this user'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Block this user'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel')); // dialog cancel -> no block
+    await tester.pumpAndSettle();
+    expect(api.posts, isNot(contains('/users/u9/block')));
+    await tester.tap(find.text('Block this user'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Block')); // confirm -> error
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('Support: type dropdown, create error, ticket list + tap', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/support/tickets/me': [
+        {'id': 't1', 'subject': 'Stuck payout', 'status': 'OPEN', 'type': 'PAYOUT'},
+      ],
+    }, errors: {'/support/tickets'}, maps: {
+      '/support/tickets/t1': {'subject': 'Stuck payout', 'status': 'OPEN', 'messages': []},
+    });
+    await tester.pumpWidget(_wrap(api, const SupportScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Stuck payout'), findsWidgets); // ticket card rendered
+    await tester.enterText(find.byType(TextField).at(0), 'Subject');
+    await tester.enterText(find.byType(TextField).at(1), 'Body');
+    await tester.tap(find.text('Create ticket')); // POST throws -> error snackbar
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.tap(find.text('Stuck payout').first); // -> SupportTicketScreen
+    await tester.pumpAndSettle();
+    expect(find.text('No replies yet'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('Login seed buttons + create-account navigation', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const LoginScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Viewer'));
+    await tester.tap(find.text('Admin'));
+    await tester.pump();
+    await tester.tap(find.text('Create account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Join AfriStage'), findsOneWidget); // RegisterScreen
+  });
+
+  testWidgets('Notifications refresh, mark-all error, open room + deep links',
+      (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _FakeApi(lists: {
+      '/notifications/me': [
+        {'id': 'n1', 'type': 'CREATOR_LIVE', 'title': 'Live', 'body': 'b', 'roomId': 'r1'},
+        {'id': 'n2', 'type': 'PAYOUT_UPDATE', 'title': 'Payout', 'body': 'b'},
+      ],
+    }, maps: {
+      '/live-rooms/r1': {'id': 'r1', 'title': 'On', 'category': 'MUSIC', 'country': 'NG', 'language': 'pidgin', 'status': 'LIVE'},
+    }, errors: {'/notifications/read-all'});
+    await tester.pumpWidget(_wrap(api, const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    await _pullToRefresh(tester);
+    await tester.tap(find.text('Mark all read')); // POST throws -> error snackbar
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.tap(find.text('Live')); // CREATOR_LIVE -> marks read + opens RoomScreen
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('PayoutMethods refresh, save success, mobile-money provider',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    await _pullToRefresh(tester);
+    await tester.tap(find.text('Add method'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mobile money')); // provider segment (line 282)
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Label (e.g. GTBank savings)'), 'MTN');
+    await tester.enterText(find.widgetWithText(TextField, 'Mobile money number'), '08012345678');
+    await tester.tap(find.text('Save payout method'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/payouts/methods'));
+  });
+
+  testWidgets('SupportTicket send error surfaces the message', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/support/tickets/t1': {'subject': 'S', 'status': 'OPEN', 'messages': []},
+    }, errors: {'/support/tickets/t1/messages'});
+    await tester.pumpWidget(_wrap(api, const SupportTicketScreen(ticketId: 't1', subject: 'S')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'hi');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('Report submit error surfaces the message', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(errors: {'/reports'});
+    await tester.pumpWidget(_wrap(api, const ReportScreen(label: 'room', roomId: 'r1')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Submit Report'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Submit Report'));
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('Login surfaces a server error message and fills Creator',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(errors: {'/auth/login'}); // post throws ApiException
+    await tester.pumpWidget(_wrap(api, const LoginScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Creator')); // seed fill (was off-screen before)
+    await tester.pump();
+    await tester.tap(find.text('Log in to AfriStage'));
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget); // ApiException branch
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('Onboarding changes the language dropdown', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const OnboardingScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Language').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('yoruba').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Set Up Discovery'), findsOneWidget);
+  });
+
+  testWidgets('Support changes the ticket type dropdown', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const SupportScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Type').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Payout issue').last);
+    await tester.pumpAndSettle();
+    expect(find.text('New ticket'), findsOneWidget);
+  });
+
+  testWidgets('Notifications: read-rollback, room-ended, open-error', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/notifications/me': <dynamic>[
+        <String, dynamic>{'id': 'n1', 'type': 'NEW_FOLLOWER', 'title': 'Follower', 'body': 'b'},
+        <String, dynamic>{'id': 'n2', 'type': 'CREATOR_LIVE', 'title': 'Ended', 'body': 'b', 'roomId': 'rended'},
+        <String, dynamic>{'id': 'n3', 'type': 'CREATOR_LIVE', 'title': 'Broken', 'body': 'b', 'roomId': 'rbad'},
+      ],
+    }, maps: {
+      '/live-rooms/rended': {'id': 'rended', 'title': 'X', 'category': 'MUSIC', 'country': 'NG', 'language': 'pidgin', 'status': 'ENDED'},
+    }, errors: {'/notifications/n1/read', '/live-rooms/rbad'});
+    await tester.pumpWidget(_wrap(api, const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Follower')); // markRead optimistic -> post errors -> rollback
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ended')); // room not LIVE -> "This room has ended."
+    await tester.pumpAndSettle();
+    expect(find.text('This room has ended.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5)); // let the snackbar auto-dismiss
+    await tester.tap(find.text('Broken')); // get throws -> "Could not open the room."
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open the room.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('PayoutMethods refresh, delete-error, save-error', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/payouts/methods': [
+        {'id': 'pm1', 'provider': 'BANK', 'label': 'GTB', 'destinationReference': '123', 'currency': 'NGN'},
+      ],
+    }, errors: {'/payouts/methods/pm1'}, postErrors: {'/payouts/methods'});
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('GTB'), findsOneWidget); // list itemBuilder
+    await _pullToRefresh(tester);
+    await tester.tap(find.byIcon(Icons.delete_outline)); // delete throws -> snackbar
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.tap(find.text('Add method'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Label (e.g. GTBank savings)'), 'X');
+    await tester.enterText(find.widgetWithText(TextField, 'Account number'), '123');
+    await tester.tap(find.text('Save payout method')); // post throws -> in-sheet error
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
   });
 }
