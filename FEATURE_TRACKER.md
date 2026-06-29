@@ -9,6 +9,36 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-06-28 → 2026-06-29 — apps/api to 100% coverage
+
+Took the entire NestJS API to **100% statements / branches / functions / lines**
+(1879 / 594 / 397 / 1603), up from ~58% stmt / 41% branch at the start of the API
+work. **437 tests across 57 suites**, all green. Shipped as PRs #83–#92.
+Status: `DEPLOYED` (jest unit tests, mocked Prisma — not production evidence).
+
+Covered to 100%, by layer:
+- **Services** (all): support, users, wallet, gifts, analytics, notifications,
+  moderation, beta, auth, payments, payouts, live-rooms (ranking feed + stale
+  sweep), creators, admin, fraud, chat, ledger, ledger-integrity.
+- **Gateway**: chat.gateway (presence, messaging, auth, resilience catch arms).
+- **Provider**: paystack (retry/backoff, signature, body-parse fallbacks).
+- **Infra**: JwtAuthGuard, RolesGuard, Roles/CurrentUser decorators,
+  RequestLoggingInterceptor, JsonLogger, validateEnv, PrismaService,
+  RedisService, RoomCleanupService.
+- **All 20 controllers** (delegation + default-param branches).
+- **All 19 DTOs** (instantiate + validate).
+
+Notes:
+- Pure test additions; the only production edits are four documented
+  `/* istanbul ignore */` markers on genuinely-unreachable defensive code
+  (paystack lastErr fallback + 10s abort-timeout callback, validate-env's `''`
+  fallback behind a required-key check, uploads access-key fallback behind
+  isConfigured). Reachable branches were tested, not ignored.
+- Excluded from the metric: `*.module.ts`, `main.ts`, the `.int-spec.ts`
+  concurrency test (which itself exercises the real-DB overdraw guard).
+- Caveat: unit-level (mocked Prisma) — verifies logic/branches, not real DB or
+  wire behaviour.
+
 ## Session 2026-06-28 — API service error-path coverage
 
 Raised `apps/api` service unit-test coverage, focused on guard/throw (error)
