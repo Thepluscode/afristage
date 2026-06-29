@@ -97,27 +97,14 @@ class _CreatorScreenState extends State<CreatorScreen> {
   }
 
   Future<String?> _prompt(String label, String initial,
-      {required String confirmLabel}) async {
-    final controller = TextEditingController(text: initial);
-    try {
-      return await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(label),
-          content: TextField(controller: controller, autofocus: true),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-                child: Text(confirmLabel)),
-          ],
-        ),
-      );
-    } finally {
-      controller.dispose();
-    }
+      {required String confirmLabel}) {
+    // The controller lives in _PromptDialog's State so it's disposed only after
+    // the dialog route is fully removed — never read mid-exit-animation.
+    return showDialog<String>(
+      context: context,
+      builder: (_) =>
+          _PromptDialog(label: label, initial: initial, confirmLabel: confirmLabel),
+    );
   }
 
   @override
@@ -483,6 +470,46 @@ class _SupporterRow extends StatelessWidget {
                   color: AfriColors.success, fontWeight: FontWeight.w800)),
         ],
       ),
+    );
+  }
+}
+
+// Owns its TextEditingController so it is disposed with the dialog's State (after
+// the route is removed), avoiding a use-after-dispose during the exit animation.
+class _PromptDialog extends StatefulWidget {
+  const _PromptDialog(
+      {required this.label, required this.initial, required this.confirmLabel});
+  final String label;
+  final String initial;
+  final String confirmLabel;
+
+  @override
+  State<_PromptDialog> createState() => _PromptDialogState();
+}
+
+class _PromptDialogState extends State<_PromptDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.label),
+      content: TextField(controller: _controller, autofocus: true),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, _controller.text.trim()),
+            child: Text(widget.confirmLabel)),
+      ],
     );
   }
 }
