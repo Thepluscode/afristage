@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/screens/search_screen.dart';
 import 'package:afristage_mobile/screens/wallet_screen.dart';
@@ -74,6 +75,47 @@ class _FakeApi extends ApiClient {
     deletes.add(path);
     return const {};
   }
+}
+
+/// In-memory secure storage so AppState.login/register don't hit the (absent)
+/// platform channel in tests.
+class _MemStorage implements FlutterSecureStorage {
+  final _store = <String, String?>{};
+  @override
+  dynamic noSuchMethod(Invocation i) {
+    final key = i.namedArguments[#key] as String?;
+    switch (i.memberName) {
+      case #write:
+        _store[key!] = i.namedArguments[#value] as String?;
+        return Future<void>.value();
+      case #read:
+        return Future<String?>.value(_store[key]);
+      default:
+        return Future<void>.value();
+    }
+  }
+}
+
+/// Returns auth tokens for /auth/* and a wallet for /wallet/me, so register/login
+/// success flows complete.
+class _AuthFakeApi extends ApiClient {
+  final posts = <String>[];
+  @override
+  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+    posts.add(path);
+    if (path.contains('/auth/')) {
+      return {'accessToken': 'at', 'refreshToken': 'rt', 'userId': 'u1', 'role': 'VIEWER'};
+    }
+    return const {};
+  }
+
+  @override
+  Future<Map<String, dynamic>> get(String path) async => path == '/wallet/me'
+      ? {'coinBalance': 0, 'earningBalance': 0, 'payoutHoldBalance': 0}
+      : const {};
+
+  @override
+  Future<Map<String, dynamic>> patch(String path, [Map<String, dynamic>? body]) async => const {};
 }
 
 Widget _wrap(ApiClient api, Widget child) => ChangeNotifierProvider(
@@ -1489,6 +1531,83 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('GTB'), findsOneWidget);
     expect(find.text('MTN'), findsOneWidget); // 2 items -> separatorBuilder runs
+  });
+
+  testWidgets('Register full flow creates the account and lands on onboarding',
+      (tester) async {
+    _tall(tester);
+    final api = _AuthFakeApi();
+    await tester.pumpWidget(_wrapState(AppState(api: api, storage: _MemStorage()), const RegisterScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'e@x.com');
+    await tester.enterText(find.widgetWithText(TextField, 'Password'), 'pw');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Display name'), 'Ada');
+    await tester.enterText(find.widgetWithText(TextField, 'Username'), 'ada');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile)); // confirm age
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create Account'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(api.posts, contains('/auth/register')); // _createAccount ran
+    expect(find.text('Tune your stage'), findsOneWidget); // OnboardingScreen
+  });
+
+  testWidgets('Register "already have an account" returns', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const RegisterScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('I already have an account'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('CreatorProfile follow error rolls back', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/c1': {'stageName': 'Z', 'approvalStatus': 'APPROVED', 'userId': 'c1', 'isFollowing': false, 'followers': 3},
+    }, errors: {'/users/c1/follow'});
+    await tester.pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Follow'));
+    await tester.pumpAndSettle();
+    expect(find.text('Follow'), findsOneWidget); // rolled back
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CreatorProfile reminder error rolls back', (tester) async {
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Z', 'approvalStatus': 'APPROVED', 'userId': 'c1', 'followers': 1,
+        'upcomingRoom': {'id': 'up1', 'title': 'Soon', 'scheduledStartAt': '2030-01-01T10:00:00Z', 'reminded': false},
+      },
+    }, errors: {'/live-rooms/up1/remind'});
+    await tester.pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remind me'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remind me'), findsOneWidget); // rolled back
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CreatorProfile Watch-live opens the room', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Z', 'approvalStatus': 'APPROVED', 'userId': 'c1', 'followers': 1,
+        'liveRoom': {'id': 'lr1', 'title': 'On Now', 'category': 'MUSIC', 'country': 'NG', 'language': 'pidgin'},
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Watch live'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
   });
 
   // Screens only ever built via `const` are canonicalized at compile time, so
