@@ -109,4 +109,35 @@ void main() {
     expect(ApiClient(baseUrl: 'https://api.test/api').wsOrigin,
         'https://api.test');
   });
+
+  test('patch and delete decode a 2xx map', () async {
+    final api = _client((req) async {
+      expect(['PATCH', 'DELETE'], contains(req.method));
+      return _json({'ok': true});
+    });
+    expect(await api.patch('/x', {'a': 1}), {'ok': true});
+    expect(await api.delete('/x'), {'ok': true});
+  });
+
+  test('getOptionalMap returns the map for a non-empty body', () async {
+    final api = _client((_) async => _json({'id': '1'}));
+    expect(await api.getOptionalMap('/maybe'), {'id': '1'});
+  });
+
+  test('ApiException.toString includes the status and message', () {
+    expect(const ApiException(404, 'nope').toString(), contains('404'));
+    expect(const ApiException(404, 'nope').toString(), contains('nope'));
+  });
+
+  test('a refresh whose call throws is treated as failed (logs, clears auth)', () async {
+    var cleared = false;
+    final api = _client((req) async {
+      if (req.url.path.endsWith('/auth/refresh')) throw Exception('network down');
+      return _json({'message': 'expired'}, 401);
+    })
+      ..refreshToken = 'rt'
+      ..onAuthCleared = () => cleared = true;
+    await expectLater(() => api.get('/protected'), throwsA(isA<ApiException>()));
+    expect(cleared, isTrue);
+  });
 }
