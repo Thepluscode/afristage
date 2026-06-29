@@ -5,9 +5,27 @@ import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'net_image_mock.dart';
+
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
+  testWidgets('AfriCover uses the gradient when no image is supplied', (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 200, height: 200,
+      child: AfriCover(category: 'MUSIC', initial: 'Z'),
+    )));
+    expect(find.byType(AfriCover), findsOneWidget);
+  });
+
+  testWidgets('AfriCreatorRing renders a network avatar', (tester) async {
+    await provideMockNetworkImages(() async {
+      await tester.pumpWidget(_host(const AfriCreatorRing(name: 'Ada', imageUrl: 'https://x/a.png')));
+      await tester.pump();
+      expect(find.byType(AfriCreatorRing), findsOneWidget);
+    });
+  });
+
   testWidgets('AfriCreatorRing renders live, offline, and with a photo',
       (tester) async {
     var tapped = false;
