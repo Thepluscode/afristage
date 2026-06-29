@@ -1713,5 +1713,73 @@ void main() {
     expect(NotificationsScreen(), isA<NotificationsScreen>());
     expect(ReportScreen(), isA<ReportScreen>());
     expect(BetaAcceptScreen(), isA<BetaAcceptScreen>());
+    expect(CreatorScreen(), isA<CreatorScreen>());
+  });
+
+  testWidgets('CreatorScreen refresh + settings nav + payout cancel/error', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {'creator': {'stageName': 'Z', 'status': 'APPROVED'}, 'earnings': 100, 'topSupporters': []},
+    }, lists: {'/payouts/methods': [{'id': 'pm1', 'isDefault': true}]}, postErrors: {'/payouts/request'});
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await _pullToRefresh(tester);
+    await tester.tap(find.byTooltip('Creator settings'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Request payout'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel')); // coins == null -> return
+    await tester.pumpAndSettle();
+    expect(api.posts, isNot(contains('/payouts/request')));
+    await tester.tap(find.text('Request payout'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '500');
+    await tester.tap(find.widgetWithText(FilledButton, 'Request Payout'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('boom'), findsOneWidget); // post error
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('Register surfaces a server error on create', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(postErrors: {'/auth/register'});
+    await tester.pumpWidget(_wrapState(AppState(api: api, storage: _MemStorage()), const RegisterScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'e@x.com');
+    await tester.enterText(find.widgetWithText(TextField, 'Password'), 'pw');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create Account'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CreatorProfile renders avatar + bio + reminder-set, cancels reminder',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/c1': {
+        'stageName': 'Zola', 'approvalStatus': 'APPROVED', 'userId': 'c1',
+        'category': 'MUSIC', 'country': 'NG', 'totalRooms': 4, 'peakViewers': 120, 'followers': 9,
+        'user': {'profile': {'avatarUrl': 'https://x/a.png', 'bio': 'Lagos selector', 'displayName': 'Zola'}},
+        'upcomingRoom': {'id': 'up1', 'title': 'Soon', 'scheduledStartAt': '2030-01-01T10:00:00Z', 'reminded': true},
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorProfileScreen(creatorId: 'c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Lagos selector'), findsOneWidget); // bio branch
+    expect(find.text('Reminder set'), findsOneWidget);
+    await tester.tap(find.text('Reminder set')); // cancel -> delete
+    await tester.pumpAndSettle();
+    expect(api.deletes, contains('/live-rooms/up1/remind'));
   });
 }
