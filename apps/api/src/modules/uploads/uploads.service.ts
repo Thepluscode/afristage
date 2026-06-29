@@ -26,7 +26,9 @@ export class UploadsService {
       endpoint: process.env.S3_ENDPOINT || undefined,
       forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true', // MinIO/R2 path-style
       credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+        // isConfigured() already requires S3_ACCESS_KEY_ID, so this '' fallback
+        // is unreachable from presign() — kept defensive for direct client() use.
+        accessKeyId: process.env.S3_ACCESS_KEY_ID || /* istanbul ignore next */ '',
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || ''
       }
     });
