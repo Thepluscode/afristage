@@ -102,4 +102,80 @@ void main() {
     expect(s.wallet.coinBalance, 100);
     expect(s.wallet.earningBalance, 50);
   });
+
+  _extra();
+}
+
+class _CfgApi extends ApiClient {
+  Object? walletError;
+  @override
+  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async => {
+        'accessToken': 'at', 'refreshToken': 'rt', 'userId': 'u1', 'role': 'VIEWER'
+      };
+  @override
+  Future<Map<String, dynamic>> get(String path) async {
+    if (walletError != null) throw walletError!;
+    return path == '/wallet/me'
+        ? {'coinBalance': 100, 'earningBalance': 50, 'payoutHoldBalance': 10}
+        : const {};
+  }
+}
+
+void _extra() {
+  test('restore with a truly-expired token logs out (wallet ApiException)', () async {
+    final storage = _FakeStorage();
+    await AppState(api: _AuthApi(), storage: storage).login('e@x.com', 'pw');
+    final api = _CfgApi()..walletError = const ApiException(401, 'expired');
+    final s = AppState(api: api, storage: storage);
+    await s.restore();
+    expect(s.isAuthenticated, isFalse); // refresh also failed -> logged out
+  });
+
+  test('restore keeps the session on a transient wallet error', () async {
+    final storage = _FakeStorage();
+    await AppState(api: _AuthApi(), storage: storage).login('e@x.com', 'pw');
+    final api = _CfgApi()..walletError = Exception('network blip');
+    final s = AppState(api: api, storage: storage);
+    await s.restore();
+    expect(s.isAuthenticated, isTrue); // kept; wallet refetches later
+  });
+
+  test('restore with no stored token finishes restoring unauthenticated', () async {
+    final s = AppState(api: _CfgApi(), storage: _FakeStorage());
+    await s.restore();
+    expect(s.isRestoring, isFalse);
+    expect(s.isAuthenticated, isFalse);
+  });
+
+  test('onTokensRefreshed persists the new pair; onAuthCleared logs out', () async {
+    final storage = _FakeStorage();
+    final s = AppState(api: _CfgApi(), storage: storage);
+    await s.api.onTokensRefreshed!('new-at', 'new-rt');
+    expect(storage.store.values, contains('new-at'));
+    await s.login('e@x.com', 'pw');
+    s.api.onAuthCleared!();
+    await Future<void>.delayed(Duration.zero);
+    expect(s.isAuthenticated, isFalse);
+  });
+
+  test('restore survives a storage read failure', () async {
+    final s = AppState(api: _CfgApi(), storage: _ThrowStorage());
+    await s.restore(); // storage.read throws -> caught, splash not trapped
+    expect(s.isRestoring, isFalse);
+  });
+
+  test('login keeps the session when the wallet load fails', () async {
+    final api = _CfgApi()..walletError = Exception('wallet down');
+    final s = AppState(api: api, storage: _FakeStorage());
+    await s.login('e@x.com', 'pw');
+    expect(s.isAuthenticated, isTrue); // wallet error swallowed, auth intact
+  });
+}
+
+class _ThrowStorage extends _FakeStorage {
+  @override
+  dynamic noSuchMethod(Invocation i) {
+    if (i.memberName == #read) throw Exception('keychain locked');
+    return super.noSuchMethod(i);
+  }
 }
