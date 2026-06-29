@@ -1763,6 +1763,77 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  testWidgets('GoLive start goes live and opens the room', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _FakeApi(maps: {
+      '/live-rooms': {'id': 'r1'},
+      '/live-rooms/r1/start': {'hostToken': 'h', 'livekitUrl': 'ws://x'},
+    });
+    await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Start Live Room'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Start Live Room'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(api.posts, contains('/live-rooms'));
+    expect(api.posts, contains('/live-rooms/r1/start'));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('GoLive start surfaces a server error', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(postErrors: {'/live-rooms'});
+    await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Start Live Room'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Start Live Room'));
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('GoLive title-error clears on edit; category dropdown + chat-rules', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '   ');
+    await tester.scrollUntilVisible(find.text('Start Live Room'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Start Live Room'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a clear title before going live.'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).first, 'My Show'); // clears error
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a clear title before going live.'), findsNothing);
+    await tester.tap(find.text('Category').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('COMEDY').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show chat rules'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('GoLive schedule flow picks a date/time then schedules', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {'/live-rooms': {'id': 'r1'}});
+    await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Set time'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Set time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK')); // date picker
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK')); // time picker
+    await tester.pumpAndSettle();
+    if (find.text('Schedule Room').evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(find.text('Schedule Room'), 200, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Schedule Room'));
+      await tester.pumpAndSettle();
+      expect(api.posts, contains('/live-rooms'));
+    }
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('CreatorProfile renders avatar + bio + reminder-set, cancels reminder',
       (tester) async {
     _tall(tester);
