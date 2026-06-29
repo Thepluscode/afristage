@@ -12,6 +12,11 @@ import 'livekit_room_view.dart';
 import 'creator_profile_screen.dart';
 import 'report_screen.dart';
 
+/// Default socket factory used when a RoomScreen is pushed without an explicit
+/// [RoomScreen.socketFactory] (e.g. from the live/search/notifications feeds).
+/// Production uses the real `io.io`; tests override it to inject a fake.
+io.Socket Function(String uri, dynamic opts) debugRoomSocketFactory = io.io;
+
 class RoomScreen extends StatefulWidget {
   const RoomScreen(
       {super.key,
@@ -118,7 +123,7 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     if (!_canUpdate) return;
 
-    final socket = (widget.socketFactory ?? io.io)(
+    final socket = (widget.socketFactory ?? debugRoomSocketFactory)(
       '${api.wsOrigin}/chat',
       io.OptionBuilder()
           .setTransports(['websocket'])
