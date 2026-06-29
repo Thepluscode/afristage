@@ -34,6 +34,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'net_image_mock.dart';
+import 'url_launcher_mock.dart';
 
 /// Configurable fake: canned get/getList responses by path; records writes.
 /// Paths in [errors] throw, so error-state branches are testable.
@@ -1708,6 +1709,30 @@ void main() {
         'id': id, 'title': 'Show $id', 'category': cat, 'country': 'NG', 'language': 'pidgin',
         'status': 'LIVE', 'hostName': host, 'hostUserId': 'host-$id', 'hostAvatarUrl': 'https://x/$id.png', 'viewerCount': 1200,
       };
+
+  testWidgets('Wallet card checkout then confirm', (tester) async {
+    _tall(tester);
+    installFakeUrlLauncher();
+    final api = _FakeApi(maps: {
+      '/payments/coin-purchase-intents': {'id': 'pi1', 'authorizationUrl': 'https://pay/x'},
+      '/payments/paystack/pi1/verify': {'credited': true},
+    });
+    final state = AppState(api: api)..wallet = const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch)); // Mock -> Card; reopens sheet
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('₦1,000 → 100 coins')); // _buyWithCard -> launchUrl ok
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/payments/coin-purchase-intents'));
+    expect(find.text("I've paid — confirm"), findsOneWidget);
+    await tester.tap(find.text("I've paid — confirm")); // _confirmCard -> verify
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/payments/paystack/pi1/verify'));
+    await tester.pump(const Duration(seconds: 5));
+  });
 
   testWidgets('FeedScreen full render: hero, rail, creators, nav, remind', (tester) async {
     _tall(tester);
