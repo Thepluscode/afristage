@@ -10,6 +10,25 @@ import 'net_image_mock.dart';
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
+  installMockNetworkImages();
+  tearDown(() => PaintingBinding.instance.imageCache.clear());
+
+  testWidgets('AfriCover error-builder falls back to a gradient', (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 200, height: 200,
+      child: AfriCover(imageUrl: 'https://fail/broken.png', category: 'MUSIC', initial: 'Z'),
+    )));
+    await tester.pumpAndSettle(); // 404 -> errorBuilder runs
+    expect(find.byType(AfriCover), findsOneWidget);
+  });
+
+  testWidgets('AfriCoinPill is tappable', (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(_host(AfriCoinPill(coins: 42, onTap: () => tapped = true)));
+    await tester.tap(find.byType(AfriCoinPill));
+    expect(tapped, isTrue);
+  });
+
   testWidgets('AfriCover uses the gradient when no image is supplied', (tester) async {
     await tester.pumpWidget(_host(const SizedBox(
       width: 200, height: 200,
@@ -19,11 +38,9 @@ void main() {
   });
 
   testWidgets('AfriCreatorRing renders a network avatar', (tester) async {
-    await provideMockNetworkImages(() async {
-      await tester.pumpWidget(_host(const AfriCreatorRing(name: 'Ada', imageUrl: 'https://x/a.png')));
-      await tester.pump();
-      expect(find.byType(AfriCreatorRing), findsOneWidget);
-    });
+    await tester.pumpWidget(_host(const AfriCreatorRing(name: 'Ada', imageUrl: 'https://x/a.png')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriCreatorRing), findsOneWidget);
   });
 
   testWidgets('AfriCreatorRing renders live, offline, and with a photo',

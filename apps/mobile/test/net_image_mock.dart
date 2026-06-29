@@ -2,11 +2,28 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-// Minimal HttpOverrides that returns a 1x1 transparent PNG for every request, so
-// NetworkImage branches (avatars, covers) render without real network or the
-// default test 400. Run image-bearing widget pumps inside [provideMockNetworkImages].
-Future<T> provideMockNetworkImages<T>(Future<T> Function() body) {
-  return HttpOverrides.runZoned(body, createHttpClient: (_) => _FakeHttpClient());
+import 'package:flutter_test/flutter_test.dart';
+
+// Installs a process-global HttpOverrides for a test file so NetworkImage loads
+// resolve to a 1x1 PNG (covering avatar/cover branches) instead of the default
+// test 400. A URL whose host contains "fail" returns 404 so error-builder paths
+// remain reachable. Call from setUpAll(); it auto-restores in tearDownAll().
+void installMockNetworkImages() {
+  HttpOverrides? previous;
+  setUpAll(() {
+    previous = HttpOverrides.current;
+    HttpOverrides.global = _MockNetImageOverrides();
+  });
+  tearDownAll(() => HttpOverrides.global = previous);
+}
+
+/// Run [body] with the mock overrides active (for a single test).
+Future<T> provideMockNetworkImages<T>(Future<T> Function() body) =>
+    HttpOverrides.runZoned(body, createHttpClient: (_) => _FakeHttpClient());
+
+class _MockNetImageOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) => _FakeHttpClient();
 }
 
 final Uint8List _transparentPng = Uint8List.fromList(const [
@@ -30,25 +47,29 @@ class _FakeHttpClient implements HttpClient {
   String? userAgent;
 
   @override
-  Future<HttpClientRequest> getUrl(Uri url) async => _FakeHttpClientRequest();
+  Future<HttpClientRequest> getUrl(Uri url) async =>
+      _FakeHttpClientRequest(url.host.contains('fail') ? 404 : 200);
   @override
   noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeHttpClientRequest implements HttpClientRequest {
+  _FakeHttpClientRequest(this._status);
+  final int _status;
   @override
   final HttpHeaders headers = _FakeHttpHeaders();
   @override
-  Future<HttpClientResponse> close() async => _FakeHttpClientResponse();
+  Future<HttpClientResponse> close() async => _FakeHttpClientResponse(_status);
   @override
   noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeHttpClientResponse implements HttpClientResponse {
+  _FakeHttpClientResponse(this.statusCode);
   @override
-  int statusCode = 200;
+  int statusCode;
   @override
-  int get contentLength => _transparentPng.length;
+  int get contentLength => statusCode == 200 ? _transparentPng.length : 0;
   @override
   HttpClientResponseCompressionState get compressionState =>
       HttpClientResponseCompressionState.notCompressed;
@@ -57,7 +78,8 @@ class _FakeHttpClientResponse implements HttpClientResponse {
   @override
   StreamSubscription<List<int>> listen(void Function(List<int>)? onData,
       {Function? onError, void Function()? onDone, bool? cancelOnError}) {
-    return Stream<List<int>>.value(_transparentPng)
+    final data = statusCode == 200 ? _transparentPng : Uint8List(0);
+    return Stream<List<int>>.value(data)
         .listen(onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
   }
 
