@@ -23,6 +23,7 @@ import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:afristage_mobile/screens/support_ticket_screen.dart';
 import 'package:afristage_mobile/screens/beta_accept_screen.dart';
+import 'package:afristage_mobile/screens/creator_apply_screen.dart';
 import 'package:afristage_mobile/screens/room_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
@@ -1700,6 +1701,57 @@ void main() {
     await tester.tap(find.text('Report').first); // snackbar guidance
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CreatorApply: no profile -> apply, success, and error', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {'/creators/apply': {'approvalStatus': 'PENDING'}});
+    await tester.pumpWidget(_wrap(api, const CreatorApplyScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Apply as Creator'), findsOneWidget);
+    await tester.tap(find.text('Apply as Creator')); // empty -> no post
+    await tester.pump();
+    expect(api.posts, isEmpty);
+    await tester.enterText(find.widgetWithText(TextField, 'Stage name'), 'DJ Zola');
+    await tester.tap(find.text('Apply as Creator'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/creators/apply'));
+    expect(find.text('Application submitted for creator review'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CreatorApply error surfaces the message', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(postErrors: {'/creators/apply'});
+    await tester.pumpWidget(_wrap(api, const CreatorApplyScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Stage name'), 'X');
+    await tester.tap(find.text('Apply as Creator'));
+    await tester.pumpAndSettle();
+    expect(find.text('boom'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CreatorApply renders each existing status', (tester) async {
+    _tall(tester);
+    for (final s in ['APPROVED', 'REJECTED', 'SUSPENDED', 'PENDING']) {
+      final api = _FakeApi(maps: {'/creators/me': {'approvalStatus': s, 'stageName': 'Z'}});
+      await tester.pumpWidget(KeyedSubtree(key: ValueKey(s), child: _wrap(api, const CreatorApplyScreen())));
+      await tester.pumpAndSettle();
+      expect(find.text('Update Application'), findsOneWidget);
+      expect(find.text(s), findsOneWidget); // status chip
+    }
+  });
+
+  testWidgets('CreatorApply category dropdown changes', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const CreatorApplyScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Primary category').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('COMEDY').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(CreatorApplyScreen), findsOneWidget);
   });
 
   // Screens only ever built via `const` are canonicalized at compile time, so
