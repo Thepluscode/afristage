@@ -31,6 +31,8 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'net_image_mock.dart';
+
 /// Configurable fake: canned get/getList responses by path; records writes.
 /// Paths in [errors] throw, so error-state branches are testable.
 class _FakeApi extends ApiClient {
@@ -60,6 +62,12 @@ class _FakeApi extends ApiClient {
   Future<Map<String, dynamic>> get(String path) async {
     if (errors.contains(path)) throw const ApiException(500, 'boom');
     return maps[path] ?? const {};
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getOptionalMap(String path) async {
+    if (errors.contains(path)) throw const ApiException(500, 'boom');
+    return maps[path];
   }
 
   @override
@@ -115,7 +123,13 @@ class _AuthFakeApi extends ApiClient {
       : const {};
 
   @override
+  Future<List<dynamic>> getList(String path) async => const [];
+
+  @override
   Future<Map<String, dynamic>> patch(String path, [Map<String, dynamic>? body]) async => const {};
+
+  @override
+  Future<Map<String, dynamic>> delete(String path) async => const {};
 }
 
 Widget _wrap(ApiClient api, Widget child) => ChangeNotifierProvider(
@@ -132,7 +146,7 @@ Widget _wrapState(AppState state, Widget child) =>
 /// Fake that throws on the FIRST getList(path) then returns [after] — lets a
 /// retry tap resolve (covering the onRetry closure) without leaving an unhandled
 /// rejected future from a still-failing reload.
-class _RetryApi extends ApiClient {
+class _RetryApi extends _FakeApi {
   _RetryApi(this.path, this.after);
   final String path;
   final List<dynamic> after;
@@ -164,7 +178,7 @@ void _stubRoomSockets() {
 /// Returns each queued future in order for getList (so a test can hand a
 /// deferred completer that errors AFTER the FutureBuilder has subscribed —
 /// avoiding an unhandled rejection from a future created mid-test).
-class _QueueApi extends ApiClient {
+class _QueueApi extends _FakeApi {
   _QueueApi(this._q);
   final List<Future<List<dynamic>> Function()> _q;
   int i = 0;
@@ -207,6 +221,8 @@ void _tall(WidgetTester tester) {
 }
 
 void main() {
+  installMockNetworkImages(); // avatar/cover NetworkImages resolve in tests
+
   testWidgets('GiftHistoryScreen lists sent gifts with creator + room',
       (tester) async {
     final api = _FakeApi(lists: {
@@ -1255,10 +1271,6 @@ void main() {
     _tall(tester);
     final api = _FakeApi();
     await _pushScreen(tester, api, const OnboardingScreen());
-    await tester.tap(find.text('Country').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('GH').last);
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Creator')); // creator intent
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Save Discovery Preferences'), 200,
@@ -1608,6 +1620,86 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen go-live, supporters, and action rows', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola', 'status': 'APPROVED'},
+        'avatarUrl': 'https://x/a.png',
+        'earnings': 100,
+        'topSupporters': [
+          {'displayName': 'Big Fan', 'coins': 50, 'avatarUrl': 'https://x/s.png'},
+        ],
+        'totalGiftTransactions': 5, 'totalRooms': 3, 'followers': 10, 'totalWatchSeconds': 30,
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Big Fan'), findsOneWidget); // supporter row (with avatar)
+    await tester.tap(find.text('Go Live'));
+    await tester.pumpAndSettle();
+    expect(find.text('Go Live Setup'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    for (final row in ['Payout methods', 'Payout history', 'Show performance']) {
+      await tester.scrollUntilVisible(find.text(row), 200, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text(row));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('CreatorScreen request-payout dialog posts a request', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {'creator': {'stageName': 'Z', 'status': 'APPROVED'}, 'earnings': 100, 'topSupporters': []},
+    }, lists: {'/payouts/methods': [{'id': 'pm1', 'isDefault': true}]});
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Request payout'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '500');
+    await tester.tap(find.widgetWithText(FilledButton, 'Request Payout'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(api.posts, contains('/payouts/request'));
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('WalletScreen mock purchase credits coins', (tester) async {
+    _tall(tester);
+    final state = AppState(api: _FakeApi(), storage: _MemStorage())
+      ..wallet = const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('₦1,000 → 100 coins'));
+    await tester.pumpAndSettle();
+    expect((state.api as _FakeApi).posts, contains('/payments/coin-purchase-intents'));
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('WalletScreen menu rows navigate and show guidance', (tester) async {
+    _tall(tester);
+    final state = AppState(api: _FakeApi())
+      ..wallet = const Wallet(coinBalance: 10, earningBalance: 5, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    for (final row in ['Payout methods', 'Ledger and history', 'Gifts sent', 'Payout history', 'Support']) {
+      await tester.scrollUntilVisible(find.text(row).first, 200, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text(row).first);
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+    }
+    await tester.scrollUntilVisible(find.text('Report').first, 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Report').first); // snackbar guidance
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
   });
 
   // Screens only ever built via `const` are canonicalized at compile time, so

@@ -50,7 +50,10 @@ class _FakeHttpClient implements HttpClient {
   Future<HttpClientRequest> getUrl(Uri url) async =>
       _FakeHttpClientRequest(url.host.contains('fail') ? 404 : 200);
   @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  Future<HttpClientRequest> openUrl(String method, Uri url) async =>
+      _FakeHttpClientRequest(url.host.contains('fail') ? 404 : 200);
+  @override
+  noSuchMethod(Invocation invocation) => null;
 }
 
 class _FakeHttpClientRequest implements HttpClientRequest {
@@ -61,7 +64,7 @@ class _FakeHttpClientRequest implements HttpClientRequest {
   @override
   Future<HttpClientResponse> close() async => _FakeHttpClientResponse(_status);
   @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  noSuchMethod(Invocation invocation) => null;
 }
 
 class _FakeHttpClientResponse implements HttpClientResponse {
@@ -84,10 +87,10 @@ class _FakeHttpClientResponse implements HttpClientResponse {
   }
 
   @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  noSuchMethod(Invocation invocation) => null;
 }
 
 class _FakeHttpHeaders implements HttpHeaders {
   @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  noSuchMethod(Invocation invocation) => null;
 }
