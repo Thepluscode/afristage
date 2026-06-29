@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'net_image_mock.dart';
 
+void _noop() {}
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
@@ -470,4 +471,118 @@ void main() {
     await tester.pumpWidget(_host(const AfriCoinPill(coins: 250)));
     expect(find.textContaining('250'), findsOneWidget);
   });
+
+  testWidgets('AfriHeroEventCard with room (cover) and without room', (tester) async {
+    const room = LiveRoom(id: 'r1', title: 'On Now', category: 'MUSIC', country: 'NG', language: 'pidgin', status: 'LIVE', hostName: 'Z', hostAvatarUrl: 'https://x/a.png', viewerCount: 1500);
+    await tester.pumpWidget(_host(const AfriHeroEventCard(onJoin: _noop, room: room)));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriHeroEventCard), findsOneWidget);
+    await tester.pumpWidget(_host(const AfriHeroEventCard(onJoin: _noop))); // no room
+    await tester.pumpAndSettle();
+    expect(find.textContaining('warming up'), findsOneWidget);
+  });
+
+  testWidgets('AfriChatBubble renders a gift message', (tester) async {
+    await tester.pumpWidget(_host(const AfriChatBubble(message: ChatMessage(sender: 'Z', text: 'sent a Rose gift'))));
+    expect(find.byType(AfriChatBubble), findsOneWidget);
+  });
+
+  testWidgets('AfriCreatorStatusBanner renders each status', (tester) async {
+    for (final s in ['APPROVED', 'REJECTED', 'SUSPENDED', 'PENDING']) {
+      await tester.pumpWidget(_host(AfriCreatorStatusBanner(status: s, message: 'm')));
+      expect(find.byType(AfriCreatorStatusBanner), findsOneWidget);
+    }
+  });
+
+  testWidgets('AfriProfileHeader with an avatar', (tester) async {
+    await tester.pumpWidget(_host(const AfriProfileHeader(role: 'CREATOR', userId: 'u1', isCreator: true, avatarUrl: 'https://x/a.png')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriProfileHeader), findsOneWidget);
+  });
+
+  testWidgets('AfriVideoStage cover (off) and video (on)', (tester) async {
+    await tester.pumpWidget(_host(AfriVideoStage(video: const SizedBox(), ready: false, isHost: false, videoOn: false, roomEnded: false, onStartVideo: () {}, coverCategory: 'MUSIC', coverInitial: 'Z')));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+    await tester.pumpWidget(_host(AfriVideoStage(video: const Text('VID'), ready: true, isHost: true, videoOn: true, roomEnded: false, onStartVideo: () {})));
+    expect(find.text('VID'), findsOneWidget);
+  });
+
+  testWidgets('AfriLiveTopBar with a creator avatar', (tester) async {
+    await tester.pumpWidget(_host(AfriLiveTopBar(creatorName: 'Z', avatarUrl: 'https://x/a.png', following: false, onFollow: () {}, viewerCount: 5, onClose: () {})));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriLiveTopBar), findsOneWidget);
+  });
+
+  testWidgets('AfriRoomStateBanner renders several states', (tester) async {
+    for (final s in [AfriRoomState.socketRejoined, AfriRoomState.hostReconnecting, AfriRoomState.hostDisconnected, AfriRoomState.connecting, AfriRoomState.ended, AfriRoomState.muted]) {
+      await tester.pumpWidget(_host(AfriRoomStateBanner(state: s, message: 'm')));
+      expect(find.byType(AfriRoomStateBanner), findsOneWidget);
+    }
+  });
+
+  testWidgets('AfriNetworkStatusPill toggles low-data', (tester) async {
+    var v = false;
+    await tester.pumpWidget(_host(AfriNetworkStatusPill(connected: true, lowData: false, poorNetwork: true, onToggleLowData: (x) => v = x)));
+    await tester.tap(find.byType(AfriNetworkStatusPill));
+    expect(v, isTrue);
+    await tester.pumpWidget(_host(AfriNetworkStatusPill(connected: false, lowData: true, poorNetwork: false, onToggleLowData: (_) {})));
+    expect(find.text('Low data'), findsOneWidget);
+  });
+
+  testWidgets('AfriChatInput sends on submit', (tester) async {
+    var sent = false;
+    final c = TextEditingController();
+    await tester.pumpWidget(_host(AfriChatInput(controller: c, enabled: true, onSend: () => sent = true, onGift: () {}, onReaction: (_) {})));
+    await tester.enterText(find.byType(TextField), 'hi');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    expect(sent, isTrue);
+  });
+
+  testWidgets('AfriReactionButton picks a reaction', (tester) async {
+    String? picked;
+    await tester.pumpWidget(_host(AfriReactionButton(onReaction: (r) => picked = r)));
+    await tester.tap(find.byType(AfriReactionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fire').last);
+    await tester.pumpAndSettle();
+    expect(picked, 'fire');
+  });
+
+  testWidgets('AfriReactionLayer caps at the last six', (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(width: 300, height: 400,
+      child: AfriReactionLayer(reactions: ['heart', 'fire', 'clap', 'laugh', 'heart', 'fire', 'clap']))));
+    expect(find.byType(AfriReactionLayer), findsOneWidget);
+  });
+
+  testWidgets('AfriGiftAnimationLayer with artwork + label', (tester) async {
+    await tester.pumpWidget(_host(const AfriGiftAnimationLayer(giftLabel: 'Rose x2', imageUrl: 'https://x/g.png')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriGiftAnimationLayer), findsOneWidget);
+  });
+
+  testWidgets('AfriTopGifterStrip lists gifters', (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(width: 360, child: AfriTopGifterStrip(gifters: [('Ada', '120'), ('Bo', '90')]))));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriTopGifterStrip), findsOneWidget);
+  });
+
+  testWidgets('AfriHostControlsPanel low-data + poor-network', (tester) async {
+    await tester.pumpWidget(_host(AfriHostControlsPanel(
+      viewerCount: 5, giftCount: 2, earningsEstimate: 10, cameraOn: true, micOn: true,
+      chatVisible: true, lowData: true, poorNetwork: true, socketConnected: false, ending: false,
+      onCameraChanged: (_) {}, onMicChanged: (_) {}, onChatVisibleChanged: (_) {}, onLowDataChanged: (_) {},
+      onMuteUser: () {}, onSafety: () {}, onEndRoom: () {})));
+    expect(find.byType(AfriHostControlsPanel), findsOneWidget);
+  });
+
+  testWidgets('AfriLiveRoomCard + AfriLiveTile with host avatars', (tester) async {
+    const room = LiveRoom(id: 'r1', title: 'T', category: 'MUSIC', country: 'NG', language: 'pidgin', status: 'LIVE', hostName: 'Z', hostAvatarUrl: 'https://x/a.png', viewerCount: 12);
+    await tester.pumpWidget(_host(SizedBox(width: 360, child: AfriLiveRoomCard(room: room, onTap: () {}))));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriLiveRoomCard), findsOneWidget);
+    await tester.pumpWidget(_host(AfriLiveTile(room: room, onTap: () {})));
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriLiveTile), findsOneWidget);
+  });
+
 }
