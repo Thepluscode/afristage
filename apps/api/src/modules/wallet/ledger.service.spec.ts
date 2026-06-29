@@ -155,3 +155,25 @@ describe('LedgerService.postTransaction', () => {
     expect(tx).toBe(existing);
   });
 });
+
+describe('LedgerService guarded-account direction arms', () => {
+  it('nets both credit and debit entries (existing + new) on a guarded account', async () => {
+    const prisma = makePrisma({
+      g: [
+        { accountId: 'g', direction: LedgerDirection.CREDIT, amountMinor: 100n },
+        { accountId: 'g', direction: LedgerDirection.DEBIT, amountMinor: 20n }
+      ]
+    }); // existing balance 80
+    const svc = new LedgerService(prisma as any);
+    const res = await svc.postTransaction({
+      type: LedgerTransactionType.GIFT,
+      idempotencyKey: 'k-dirs',
+      guardNonNegative: ['g'],
+      entries: [
+        { accountId: 'g', direction: LedgerDirection.CREDIT, amountMinor: 50n, currency: NGN },
+        { accountId: 'g', direction: LedgerDirection.DEBIT, amountMinor: 50n, currency: NGN }
+      ]
+    });
+    expect(res).toBeDefined(); // balance 80 + 50 - 50 = 80 >= 0
+  });
+});

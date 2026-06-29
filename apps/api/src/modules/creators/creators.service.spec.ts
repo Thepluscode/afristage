@@ -148,3 +148,38 @@ describe('CreatorsService.dashboard', () => {
     expect(res).toMatchObject({ totalGiftTransactions: 0, totalRooms: 0, followers: 0 });
   });
 });
+
+describe('CreatorsService remaining branches', () => {
+  it('myRooms falls back to the default page size for a zero limit', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    await service.myRooms('c1', 0);
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+  });
+
+  it('dashboard with no supporters returns an empty leaderboard', async () => {
+    const { service, prisma } = buildFull();
+    prisma.giftTransaction.groupBy.mockResolvedValue([]);
+    const res = await service.dashboard('c1');
+    expect(res.topSupporters).toEqual([]);
+    expect(prisma.profile.findMany).not.toHaveBeenCalled();
+  });
+
+  it('dashboard tolerates a supporter with no profile + null coin sum', async () => {
+    const { service, prisma } = buildFull();
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ viewerId: 's1', _sum: { totalCoinAmount: null } }]);
+    prisma.profile.findMany.mockResolvedValue([]);
+    const res = await service.dashboard('c1');
+    expect(res.topSupporters[0]).toMatchObject({ displayName: 'Supporter', coins: 0 });
+  });
+
+  it('getPublic without a viewer skips follow + reminder lookups', async () => {
+    const { service, prisma } = buildFull();
+    prisma.creatorProfile.findFirst.mockResolvedValue({ id: 'cp1', userId: 'c1', user: { profile: {} } });
+    prisma.liveRoom.findFirst.mockResolvedValue({ id: 'r1', title: 'Next', category: 'MUSIC', scheduledStartAt: new Date() });
+    const res = await service.getPublic('c1'); // no viewerId
+    expect(res).toMatchObject({ isFollowing: false });
+    expect((res as any).upcomingRoom.reminded).toBeUndefined();
+    expect(prisma.roomReminder.findUnique).not.toHaveBeenCalled();
+  });
+});

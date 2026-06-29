@@ -62,3 +62,28 @@ describe('UploadsService.presign', () => {
     );
   });
 });
+
+describe('UploadsService config + client branches', () => {
+  it('derives the CDN base from S3_PUBLIC_URL + bucket when CDN_BASE_URL is unset', async () => {
+    delete process.env.CDN_BASE_URL;
+    process.env.S3_BUCKET = 'b';
+    process.env.S3_ACCESS_KEY_ID = 'k';
+    process.env.S3_SECRET_ACCESS_KEY = 's';
+    process.env.S3_PUBLIC_URL = 'https://s3.example';
+    const svc = new UploadsService();
+    const res = await svc.presign('u1', { contentType: 'image/png', kind: 'avatar' } as any);
+    expect(res.fileUrl).toContain('https://s3.example/b/');
+  });
+
+  it('signs with a path-style endpoint and an empty secret fallback', async () => {
+    process.env.S3_BUCKET = 'b';
+    process.env.S3_ACCESS_KEY_ID = 'k';
+    process.env.CDN_BASE_URL = 'https://cdn';
+    delete process.env.S3_SECRET_ACCESS_KEY; // exercises the '' fallback
+    process.env.S3_ENDPOINT = 'https://minio.local';
+    process.env.S3_FORCE_PATH_STYLE = 'true';
+    const svc = new UploadsService();
+    const res = await svc.presign('u1', { contentType: 'image/png', kind: 'gift_animation' } as any);
+    expect(res.uploadUrl).toBeDefined();
+  });
+});
