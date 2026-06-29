@@ -139,8 +139,9 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: AfriErrorState(
                       title: 'Search failed',
                       body: 'Check your connection and try again.',
-                      onRetry: () =>
-                          setState(() => _results = _lastLoad?.call()),
+                      onRetry: () => setState(() {
+                        _results = _lastLoad?.call();
+                      }),
                     ),
                   );
                 }

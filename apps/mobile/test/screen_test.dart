@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/models/models.dart';
@@ -19,8 +21,11 @@ import 'package:afristage_mobile/screens/register_screen.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/support_screen.dart';
 import 'package:afristage_mobile/screens/support_ticket_screen.dart';
+import 'package:afristage_mobile/screens/room_screen.dart';
+import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -77,6 +82,56 @@ Widget _wrapState(AppState state, Widget child) =>
       value: state,
       child: MaterialApp(home: child),
     );
+
+/// Fake that throws on the FIRST getList(path) then returns [after] — lets a
+/// retry tap resolve (covering the onRetry closure) without leaving an unhandled
+/// rejected future from a still-failing reload.
+class _RetryApi extends ApiClient {
+  _RetryApi(this.path, this.after);
+  final String path;
+  final List<dynamic> after;
+  int calls = 0;
+  @override
+  Future<List<dynamic>> getList(String p) async {
+    if (p == path) {
+      calls++;
+      if (calls == 1) throw const ApiException(500, 'boom');
+      return after;
+    }
+    return const [];
+  }
+}
+
+/// No-op fake socket so screens that navigate into RoomScreen don't open a real
+/// websocket. Captures on()/onConnect()/etc. via noSuchMethod.
+class _NoopSocket implements io.Socket {
+  @override
+  dynamic noSuchMethod(Invocation i) => this;
+}
+
+/// Install the fake socket as RoomScreen's default factory for this test.
+void _stubRoomSockets() {
+  debugRoomSocketFactory = (uri, opts) => _NoopSocket();
+  addTearDown(() => debugRoomSocketFactory = io.io);
+}
+
+/// Returns each queued future in order for getList (so a test can hand a
+/// deferred completer that errors AFTER the FutureBuilder has subscribed —
+/// avoiding an unhandled rejection from a future created mid-test).
+class _QueueApi extends ApiClient {
+  _QueueApi(this._q);
+  final List<Future<List<dynamic>> Function()> _q;
+  int i = 0;
+  @override
+  Future<List<dynamic>> getList(String p) =>
+      i < _q.length ? _q[i++]() : Future.value(const <dynamic>[]);
+}
+
+/// Pull-to-refresh: fling the first scrollable down and let it settle.
+Future<void> _pullToRefresh(WidgetTester tester) async {
+  await tester.fling(find.byType(Scrollable).first, const Offset(0, 300), 1000);
+  await tester.pumpAndSettle();
+}
 
 /// Tall surface so long forms / bottom sheets don't overflow the 800px default.
 void _tall(WidgetTester tester) {
@@ -935,5 +990,133 @@ void main() {
     await tester.tap(find.text('Save payout method'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a label for this method.'), findsOneWidget);
+  });
+
+  testWidgets('HistoryScreen error -> retry recovers, then refreshes', (tester) async {
+    final api = _RetryApi('/wallet/me/ledger', [
+      {'direction': 'DEBIT', 'amountMinor': 100, 'currency': 'COIN', 'transaction': {'type': 'GIFT'}, 'account': {'accountType': 'COIN'}, 'createdAt': '2026-06-20T10:00:00Z'},
+    ]);
+    await tester.pumpWidget(_wrap(api, const HistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load history'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('GIFT'), findsOneWidget);
+    await _pullToRefresh(tester);
+  });
+
+  testWidgets('HistoryScreen empty state', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const HistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No transactions yet'), findsOneWidget);
+  });
+
+  testWidgets('CreatorRooms error -> retry recovers (with watch-time), refreshes',
+      (tester) async {
+    final api = _RetryApi('/creators/me/rooms', [
+      {'title': 'Friday Show', 'status': 'ENDED', 'peakViewers': 5, 'totalWatchSeconds': 7325, 'giftVolumeCoins': 100, 'giftCount': 3, 'startedAt': '2026-06-20T10:00:00Z'},
+    ]);
+    await tester.pumpWidget(_wrap(api, const CreatorRoomsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load your shows'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Friday Show'), findsOneWidget);
+    expect(find.text('2h 2m'), findsOneWidget); // watch-time hours branch
+    await _pullToRefresh(tester);
+  });
+
+  testWidgets('CreatorRooms empty state', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const CreatorRoomsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No shows yet'), findsOneWidget);
+  });
+
+  testWidgets('GiftHistory error -> retry, refresh, and tap-through to creator',
+      (tester) async {
+    final api = _RetryApi('/gifts/me', [
+      {'giftName': 'Rose', 'quantity': 2, 'totalCoinAmount': 20, 'creatorId': 'c1', 'creatorName': 'Zola', 'roomTitle': 'R1', 'createdAt': '2026-06-20T10:00:00Z'},
+      {'giftName': 'Crown', 'quantity': 1, 'totalCoinAmount': 50, 'creatorName': 'Ada', 'roomTitle': 'R2', 'createdAt': '2026-06-21T10:00:00Z'},
+    ]);
+    await tester.pumpWidget(_wrap(api, const GiftHistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load your gifts'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rose ×2'), findsOneWidget);
+    await _pullToRefresh(tester);
+    await tester.tap(find.text('Rose ×2')); // creatorId present -> nav to profile
+    await tester.pumpAndSettle();
+    expect(find.text('Creator'), findsWidgets); // CreatorProfileScreen app bar
+  });
+
+  testWidgets('LiveScreen error -> retry, refresh, and open a room', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final api = _RetryApi('/live-rooms', [
+      {'id': 'r1', 'title': 'Amapiano', 'category': 'MUSIC', 'country': 'NG', 'language': 'pidgin', 'status': 'LIVE', 'hostName': 'DJ'},
+    ]);
+    await tester.pumpWidget(_wrap(api, const LiveScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load live rooms'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Amapiano'), findsOneWidget);
+    await _pullToRefresh(tester);
+    await tester.tap(find.byType(AfriLiveCard).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('PayoutHistory retry recovers (HELD row) + refresh', (tester) async {
+    final api = _RetryApi('/payouts/me', [
+      {'id': 'p1', 'coinAmount': 500, 'status': 'HELD', 'createdAt': '2026-06-20T10:00:00Z'},
+    ]);
+    await tester.pumpWidget(_wrap(api, const PayoutHistoryScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('HELD'), findsOneWidget); // _statusColor HELD branch
+    await _pullToRefresh(tester);
+  });
+
+  testWidgets('Search error -> retry, then open a room from results', (tester) async {
+    _tall(tester);
+    _stubRoomSockets();
+    final errC = Completer<List<dynamic>>();
+    final api = _QueueApi([
+      () => errC.future, // first search: deferred error (completed post-subscribe)
+      () => Future.value([
+            {'id': 'r1', 'title': 'Afro Live', 'category': 'MUSIC', 'country': 'NG', 'language': 'pidgin', 'status': 'LIVE', 'host': {'profile': {'displayName': 'DJ'}}},
+          ]),
+    ]);
+    await tester.pumpWidget(_wrap(api, const SearchScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'afro');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump(); // FutureBuilder subscribes to the still-pending future
+    errC.completeError(const ApiException(500, 'boom'));
+    await tester.pumpAndSettle();
+    expect(find.text('Search failed'), findsOneWidget);
+    await tester.tap(find.text('Retry')); // _lastLoad -> 2nd queued future (success)
+    await tester.pumpAndSettle();
+    expect(find.text('Afro Live'), findsOneWidget);
+    await tester.tap(find.byType(AfriLiveCard).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('Search button + empty query clears results', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeApi(), const SearchScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'x');
+    await tester.tap(find.byTooltip('Search')); // search action button
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '   '); // blank after trim
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.text('Find a live room'), findsOneWidget);
   });
 }
