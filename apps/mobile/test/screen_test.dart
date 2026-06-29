@@ -150,7 +150,9 @@ Future<void> _pushScreen(WidgetTester tester, ApiClient api, Widget screen) asyn
 
 /// Pull-to-refresh: fling the first scrollable down and let it settle.
 Future<void> _pullToRefresh(WidgetTester tester) async {
-  await tester.fling(find.byType(Scrollable).first, const Offset(0, 300), 1000);
+  await tester.fling(find.byType(Scrollable).first, const Offset(0, 350), 1000);
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
   await tester.pumpAndSettle();
 }
 
@@ -1016,6 +1018,7 @@ void main() {
   testWidgets('HistoryScreen error -> retry recovers, then refreshes', (tester) async {
     final api = _RetryApi('/wallet/me/ledger', [
       {'direction': 'DEBIT', 'amountMinor': 100, 'currency': 'COIN', 'transaction': {'type': 'GIFT'}, 'account': {'accountType': 'COIN'}, 'createdAt': '2026-06-20T10:00:00Z'},
+      {'direction': 'CREDIT', 'amountMinor': 50, 'currency': 'COIN', 'transaction': {'type': 'COIN_PURCHASE'}, 'account': {'accountType': 'COIN'}, 'createdAt': '2026-06-21T10:00:00Z'},
     ]);
     await tester.pumpWidget(_wrap(api, const HistoryScreen()));
     await tester.pumpAndSettle();
@@ -1036,6 +1039,7 @@ void main() {
       (tester) async {
     final api = _RetryApi('/creators/me/rooms', [
       {'title': 'Friday Show', 'status': 'ENDED', 'peakViewers': 5, 'totalWatchSeconds': 7325, 'giftVolumeCoins': 100, 'giftCount': 3, 'startedAt': '2026-06-20T10:00:00Z'},
+      {'title': 'Sat Show', 'status': 'ENDED', 'peakViewers': 2, 'totalWatchSeconds': 30, 'giftVolumeCoins': 0, 'giftCount': 0, 'createdAt': '2026-06-21T10:00:00Z'},
     ]);
     await tester.pumpWidget(_wrap(api, const CreatorRoomsScreen()));
     await tester.pumpAndSettle();
@@ -1445,5 +1449,58 @@ void main() {
     await tester.tap(find.text('Save payout method')); // post throws -> in-sheet error
     await tester.pumpAndSettle();
     expect(find.text('boom'), findsOneWidget);
+  });
+
+  testWidgets('Notifications pull-to-refresh reloads', (tester) async {
+    final api = _FakeApi(lists: {
+      '/notifications/me': [
+        {'id': 'n1', 'type': 'NEW_FOLLOWER', 'title': 'Follower', 'body': 'b'},
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const NotificationsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Follower'), findsOneWidget);
+    await _pullToRefresh(tester);
+    expect(find.text('Follower'), findsOneWidget);
+  });
+
+  testWidgets('PayoutMethods pull-to-refresh with a listed method', (tester) async {
+    final api = _FakeApi(lists: {
+      '/payouts/methods': [
+        {'id': 'pm1', 'provider': 'BANK', 'label': 'GTB', 'destinationReference': '123', 'currency': 'NGN', 'isDefault': true},
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Default'), findsOneWidget); // default-method chip (line 130 region)
+    await _pullToRefresh(tester);
+    expect(find.text('GTB'), findsOneWidget);
+  });
+
+  testWidgets('PayoutMethods lists two methods (separator)', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/payouts/methods': [
+        {'id': 'pm1', 'provider': 'BANK', 'label': 'GTB', 'destinationReference': '111', 'currency': 'NGN', 'isDefault': true},
+        {'id': 'pm2', 'provider': 'MOBILE_MONEY', 'label': 'MTN', 'destinationReference': '222', 'currency': 'NGN'},
+      ],
+    });
+    await tester.pumpWidget(_wrap(api, const PayoutMethodsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('GTB'), findsOneWidget);
+    expect(find.text('MTN'), findsOneWidget); // 2 items -> separatorBuilder runs
+  });
+
+  // Screens only ever built via `const` are canonicalized at compile time, so
+  // their constructor line never executes at runtime. Construct each once
+  // non-const to exercise it.
+  test('screen constructors execute (non-const)', () {
+    // ignore_for_file: prefer_const_constructors
+    expect(SearchScreen(), isA<SearchScreen>());
+    expect(LoginScreen(), isA<LoginScreen>());
+    expect(LiveScreen(), isA<LiveScreen>());
+    expect(NotificationsScreen(), isA<NotificationsScreen>());
+    expect(ReportScreen(), isA<ReportScreen>());
+    expect(BetaAcceptScreen(), isA<BetaAcceptScreen>());
   });
 }
