@@ -183,7 +183,8 @@ void main() {
         ),
       ),
     ));
-    expect(find.bySemanticsLabel('Live room: Friday Afrobeats Live by Zola Kim'),
+    expect(
+        find.bySemanticsLabel('Live room: Friday Afrobeats Live by Zola Kim'),
         findsOneWidget);
     handle.dispose();
   });
@@ -195,17 +196,16 @@ void main() {
       home: Scaffold(
         body: Column(children: [
           AfriLiveCard(
-              title: 'Tappable',
-              category: 'Music',
-              creator: 'A',
-              onTap: () {}),
+              title: 'Tappable', category: 'Music', creator: 'A', onTap: () {}),
           const AfriLiveCard(title: 'Preview', category: 'Music', creator: 'B'),
         ]),
       ),
     ));
-    expect(tester.getSemantics(find.bySemanticsLabel('Live room: Tappable by A')),
+    expect(
+        tester.getSemantics(find.bySemanticsLabel('Live room: Tappable by A')),
         matchesSemantics(isButton: true, label: 'Live room: Tappable by A'));
-    expect(tester.getSemantics(find.bySemanticsLabel('Live room: Preview by B')),
+    expect(
+        tester.getSemantics(find.bySemanticsLabel('Live room: Preview by B')),
         matchesSemantics(isButton: false, label: 'Live room: Preview by B'));
     handle.dispose();
   });

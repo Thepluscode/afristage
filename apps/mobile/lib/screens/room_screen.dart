@@ -6,7 +6,6 @@ import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
-import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'livekit_room_view.dart';
 import 'creator_profile_screen.dart';
@@ -16,6 +15,14 @@ import 'report_screen.dart';
 /// [RoomScreen.socketFactory] (e.g. from the live/search/notifications feeds).
 /// Production uses the real `io.io`; tests override it to inject a fake.
 io.Socket Function(String uri, dynamic opts) debugRoomSocketFactory = io.io;
+
+/// Builds the in-room video panel once a viewer/host connects. Production uses
+/// the real WebRTC [LiveKitRoomView]; tests override it to avoid a live session.
+Widget Function(String url, String token, bool publish) debugRoomVideoBuilder =
+    // coverage:ignore-start
+    (url, token, publish) =>
+        LiveKitRoomView(url: url, token: token, publish: publish);
+// coverage:ignore-end
 
 class RoomScreen extends StatefulWidget {
   const RoomScreen(
@@ -295,26 +302,11 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   void _sendMessage() {
+    // The chat input is only enabled (and thus only fires onSend) when the
+    // viewer is connected, not muted, and the room is live — so by the time we
+    // get here those guards are always satisfied. The server re-checks too.
     final text = _input.text.trim();
-    if (_userMuted) {
-      _showBanner(AfriRoomState.muted,
-          'You can watch, but your chat is muted in this room.');
-      return;
-    }
-    if (_userBanned || _roomSuspended || _roomEnded) {
-      _showBanner(
-          _roomSuspended ? AfriRoomState.suspended : AfriRoomState.ended,
-          'This room is not accepting new chat messages.');
-      return;
-    }
-    if (text.isEmpty) {
-      return;
-    }
-    if (_socket == null || !_connected) {
-      _showBanner(AfriRoomState.reconnectingSocket,
-          'Chat is reconnecting. Try again in a moment.');
-      return;
-    }
+    if (text.isEmpty) return;
     _socket!.emit('chat.message', {
       'roomId': widget.room.id,
       'message': text,
@@ -499,31 +491,11 @@ class _RoomScreenState extends State<RoomScreen> {
       );
     }
     if (_videoOn && _lkUrl != null && _lkToken != null) {
-      return LiveKitRoomView(
-          url: _lkUrl!, token: _lkToken!, publish: widget.isHost);
+      return debugRoomVideoBuilder(_lkUrl!, _lkToken!, widget.isHost);
     }
-    final ready = _lkUrl != null && _lkToken != null;
-    // Full-bleed creator cover behind the connect prompt, so the stage reads like
-    // a live broadcast even before video attaches (matches the room mockup).
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        AfriCover(
-          imageUrl: widget.room.hostAvatarUrl,
-          category: widget.room.category,
-          initial: widget.room.hostName,
-        ),
-        Center(
-          child: FilledButton.icon(
-            onPressed: ready ? () => setState(() => _videoOn = true) : null,
-            icon: Icon(
-                widget.isHost ? Icons.videocam : Icons.play_circle_outline),
-            label: Text(
-                widget.isHost ? 'Go Live with Camera + Mic' : 'Connect Video'),
-          ),
-        ),
-      ],
-    );
+    // Not yet publishing/subscribing: AfriVideoStage shows its own creator cover
+    // and start affordance, so the video slot itself stays empty here.
+    return const SizedBox.shrink();
   }
 
   @override

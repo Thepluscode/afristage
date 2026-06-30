@@ -1793,8 +1793,9 @@ class AfriLiveTopBar extends StatelessWidget {
                   // When tappable, present one clean "<name>, view profile"
                   // button; otherwise leave the name to be read normally.
                   excludeSemantics: onCreatorTap != null,
-                  label:
-                      onCreatorTap == null ? null : '$creatorName, view profile',
+                  label: onCreatorTap == null
+                      ? null
+                      : '$creatorName, view profile',
                   child: GestureDetector(
                     onTap: onCreatorTap,
                     behavior: HitTestBehavior.opaque,

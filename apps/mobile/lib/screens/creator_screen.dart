@@ -102,8 +102,8 @@ class _CreatorScreenState extends State<CreatorScreen> {
     // the dialog route is fully removed — never read mid-exit-animation.
     return showDialog<String>(
       context: context,
-      builder: (_) =>
-          _PromptDialog(label: label, initial: initial, confirmLabel: confirmLabel),
+      builder: (_) => _PromptDialog(
+          label: label, initial: initial, confirmLabel: confirmLabel),
     );
   }
 

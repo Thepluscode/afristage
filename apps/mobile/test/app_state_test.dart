@@ -29,7 +29,8 @@ class _FakeStorage implements FlutterSecureStorage {
 
 class _AuthApi extends ApiClient {
   @override
-  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> post(String path,
+      [Map<String, dynamic>? body]) async {
     if (path.contains('/auth/')) {
       return {
         'accessToken': 'at',
@@ -109,8 +110,13 @@ void main() {
 class _CfgApi extends ApiClient {
   Object? walletError;
   @override
-  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async => {
-        'accessToken': 'at', 'refreshToken': 'rt', 'userId': 'u1', 'role': 'VIEWER'
+  Future<Map<String, dynamic>> post(String path,
+          [Map<String, dynamic>? body]) async =>
+      {
+        'accessToken': 'at',
+        'refreshToken': 'rt',
+        'userId': 'u1',
+        'role': 'VIEWER'
       };
   @override
   Future<Map<String, dynamic>> get(String path) async {
@@ -122,7 +128,8 @@ class _CfgApi extends ApiClient {
 }
 
 void _extra() {
-  test('restore with a truly-expired token logs out (wallet ApiException)', () async {
+  test('restore with a truly-expired token logs out (wallet ApiException)',
+      () async {
     final storage = _FakeStorage();
     await AppState(api: _AuthApi(), storage: storage).login('e@x.com', 'pw');
     final api = _CfgApi()..walletError = const ApiException(401, 'expired');
@@ -140,14 +147,16 @@ void _extra() {
     expect(s.isAuthenticated, isTrue); // kept; wallet refetches later
   });
 
-  test('restore with no stored token finishes restoring unauthenticated', () async {
+  test('restore with no stored token finishes restoring unauthenticated',
+      () async {
     final s = AppState(api: _CfgApi(), storage: _FakeStorage());
     await s.restore();
     expect(s.isRestoring, isFalse);
     expect(s.isAuthenticated, isFalse);
   });
 
-  test('onTokensRefreshed persists the new pair; onAuthCleared logs out', () async {
+  test('onTokensRefreshed persists the new pair; onAuthCleared logs out',
+      () async {
     final storage = _FakeStorage();
     final s = AppState(api: _CfgApi(), storage: storage);
     await s.api.onTokensRefreshed!('new-at', 'new-rt');

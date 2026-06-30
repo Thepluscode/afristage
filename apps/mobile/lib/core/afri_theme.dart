@@ -46,7 +46,10 @@ class AfriTheme {
         backgroundColor: AfriColors.stage,
         foregroundColor: AfriColors.text,
         titleTextStyle: TextStyle(
-            fontFamily: fontFamily, fontSize: 20, fontWeight: FontWeight.w800, color: AfriColors.text),
+            fontFamily: fontFamily,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: AfriColors.text),
       ),
       cardTheme: CardThemeData(
         color: AfriColors.elevated,
