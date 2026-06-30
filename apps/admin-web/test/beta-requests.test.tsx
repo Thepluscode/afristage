@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -75,24 +75,27 @@ describe('BetaRequestsPage', () => {
   it('issues an invite when confirmed and shows the one-time code', async () => {
     vi.mocked(adminGet).mockResolvedValue([req({ status: 'PENDING' })]);
     vi.mocked(adminPost).mockResolvedValue({ code: 'ONE-TIME-CODE' } as never);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<BetaRequestsPage />);
     await screen.findByText('wait@example.com');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Issue invite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Issue invite' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Issue invite' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/beta-requests/req-1/invite', { type: 'CREATOR' })
     );
     expect(await screen.findByText('ONE-TIME-CODE')).toBeInTheDocument();
   });
 
-  it('does not issue an invite when confirm is cancelled', async () => {
+  it('does not issue an invite when the dialog is cancelled', async () => {
     vi.mocked(adminGet).mockResolvedValue([req({ status: 'PENDING' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<BetaRequestsPage />);
     await screen.findByText('wait@example.com');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Issue invite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Issue invite' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' })); // cancel
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(adminPost).not.toHaveBeenCalled();
   });
 

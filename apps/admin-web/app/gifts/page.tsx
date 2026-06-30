@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { adminGet, adminPost, adminPatch } from "../../lib/api";
-import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge } from "../admin-ui";
+import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge } from "../admin-ui";
 
 type Gift = {
   id: string;
@@ -71,10 +71,8 @@ export default function GiftsPage() {
     await load();
   }
 
-  async function editPrice(g: Gift) {
-    const v = prompt(`New coin price for ${g.name}`, String(g.coinPrice));
-    if (v == null) return;
-    await adminPatch(`/admin/gifts/${g.id}`, { coinPrice: Number(v) });
+  async function editPrice(g: Gift, value: string) {
+    await adminPatch(`/admin/gifts/${g.id}`, { coinPrice: Number(value) });
     await load();
   }
 
@@ -121,12 +119,17 @@ export default function GiftsPage() {
                 <td>{g.animationUrl ? <span className="pill success">Configured</span> : <span className="pill warning">Missing</span>}</td>
                 <td>
                   <ActionMenu>
-                  <button
-                    className="button secondary"
-                    onClick={() => editPrice(g)}
-                  >
-                    Edit Price
-                  </button>
+                  <PromptDialog
+                    triggerLabel="Edit Price"
+                    title="Edit price"
+                    body={`Set a new coin price for ${g.name}.`}
+                    inputLabel="Coin price"
+                    placeholder="Coins"
+                    defaultValue={String(g.coinPrice)}
+                    confirmLabel="Save Price"
+                    required
+                    onSubmit={(v) => editPrice(g, v)}
+                  />
                   <button
                     className="button secondary"
                     disabled={uploadingId === g.id}

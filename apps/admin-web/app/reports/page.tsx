@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
-import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PriorityBadge, RoomCell, StatusBadge, UserCell } from '../admin-ui';
+import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PriorityBadge, PromptDialog, RoomCell, StatusBadge, UserCell } from '../admin-ui';
 
 type Report = {
   id: string;
@@ -34,9 +34,8 @@ export default function ReportsPage() {
     load();
   }, []);
 
-  async function act(id: string, action: string) {
-    const reason = prompt('Reason') || action;
-    await adminPost(`/admin/reports/${id}/action`, { action, reason });
+  async function act(id: string, action: string, reason: string) {
+    await adminPost(`/admin/reports/${id}/action`, { action, reason: reason || action });
     await load();
   }
 
@@ -80,12 +79,12 @@ export default function ReportsPage() {
                 <td>Unassigned</td>
                 <td>
                   <ActionMenu>
-                  <button className="button" onClick={() => act(r.id, 'REVIEWING')}>Review</button>
-                  <button className="button danger" onClick={() => act(r.id, 'ESCALATE')}>Escalate</button>
-                  <button className="button secondary" onClick={() => act(r.id, 'DISMISS')}>Dismiss</button>
-                  <button className="button danger" onClick={() => act(r.id, 'ACTIONED')}>Mark Actioned</button>
-                  <button className="button secondary" onClick={() => act(r.id, 'SUSPEND_USER')}>Suspend User</button>
-                  <button className="button secondary" onClick={() => act(r.id, 'SUSPEND_ROOM')}>Suspend Room</button>
+                  <PromptDialog triggerLabel="Review" triggerClassName="button" title="Review report" inputLabel="Reason" placeholder="Optional note" confirmLabel="Review" onSubmit={(reason) => act(r.id, 'REVIEWING', reason)} />
+                  <PromptDialog triggerLabel="Escalate" danger title="Escalate report" inputLabel="Reason" placeholder="Why escalate?" confirmLabel="Escalate" onSubmit={(reason) => act(r.id, 'ESCALATE', reason)} />
+                  <PromptDialog triggerLabel="Dismiss" title="Dismiss report" inputLabel="Reason" placeholder="Why dismiss?" confirmLabel="Dismiss" onSubmit={(reason) => act(r.id, 'DISMISS', reason)} />
+                  <PromptDialog triggerLabel="Mark Actioned" danger title="Mark report actioned" inputLabel="Reason" placeholder="Action taken" confirmLabel="Mark Actioned" onSubmit={(reason) => act(r.id, 'ACTIONED', reason)} />
+                  <PromptDialog triggerLabel="Suspend User" title="Suspend user" inputLabel="Reason" placeholder="Reason for suspension" confirmLabel="Suspend User" onSubmit={(reason) => act(r.id, 'SUSPEND_USER', reason)} />
+                  <PromptDialog triggerLabel="Suspend Room" title="Suspend room" inputLabel="Reason" placeholder="Reason for suspension" confirmLabel="Suspend Room" onSubmit={(reason) => act(r.id, 'SUSPEND_ROOM', reason)} />
                   </ActionMenu>
                 </td>
               </tr>

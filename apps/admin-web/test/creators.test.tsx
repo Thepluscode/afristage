@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -118,12 +118,13 @@ describe('CreatorsPage', () => {
 
   it('rejects a creator using a typed reason', async () => {
     vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'PENDING' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(window, 'prompt').mockReturnValue('bad behaviour');
     render(<CreatorsPage />);
     await screen.findByText('Stage Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'bad behaviour' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reject' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/reject', { reason: 'bad behaviour' })
     );
@@ -131,35 +132,36 @@ describe('CreatorsPage', () => {
 
   it('rejects a creator falling back to the default reason', async () => {
     vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'PENDING' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(window, 'prompt').mockReturnValue(null);
     render(<CreatorsPage />);
     await screen.findByText('Stage Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' })); // trigger
+    // submit with an empty reason -> default fallback
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reject' }));
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/reject', { reason: 'Rejected by admin' })
     );
   });
 
-  it('does not reject when confirm is cancelled', async () => {
+  it('does not reject when the dialog is cancelled', async () => {
     vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'PENDING' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<CreatorsPage />);
     await screen.findByText('Stage Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(adminPost).not.toHaveBeenCalled();
   });
 
   it('suspends a creator using a typed reason', async () => {
     vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'APPROVED' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(window, 'prompt').mockReturnValue('policy breach');
     render(<CreatorsPage />);
     await screen.findByText('Stage Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'policy breach' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Suspend' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/suspend', { reason: 'policy breach' })
     );
@@ -167,12 +169,12 @@ describe('CreatorsPage', () => {
 
   it('suspends a creator falling back to the default reason', async () => {
     vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'APPROVED' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(window, 'prompt').mockReturnValue('');
     render(<CreatorsPage />);
     await screen.findByText('Stage Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' })); // trigger
+    // submit with an empty reason -> default fallback
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Suspend' }));
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/suspend', { reason: 'Suspended by admin' })
     );

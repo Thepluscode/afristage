@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
-import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, UserCell } from "../admin-ui";
+import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge, UserCell } from "../admin-ui";
 
 type Creator = {
   id: string;
@@ -39,14 +39,12 @@ export default function CreatorsPage() {
     await adminPost(`/admin/creators/${userId}/approve`);
     await load();
   }
-  async function reject(userId: string) {
-    const reason = prompt("Rejection reason") || "Rejected by admin";
-    await adminPost(`/admin/creators/${userId}/reject`, { reason });
+  async function reject(userId: string, reason: string) {
+    await adminPost(`/admin/creators/${userId}/reject`, { reason: reason || "Rejected by admin" });
     await load();
   }
-  async function suspend(userId: string) {
-    const reason = prompt("Suspension reason") || "Suspended by admin";
-    await adminPost(`/admin/creators/${userId}/suspend`, { reason });
+  async function suspend(userId: string, reason: string) {
+    await adminPost(`/admin/creators/${userId}/suspend`, { reason: reason || "Suspended by admin" });
     await load();
   }
 
@@ -87,8 +85,8 @@ export default function CreatorsPage() {
                   >
                     Approve Creator
                   </button>
-                  <ConfirmDialog title="Reject creator" body="Rejecting requires a reason and blocks creator live access." confirmLabel="Reject" disabled={c.approvalStatus === "REJECTED"} onConfirm={() => reject(c.userId)} />
-                  <ConfirmDialog title="Suspend creator" body="Suspending disables creator live access and requires a reason." confirmLabel="Suspend" disabled={c.approvalStatus === "SUSPENDED"} onConfirm={() => suspend(c.userId)} />
+                  <PromptDialog triggerLabel="Reject" title="Reject creator" body="Rejecting requires a reason and blocks creator live access." inputLabel="Reason" placeholder="Reason for rejection" confirmLabel="Reject" danger disabled={c.approvalStatus === "REJECTED"} onSubmit={(reason) => reject(c.userId, reason)} />
+                  <PromptDialog triggerLabel="Suspend" title="Suspend creator" body="Suspending disables creator live access and requires a reason." inputLabel="Reason" placeholder="Reason for suspension" confirmLabel="Suspend" danger disabled={c.approvalStatus === "SUSPENDED"} onSubmit={(reason) => suspend(c.userId, reason)} />
                   </ActionMenu>
                 </td>
               </tr>

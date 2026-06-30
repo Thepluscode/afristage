@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -83,11 +83,14 @@ describe('BetaInvitesPage', () => {
 
   it('revokes a pending invite when confirmed (email body branch)', async () => {
     vi.mocked(adminGet).mockResolvedValue([invite({ status: 'PENDING' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<BetaInvitesPage />);
     await screen.findByText('invitee@example.com');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    // body uses the email
+    expect(within(dialog).getByText(/Revoke invite for invitee@example\.com\?/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Revoke' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/beta-invites/inv-1/revoke')
     );
@@ -95,25 +98,28 @@ describe('BetaInvitesPage', () => {
 
   it('revokes using the type in the body when email is missing', async () => {
     vi.mocked(adminGet).mockResolvedValue([invite({ id: 'inv-noemail', email: null, status: 'PENDING' })]);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<BetaInvitesPage />);
     await screen.findByText('VIEWER');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    // body falls back to the type when email is missing
+    expect(within(dialog).getByText(/Revoke invite for VIEWER\?/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Revoke' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/beta-invites/inv-noemail/revoke')
     );
-    // confirm body used the type fallback
-    expect(confirmSpy.mock.calls[0][0]).toContain('VIEWER');
   });
 
-  it('does not revoke when confirm is cancelled', async () => {
+  it('does not revoke when the dialog is cancelled', async () => {
     vi.mocked(adminGet).mockResolvedValue([invite({ status: 'PENDING' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<BetaInvitesPage />);
     await screen.findByText('invitee@example.com');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' })); // cancel
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(adminPost).not.toHaveBeenCalled();
   });
 });
