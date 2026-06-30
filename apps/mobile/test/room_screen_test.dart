@@ -1,6 +1,7 @@
 import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/models/models.dart';
+import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/room_screen.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
@@ -27,32 +28,88 @@ class _FakeSocket implements io.Socket {
 }
 
 class _RoomApi extends ApiClient {
-  _RoomApi({this.failJoin = false, this.gifts = const []});
+  _RoomApi({
+    this.failJoin = false,
+    this.gifts = const [],
+    this.topGifters = const [],
+    this.failGifts = false,
+    this.failGiftPost = false,
+    this.failFollow = false,
+    this.failEnd = false,
+    this.failMute = false,
+    this.giftResult = const {},
+  });
   final bool failJoin;
   final List<Map<String, dynamic>> gifts;
+  final List<Map<String, dynamic>> topGifters;
+  final bool failGifts;
+  final bool failGiftPost;
+  final bool failFollow;
+  final bool failEnd;
+  final bool failMute;
+  final Map<String, dynamic> giftResult;
   final posts = <String>[];
   final deletes = <String>[];
 
   @override
-  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> post(String path,
+      [Map<String, dynamic>? body]) async {
     if (failJoin && path.endsWith('/join-token')) {
       throw const ApiException(503, 'room offline');
     }
+    if (failGiftPost && path.endsWith('/gifts')) {
+      throw const ApiException(402, 'gift declined');
+    }
+    if (failEnd && path.endsWith('/end')) {
+      throw const ApiException(500, 'end failed');
+    }
+    if (failMute && path.contains('/mute/')) {
+      throw const ApiException(500, 'mute failed');
+    }
+    if (failFollow && path.endsWith('/follow')) {
+      throw const ApiException(500, 'follow failed');
+    }
     posts.add(path);
-    return path.endsWith('/join-token')
-        ? {'livekitUrl': 'ws://x', 'viewerToken': 'tok'}
-        : const {};
+    if (path.endsWith('/join-token')) {
+      return {'livekitUrl': 'ws://x', 'viewerToken': 'tok'};
+    }
+    if (path.endsWith('/gifts')) return giftResult;
+    return const {};
   }
 
   @override
   Future<Map<String, dynamic>> delete(String path) async {
+    if (failFollow && path.endsWith('/follow')) {
+      throw const ApiException(500, 'unfollow failed');
+    }
     deletes.add(path);
     return const {};
   }
 
   @override
-  Future<List<dynamic>> getList(String path) async =>
-      path == '/gifts' ? gifts : const [];
+  Future<Map<String, dynamic>> get(String path) async => path == '/wallet/me'
+      ? {'coinBalance': 1000, 'earningBalance': 0, 'payoutHoldBalance': 0}
+      : const {};
+
+  @override
+  Future<List<dynamic>> getList(String path) async {
+    if (path == '/gifts') {
+      if (failGifts) throw const ApiException(500, 'gift list down');
+      return gifts;
+    }
+    if (path.endsWith('/top-gifters')) return topGifters;
+    return const [];
+  }
+}
+
+class _TopGiftersDownApi extends _RoomApi {
+  @override
+  Future<List<dynamic>> getList(String path) async {
+    if (path.endsWith('/top-gifters')) {
+      throw const ApiException(500, 'leaderboard down');
+    }
+    return super.getList(path);
+  }
 }
 
 Widget _wrap(AppState state, Widget child) =>
@@ -81,10 +138,8 @@ void main() {
       (tester) async {
     final socket = _FakeSocket();
     final state = AppState(api: _RoomApi())..userId = 'v1';
-    await tester.pumpWidget(_wrap(
-        state,
-        RoomScreen(
-            room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
     // Let initState's async _connect (join-token + handler registration) settle.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -95,8 +150,8 @@ void main() {
     socket.fire('connect', null);
     socket.fire('room.viewer_count_updated', {'count': 99});
     socket.fire('gift.sent', {'giftName': 'Rose', 'quantity': 2});
-    socket.fire('chat.message_created',
-        {'senderName': 'Zola', 'message': 'hello'});
+    socket.fire(
+        'chat.message_created', {'senderName': 'Zola', 'message': 'hello'});
     socket.fire('reaction.sent', {'reactionType': 'heart'});
     socket.fire('connect_error', null);
     socket.fire('disconnect', null);
@@ -118,8 +173,8 @@ void main() {
     _tall(tester);
     final socket = _FakeSocket();
     final state = AppState(api: _RoomApi())..userId = 'v1';
-    await tester.pumpWidget(_wrap(
-        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -199,8 +254,8 @@ void main() {
     final socket = _FakeSocket();
     final api = _RoomApi();
     final state = AppState(api: api)..userId = 'v1';
-    await tester.pumpWidget(_wrap(
-        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -217,9 +272,10 @@ void main() {
     final api = _RoomApi(gifts: [
       {'id': 'g1', 'name': 'Rose', 'coinPrice': 50},
     ]);
-    final state = AppState(api: api)..userId = 'v1'; // wallet defaults to 0 coins
-    await tester.pumpWidget(_wrap(
-        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    final state = AppState(api: api)
+      ..userId = 'v1'; // wallet defaults to 0 coins
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -240,8 +296,8 @@ void main() {
     final api = _RoomApi(failJoin: true);
     final socket = _FakeSocket();
     final state = AppState(api: api)..userId = 'v1';
-    await tester.pumpWidget(_wrap(
-        state, RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -249,5 +305,427 @@ void main() {
     // renders the stage (the _connect catch-block set _error and bailed out).
     expect(api.posts, isEmpty);
     expect(find.byType(AfriVideoStage), findsOneWidget);
+  });
+
+  testWidgets('viewer sends a gift (funded wallet)', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(gifts: [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50}
+    ]);
+    final state = AppState(api: api)
+      ..userId = 'v1'
+      ..wallet = const Wallet(
+          coinBalance: 1000, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rose').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(api.posts, contains('/live-rooms/r1/gifts'));
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('viewer sends a reaction from the picker', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('connect', null); // so _connected -> reaction emits
+    await tester.pump();
+    await tester.tap(find.byType(AfriReactionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fire').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(AfriReactionLayer), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('viewer opens the creator profile and report', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Zola')); // creator tap -> profile
+    await tester.pumpAndSettle();
+    expect(find.text('Creator'), findsWidgets);
+  });
+
+  testWidgets('viewer connects video (stubbed)', (tester) async {
+    _tall(tester);
+    final original = debugRoomVideoBuilder;
+    debugRoomVideoBuilder = (u, t, p) => const Text('VIDEO-STUB');
+    addTearDown(() => debugRoomVideoBuilder = original);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.play_arrow_rounded)); // viewer start
+    await tester.pumpAndSettle();
+    expect(find.text('VIDEO-STUB'), findsOneWidget);
+  });
+
+  testWidgets('host mutes the latest viewer after a chat message',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi();
+    final state = AppState(api: api)..userId = 'h1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(),
+            hostToken: 'h',
+            livekitUrl: 'ws://x',
+            socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('chat.message_created', {
+      'senderId': 'v2',
+      'message': 'hey',
+      'sender': {
+        'profile': {'displayName': 'Vee'}
+      }
+    });
+    await tester.pump();
+    await tester.tap(find.text('Mute user'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(api.posts.any((p) => p.contains('/mute/')), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('top-gifter leaderboard renders from the backend',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(topGifters: [
+      {'displayName': 'Ada', 'totalCoins': 900},
+      {'totalCoins': 100}, // missing name -> 'Supporter' fallback
+    ]);
+    final state = AppState(api: api)..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.textContaining('Ada'), findsWidgets);
+  });
+
+  testWidgets('leaderboard failure is non-fatal', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    // getList('/top-gifters') is stubbed to throw via a subclass.
+    final state = AppState(api: _TopGiftersDownApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(AfriVideoStage), findsOneWidget); // still renders
+  });
+
+  testWidgets('viewer can send a chat message once connected', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('connect', null); // enables the chat input
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).first, '');
+    await tester.testTextInput
+        .receiveAction(TextInputAction.done); // empty -> no-op
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).first, 'hi all');
+    await tester.testTextInput.receiveAction(TextInputAction.done); // emits
+    await tester.pump();
+    expect(find.text('hi all'), findsNothing); // cleared after emit
+  });
+
+  testWidgets('other viewer muted + self banned events', (tester) async {
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('user.muted', {'userId': 'someone-else'}); // else branch
+    await tester.pump();
+    socket.fire('user.banned', {'userId': 'v1'}); // self banned
+    await tester.pump();
+    expect(find.byType(AfriRoomStateBanner), findsWidgets);
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('viewer follow toggles on then off, with rollback on failure',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi();
+    final state = AppState(api: api)..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Follow'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(api.posts, contains('/users/h1/follow')); // followed
+    await tester.tap(find.text('Following'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(api.deletes, contains('/users/h1/follow')); // unfollowed
+  });
+
+  testWidgets('follow failure rolls the button back', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi(failFollow: true))..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Follow'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Follow'), findsOneWidget); // rolled back
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('gift sheet surfaces a load failure', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi(failGifts: true))..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('gift list down'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('gift sheet buy-coins shortcut toasts', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(gifts: [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50}
+    ]);
+    final state = AppState(api: api)
+      ..userId = 'v1'
+      ..wallet =
+          const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Open Wallet to buy coins.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('gift with non-numeric earning falls back to coin price',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(gifts: [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50}
+    ], giftResult: const {
+      'creatorEarningMinor': 'oops'
+    });
+    final state = AppState(api: api)
+      ..userId = 'v1'
+      ..wallet = const Wallet(
+          coinBalance: 1000, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rose').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(api.posts, contains('/live-rooms/r1/gifts'));
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('insufficient coins blocks the gift', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(gifts: [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50}
+    ]);
+    final state = AppState(api: api)
+      ..userId = 'v1'
+      ..wallet =
+          const Wallet(coinBalance: 5, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rose').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('Not enough coins'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('gift post failure shows an error', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(gifts: [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50}
+    ], failGiftPost: true);
+    final state = AppState(api: api)
+      ..userId = 'v1'
+      ..wallet = const Wallet(
+          coinBalance: 1000, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rose').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('Gift failed'), findsWidgets);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('viewer can close the room and open report', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state,
+        Navigator(
+            onGenerateRoute: (_) => MaterialPageRoute(
+                builder: (_) => RoomScreen(
+                    room: _room(), socketFactory: (u, o) => socket)))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byTooltip('Close room'));
+    await tester.pump();
+  });
+
+  testWidgets('viewer opens report from the top bar', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byTooltip('Room options'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportScreen), findsOneWidget);
+  });
+
+  testWidgets('host toggles low-data and opens safety + end failure',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(failEnd: true);
+    final state = AppState(api: api)..userId = 'h1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(),
+            hostToken: 'h',
+            livekitUrl: 'ws://x',
+            socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Network ok')); // low-data toggle
+    await tester.pump();
+    await tester.tap(find.text('Safety'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('End Room'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('End Room').last); // confirm -> fails
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('end failed'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('host mute failure surfaces an error', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(failMute: true);
+    final state = AppState(api: api)..userId = 'h1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(),
+            hostToken: 'h',
+            livekitUrl: 'ws://x',
+            socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('chat.message_created', {
+      'senderId': 'v2',
+      'message': 'hey',
+      'sender': {
+        'profile': {'displayName': 'Vee'}
+      }
+    });
+    await tester.pump();
+    await tester.tap(find.text('Mute user'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('mute failed'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('blocked room toasts when gifting', (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('room.suspended', null); // blocked
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Gifts are closed for this room.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
   });
 }

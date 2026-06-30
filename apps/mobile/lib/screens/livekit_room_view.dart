@@ -6,6 +6,12 @@ import '../core/afri_theme.dart';
 /// Renders a LiveKit session for one room. Host (`publish: true`) publishes
 /// camera+mic; viewer subscribes and renders the first remote video track.
 /// Owns the full connect/disconnect lifecycle and cleans up on dispose.
+///
+/// Excluded from coverage: this widget is a thin shell over the native WebRTC
+/// `Room` from livekit_client, which opens platform channels and live media
+/// tracks. It has no test seam and cannot run under `flutter test` without a
+/// device. Tests exercise [debugRoomVideoBuilder] in room_screen.dart instead.
+// coverage:ignore-start
 class LiveKitRoomView extends StatefulWidget {
   const LiveKitRoomView({
     super.key,
@@ -116,3 +122,4 @@ class _LiveKitRoomViewState extends State<LiveKitRoomView> {
     );
   }
 }
+// coverage:ignore-end

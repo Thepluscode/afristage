@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-
   group('payoutMethodError', () {
     test('flags the first missing field in order', () {
       expect(
@@ -107,7 +106,29 @@ void main() {
 
   group('afriGiftIcon', () {
     test('maps gift names to icons across all branches', () {
-      for (final n in ['Rose', 'flower', 'Fire', 'flame', 'mic', 'Drum', 'music', 'Crown', 'king', 'royal', 'spotlight', 'light', 'star', 'Stage', 'concert', 'heart', 'love', 'diamond', 'gem', 'rocket', 'whatever']) {
+      for (final n in [
+        'Rose',
+        'flower',
+        'Fire',
+        'flame',
+        'mic',
+        'Drum',
+        'music',
+        'Crown',
+        'king',
+        'royal',
+        'spotlight',
+        'light',
+        'star',
+        'Stage',
+        'concert',
+        'heart',
+        'love',
+        'diamond',
+        'gem',
+        'rocket',
+        'whatever'
+      ]) {
         expect(afriGiftIcon(n), isA<IconData>());
       }
     });

@@ -1,10 +1,12 @@
+// ignore_for_file: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:url_launcher_platform_interface/link.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 /// Fake url_launcher platform so launchUrl() succeeds (or fails) in tests without
 /// a real platform channel. Install with [installFakeUrlLauncher].
-class FakeUrlLauncher extends UrlLauncherPlatform with MockPlatformInterfaceMixin {
+class FakeUrlLauncher extends UrlLauncherPlatform
+    with MockPlatformInterfaceMixin {
   final launched = <String>[];
   bool result = true;
 

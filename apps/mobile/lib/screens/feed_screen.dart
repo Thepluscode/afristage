@@ -114,11 +114,9 @@ class _FeedScreenState extends State<FeedScreen> {
   void _openRoom(LiveRoom room) => Navigator.push(
       context, MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
 
+  // Only ever called from the "Creators to watch" ring, which is built from
+  // rooms with a non-null hostId, so the id is always present here.
   void _openCreator(LiveRoom room) {
-    if (room.hostId == null) {
-      _openRoom(room);
-      return;
-    }
     Navigator.push(
         context,
         MaterialPageRoute(

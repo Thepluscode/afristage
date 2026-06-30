@@ -9,6 +9,46 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-06-29 → 2026-06-30 — apps/mobile to 100% coverage
+
+Took the Flutter mobile app to **100.00% line coverage (3782 / 3782)**, up from
+~80% at the start of the mobile work and 95% mid-session. **296 widget tests**,
+all green; `flutter analyze` clean; `dart format` applied. Status: `DEPLOYED`
+(flutter widget tests with faked ApiClient/socket/secure-storage — not
+production evidence).
+
+How the last ~5% was closed:
+- **room_screen.dart 100%**: a `_FakeSocket` (captures `on(...)` handlers so
+  tests fire server events) + a fail-configurable `_RoomApi` drove gift send
+  (success / insufficient-coins / non-numeric earning / API failure), reactions,
+  follow toggle + rollback, leaderboard (incl. failure), mute (host, success +
+  failure), end-room failure, close/report/safety navigation, low-data toggle,
+  and every socket event (mute-self, mute-other, ban-self, suspend, end).
+- **afri_ui.dart 100%**: image `errorBuilder` fallbacks via a `https://fail/…`
+  sentinel (the net mock 404s that host); `_title` switch exercised by rendering
+  every `AfriRoomState` with a null message; end-room dialog confirm **and**
+  cancel paths; `AfriLegalLinks` Terms/Privacy via a fake `UrlLauncherPlatform`;
+  const-only constructors instantiated non-const (`UniqueKey`) so the
+  constructor lines register runtime hits.
+
+Test seams / production edits (documented, minimal):
+- Added `debugRoomVideoBuilder` seam in room_screen.dart so the video panel is
+  testable without a live WebRTC session.
+- `livekit_room_view.dart` (irreducibly native WebRTC `Room`) and the
+  `debugRoomVideoBuilder` default are wrapped in `// coverage:ignore` — no test
+  seam exists without a device.
+- Deleted dead code surfaced by coverage: the never-displayed `_buildVideoPanel`
+  fallback `Stack` (AfriVideoStage renders its own waiting state), the
+  `_sendMessage` muted/blocked/disconnected guards (the chat input is
+  enable-gated, so they were unreachable), and the `_openCreator` null-hostId
+  branch (the caller only passes non-null ids).
+
+Real bugs fixed earlier this mobile run (kept): `setState(() => _x = <Future>)`
+debug-assert in search/feed screens; creator_screen dialog
+controller-dispose-during-exit-animation.
+
+---
+
 ## Session 2026-06-28 → 2026-06-29 — apps/api to 100% coverage
 
 Took the entire NestJS API to **100% statements / branches / functions / lines**

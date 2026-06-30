@@ -46,7 +46,8 @@ void main() {
             .having((e) => e.message, 'message', 'Nope')));
   });
 
-  test('falls back to a generic message when the error body has none', () async {
+  test('falls back to a generic message when the error body has none',
+      () async {
     final api = _client((_) async => http.Response('', 500));
     expect(
         () => api.get('/x'),
@@ -68,7 +69,9 @@ void main() {
         return _json({'accessToken': 'new-at', 'refreshToken': 'new-rt'});
       }
       calls++;
-      return calls == 1 ? _json({'message': 'expired'}, 401) : _json({'ok': true});
+      return calls == 1
+          ? _json({'message': 'expired'}, 401)
+          : _json({'ok': true});
     })
       ..refreshToken = 'old-rt'
       ..onTokensRefreshed = (a, r) async => savedAccess = a;
@@ -89,7 +92,8 @@ void main() {
       ..refreshToken = 'old-rt'
       ..onAuthCleared = () => cleared = true;
 
-    await expectLater(() => api.get('/protected'), throwsA(isA<ApiException>()));
+    await expectLater(
+        () => api.get('/protected'), throwsA(isA<ApiException>()));
     expect(cleared, isTrue);
   });
 
@@ -129,15 +133,18 @@ void main() {
     expect(const ApiException(404, 'nope').toString(), contains('nope'));
   });
 
-  test('a refresh whose call throws is treated as failed (logs, clears auth)', () async {
+  test('a refresh whose call throws is treated as failed (logs, clears auth)',
+      () async {
     var cleared = false;
     final api = _client((req) async {
-      if (req.url.path.endsWith('/auth/refresh')) throw Exception('network down');
+      if (req.url.path.endsWith('/auth/refresh'))
+        throw Exception('network down');
       return _json({'message': 'expired'}, 401);
     })
       ..refreshToken = 'rt'
       ..onAuthCleared = () => cleared = true;
-    await expectLater(() => api.get('/protected'), throwsA(isA<ApiException>()));
+    await expectLater(
+        () => api.get('/protected'), throwsA(isA<ApiException>()));
     expect(cleared, isTrue);
   });
 }
