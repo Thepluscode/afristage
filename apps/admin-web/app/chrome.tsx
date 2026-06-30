@@ -1,12 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
-  Bell,
   CalendarClock,
-  ChevronDown,
   ClipboardList,
   CreditCard,
   Gift,
@@ -16,19 +15,17 @@ import {
   Landmark,
   ListChecks,
   LogOut,
-  Menu,
   MonitorPlay,
-  Search,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
-  Sun,
   UserCheck,
   UserCog,
   Users
 } from 'lucide-react';
 import { adminLogout } from '../lib/api';
 import { AdminShell, SidebarGroup } from './admin-ui';
+import { Topbar } from './topbar';
 
 const iconSize = 16;
 
@@ -73,13 +70,22 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
   }
 ];
 
+// Flattened for the header quick-nav search.
+const navItems = navGroups.flatMap((g) => g.links.map(([label, href]) => ({ label, href, group: g.heading })));
+
 export function AdminChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [navOpen, setNavOpen] = useState(false);
+  // Auto-close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
   if (pathname === '/login') return <>{children}</>;
 
   return (
     <AdminShell>
-      <aside className="sidebar" aria-label="Admin navigation">
+      <aside className={navOpen ? 'sidebar open' : 'sidebar'} aria-label="Admin navigation">
         <Link className="brand" href="/">
           <span className="brand-mark" aria-hidden="true"><Sparkles size={24} /></span>
           <span>
@@ -97,26 +103,9 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
           Log out
         </button>
       </aside>
+      {navOpen && <div className="sidebar-scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />}
       <main className="main">
-        <div className="topbar">
-          <button className="icon-button" type="button" aria-label="Open navigation"><Menu size={18} /></button>
-          <strong>Mission control</strong>
-          <label className="global-search">
-            <span>Search</span>
-            <Search size={16} aria-hidden="true" />
-            <input placeholder="Search users, rooms, payouts, reports..." />
-          </label>
-          <button className="icon-button" type="button" aria-label="Toggle theme"><Sun size={18} /></button>
-          <button className="icon-button with-badge" type="button" aria-label="Notifications"><Bell size={18} /></button>
-          <button className="admin-menu" type="button">
-            <span className="admin-avatar">AO</span>
-            <span>
-              <strong>Super Admin</strong>
-              <small>Admin Operator</small>
-            </span>
-            <ChevronDown aria-hidden="true" className="admin-caret" size={16} />
-          </button>
-        </div>
+        <Topbar onMenu={() => setNavOpen((v) => !v)} navItems={navItems} />
         {children}
       </main>
     </AdminShell>
