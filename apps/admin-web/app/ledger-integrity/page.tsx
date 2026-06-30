@@ -43,7 +43,8 @@ export default function LedgerIntegrityPage() {
       <br />
       <DataTable columns={['Transaction', 'Affected users', 'Debits', 'Credits', 'Recommended action']} empty={<EmptyState>Ledger balanced. No imbalanced transactions detected.</EmptyState>}>
         {imbalanced.map((t) => {
-          const users = Array.from(new Set((t.entries ?? []).map((e) => e.account?.userId).filter(Boolean)));
+          // imbalanced txns always have entries (sum() of [] is balanced and filtered out); ?? [] is a TS guard only
+          const users = Array.from(new Set((t.entries ?? /* v8 ignore next */ []).map((e) => e.account?.userId).filter(Boolean)));
           const d = sum(t.entries, 'DEBIT');
           const c = sum(t.entries, 'CREDIT');
           return (
