@@ -9,6 +9,51 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-06-30 — apps/admin-web to 100% coverage
+
+Stood up a test harness for the Next.js admin dashboard and took it to
+**100% line / branch / function coverage (1832 / 1832 lines)**. **222 tests**,
+all green; production build still passes. Status: `DEPLOYED` (vitest + RTL with
+a mocked `lib/api`, `next/headers`, and `next/navigation` — not production
+evidence).
+
+Harness (new): **Vitest 2.1.9 + @vitejs/plugin-react + jsdom +
+@testing-library/{react,user-event,jest-dom} + @vitest/coverage-v8** (provider
+v8). `vitest.config.ts` (coverage `include` = `app/**`, `lib/**`, `middleware.ts`,
+`all: true`), `test/setup.ts` (jest-dom, cleanup, `window.location` stub),
+`test/` (25 files), `npm run test` / `test:coverage` scripts.
+
+Coverage breakdown:
+- **Server logic**: `lib/api.ts` (proxy paths, 401 redirect, error throw,
+  logout), `middleware.ts` (auth/expiry/JWT-decode branches, `/login`
+  redirects, stale-cookie clear), and the three route handlers — `auth/login`
+  (401/500/403/200 + secure-https cookie), `auth/logout`, and `admin-proxy`
+  (401 no-cookie, GET/POST/PATCH/DELETE forwarding with bearer token + body).
+- **Shared components** (`app/admin-ui.tsx`): every exported component +
+  `toneFor` branches, DataTable empty/rows, ConfirmDialog confirm/cancel,
+  badge/cell fallbacks, panels (ledger-integrity ok/bad, payout blocked).
+- **All ~21 client pages**: loading / error / success states + interactions
+  (adminPost/adminPatch, `window.confirm`, filter-form submit, sort tiebreaks).
+- `app/layout.tsx` (chrome mocked to a passthrough) + `app/chrome.tsx`
+  (both `usePathname` branches).
+
+Production edits (minimal, documented):
+- `app/ledger-integrity/page.tsx`: one `/* v8 ignore next */` on the `?? []`
+  guard at the `imbalanced.map` — genuinely unreachable (the `imbalanced`
+  filter excludes any txn whose `entries` sum balances, so mapped txns always
+  have a defined non-empty `entries`), but TS requires the guard since `entries`
+  is optional in the type. Mirrors the mobile `coverage:ignore` precedent.
+
+CI: added a `npm run test -w apps/admin-web` step to the `admin-web` job in
+`.github/workflows/web-mobile-ci.yml` (runs before the production build).
+
+Method: fanned the ~22 page/component targets across 3 parallel subagents over
+disjoint file sets (core/shared, people/ops, money/system), each with an
+isolated coverage report dir; then a unified pass closed the cross-file gaps
+(`app/layout.tsx`, the `admin-proxy` PATCH export).
+
+---
+
 ## Session 2026-06-29 → 2026-06-30 — apps/mobile to 100% coverage
 
 Took the Flutter mobile app to **100.00% line coverage (3782 / 3782)**, up from

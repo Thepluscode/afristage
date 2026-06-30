@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - name: Test admin web (vitest + RTL, 100% coverage)
+        run: npm run test -w apps/admin-web
       - name: Build admin web (Next.js production build = typecheck + compile)
         run: npm run build -w apps/admin-web
 
