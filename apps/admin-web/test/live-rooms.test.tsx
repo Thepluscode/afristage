@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -93,23 +93,26 @@ describe('LiveRoomsPage', () => {
 
   it('suspends a live room when confirmed', async () => {
     vi.mocked(adminGet).mockResolvedValue([room({ status: 'LIVE' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<LiveRoomsPage />);
     await screen.findByText('My Room');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Suspend' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/live-rooms/room-abcdef123456/suspend', { reason: 'admin takedown' })
     );
   });
 
-  it('does not suspend when confirm is cancelled', async () => {
+  it('does not suspend when the dialog is cancelled', async () => {
     vi.mocked(adminGet).mockResolvedValue([room({ status: 'LIVE' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<LiveRoomsPage />);
     await screen.findByText('My Room');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' })); // cancel
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(adminPost).not.toHaveBeenCalled();
   });
 
@@ -132,11 +135,12 @@ describe('LiveRoomsPage', () => {
 
   it('ends a live room when confirmed', async () => {
     vi.mocked(adminGet).mockResolvedValue([room({ status: 'LIVE' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<LiveRoomsPage />);
     await screen.findByText('My Room');
 
-    fireEvent.click(screen.getByRole('button', { name: 'End' }));
+    fireEvent.click(screen.getByRole('button', { name: 'End' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'End' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/live-rooms/room-abcdef123456/end')
     );

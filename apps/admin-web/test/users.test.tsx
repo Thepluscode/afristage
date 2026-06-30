@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -105,33 +105,33 @@ describe('UsersPage', () => {
 
   it('suspends a user when confirmed', async () => {
     vi.mocked(adminGet).mockResolvedValue([user({ status: 'ACTIVE' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<UsersPage />);
     await screen.findByText('Display Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Suspend' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/users/user-1234567890/suspend', { reason: 'admin action' })
     );
   });
 
-  it('does not suspend when confirm is cancelled', async () => {
+  it('does not suspend when the dialog is cancelled', async () => {
     vi.mocked(adminGet).mockResolvedValue([user({ status: 'ACTIVE' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<UsersPage />);
     await screen.findByText('Display Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(adminPost).not.toHaveBeenCalled();
   });
 
   it('bans a user when confirmed', async () => {
     vi.mocked(adminGet).mockResolvedValue([user({ status: 'ACTIVE' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<UsersPage />);
     await screen.findByText('Display Name');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ban' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ban' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Ban' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/users/user-1234567890/ban', { reason: 'admin action' })
     );

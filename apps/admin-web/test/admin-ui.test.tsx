@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ActionMenu,
@@ -14,10 +14,12 @@ import {
   LedgerIntegrityPanel,
   LoadingState,
   MetricCard,
+  Modal,
   MoneyAmount,
   PageHeader,
   PayoutActionPanel,
   PriorityBadge,
+  PromptDialog,
   RoomCell,
   SidebarGroup,
   StatusBadge,
@@ -228,26 +230,143 @@ describe('MoneyAmount', () => {
   });
 });
 
+describe('Modal', () => {
+  it('closes on Escape and on overlay click, but not on inner click', () => {
+    const onClose = vi.fn();
+    const { container, unmount } = render(
+      <Modal title="M" onClose={onClose}>
+        <span>inner</span>
+      </Modal>
+    );
+    // click inside the modal panel does not close (stopPropagation)
+    fireEvent.click(screen.getByText('inner'));
+    expect(onClose).not.toHaveBeenCalled();
+    // Escape closes
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // a non-Escape key is ignored
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // overlay (presentation) click closes
+    fireEvent.click(container.querySelector('.modal-overlay')!);
+    expect(onClose).toHaveBeenCalledTimes(2);
+    // keydown listener is removed on unmount (no further calls)
+    unmount();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('ConfirmDialog', () => {
-  it('calls onConfirm when the user confirms', () => {
+  it('opens a modal and calls onConfirm on confirm', () => {
     const onConfirm = vi.fn();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<ConfirmDialog title="T" body="B" confirmLabel="Yes" onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
-    expect(onConfirm).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' })); // trigger (falls back to confirmLabel)
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('B')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Yes' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull(); // closed after confirm
   });
 
-  it('does not call onConfirm when the user cancels', () => {
+  it('uses triggerLabel for the trigger when provided and cancels without calling onConfirm', () => {
     const onConfirm = vi.fn();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    render(<ConfirmDialog title="T" body="B" confirmLabel="No" onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByRole('button', { name: 'No' }));
+    render(<ConfirmDialog title="T" body="B" confirmLabel="Approve" triggerLabel="Approve Payout" onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Payout' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes via the Modal (Escape) without confirming', () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmDialog title="T" body="B" confirmLabel="Yes" onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it('renders disabled', () => {
+  it('renders the trigger disabled', () => {
     render(<ConfirmDialog title="T" body="B" confirmLabel="Off" onConfirm={vi.fn()} disabled />);
     expect(screen.getByRole('button', { name: 'Off' })).toBeDisabled();
+  });
+});
+
+describe('PromptDialog', () => {
+  it('collects a value, submits trimmed, and resets to defaultValue on reopen', () => {
+    const onSubmit = vi.fn();
+    render(
+      <PromptDialog triggerLabel="Edit" title="Edit price" body="Set price" inputLabel="Coins" defaultValue="10" confirmLabel="Save" onSubmit={onSubmit} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Set price')).toBeInTheDocument();
+    const input = within(dialog).getByRole('textbox') as HTMLInputElement;
+    expect(input.value).toBe('10');
+    fireEvent.change(input, { target: { value: '  42  ' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(onSubmit).toHaveBeenCalledWith('42'); // trimmed
+    // reopen resets to defaultValue
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect((within(screen.getByRole('dialog')).getByRole('textbox') as HTMLInputElement).value).toBe('10');
+  });
+
+  it('submits on Enter and renders a danger trigger with no body', () => {
+    const onSubmit = vi.fn();
+    render(<PromptDialog triggerLabel="Reject" title="Reject" inputLabel="Reason" confirmLabel="Reject" danger onSubmit={onSubmit} />);
+    const trigger = screen.getByRole('button', { name: 'Reject' });
+    expect(trigger.className).toContain('danger');
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByText('Reason', { selector: 'p' })).toBeNull(); // no body paragraph
+    fireEvent.keyDown(within(dialog).getByRole('textbox'), { key: 'Enter' });
+    expect(onSubmit).toHaveBeenCalledWith(''); // empty allowed when not required
+  });
+
+  it('keeps confirm disabled until a required value is entered', () => {
+    const onSubmit = vi.fn();
+    render(<PromptDialog triggerLabel="Mark Paid" title="Mark paid" inputLabel="Reference" confirmLabel="Mark Paid" required triggerClassName="button" onSubmit={onSubmit} />);
+    const trigger = screen.getByRole('button', { name: 'Mark Paid' });
+    expect(trigger.className).toBe('button'); // explicit triggerClassName wins
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Mark Paid' });
+    expect(confirm).toBeDisabled();
+    // Enter with empty required value is a no-op
+    fireEvent.keyDown(within(dialog).getByRole('textbox'), { key: 'Enter' });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'TX-1' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(onSubmit).toHaveBeenCalledWith('TX-1');
+  });
+
+  it('cancels without submitting and renders a secondary trigger by default', () => {
+    const onSubmit = vi.fn();
+    render(<PromptDialog triggerLabel="Hold" title="Hold" inputLabel="Reason" confirmLabel="Hold" onSubmit={onSubmit} />);
+    const trigger = screen.getByRole('button', { name: 'Hold' });
+    expect(trigger.className).toContain('secondary');
+    fireEvent.click(trigger);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes via the Modal (overlay click) without submitting', () => {
+    const onSubmit = vi.fn();
+    const { container } = render(<PromptDialog triggerLabel="Hold" title="Hold" inputLabel="Reason" confirmLabel="Hold" onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hold' }));
+    fireEvent.click(container.querySelector('.modal-overlay')!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('renders the trigger disabled', () => {
+    render(<PromptDialog triggerLabel="Nope" title="T" inputLabel="R" confirmLabel="Go" onSubmit={vi.fn()} disabled />);
+    expect(screen.getByRole('button', { name: 'Nope' })).toBeDisabled();
   });
 });
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({ adminGet: vi.fn(), adminPost: vi.fn(), adminPatch: vi.fn(), adminLogout: vi.fn() }));
@@ -156,74 +156,82 @@ describe('PayoutsPage', () => {
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/release', undefined));
   });
 
-  it('Hold Payout uses prompt reason; null prompt -> default reason', async () => {
+  it('Hold Payout submits a typed reason and falls back to a default reason when empty', async () => {
     setup({ payouts: [payout({ status: 'UNDER_REVIEW', creatorUserId: 'c-h' })], risk: { 'c-h': { riskScore: 0.1, recommendedAction: 'NONE' } } });
     vi.mocked(adminPost).mockResolvedValue({});
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValueOnce('shady activity');
     render(<PayoutsPage />);
     await screen.findByText('Nova');
-    fireEvent.click(screen.getByRole('button', { name: 'Hold Payout' }));
+
+    // typed reason
+    fireEvent.click(screen.getByRole('button', { name: 'Hold Payout' })); // trigger
+    let dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'shady activity' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hold Payout' })); // confirm
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/hold', { reason: 'shady activity' }));
-    // second click with null prompt -> default
-    promptSpy.mockReturnValueOnce(null);
+
+    // empty reason -> default fallback (not required, so confirm is enabled)
     fireEvent.click(screen.getByRole('button', { name: 'Hold Payout' }));
+    dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hold Payout' }));
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/hold', { reason: 'admin hold' }));
   });
 
-  it('Approve: confirm true triggers approve; confirm false does not', async () => {
+  it('Approve Payout: cancel does not approve, confirm approves', async () => {
     setup({ payouts: [payout({ status: 'UNDER_REVIEW', creatorUserId: 'c-ap' })], risk: { 'c-ap': { riskScore: 0.1, recommendedAction: 'NONE' } } });
     vi.mocked(adminPost).mockResolvedValue({});
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
     render(<PayoutsPage />);
     await screen.findByText('Nova');
-    fireEvent.click(screen.getByRole('button', { name: 'Approve Payout' }));
+
+    // cancel path does not approve
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Payout' })); // trigger
+    let dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(adminPost).not.toHaveBeenCalled();
-    confirmSpy.mockReturnValueOnce(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Approve Payout' }));
+
+    // confirm path approves
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Payout' })); // trigger
+    dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Approve' })); // confirm
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/approve', undefined));
   });
 
-  it('Reject: prompt reason and default fallback', async () => {
+  it('Reject Payout submits a typed reason and falls back to a default reason when empty', async () => {
     setup({ payouts: [payout({ status: 'UNDER_REVIEW', creatorUserId: 'c-rj' })], risk: { 'c-rj': { riskScore: 0.1, recommendedAction: 'NONE' } } });
     vi.mocked(adminPost).mockResolvedValue({});
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValueOnce('fraud');
     render(<PayoutsPage />);
     await screen.findByText('Nova');
-    fireEvent.click(screen.getByRole('button', { name: 'Reject Payout' }));
+
+    // typed reason
+    fireEvent.click(screen.getByRole('button', { name: 'Reject Payout' })); // trigger
+    let dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'fraud' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reject Payout' })); // confirm
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/reject', { reason: 'fraud' }));
-    promptSpy.mockReturnValueOnce(null);
+
+    // empty reason -> default fallback
     fireEvent.click(screen.getByRole('button', { name: 'Reject Payout' }));
+    dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reject Payout' }));
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/reject', { reason: 'Rejected by admin' }));
   });
 
-  it('Mark Paid (APPROVED): confirm dialog + reference prompt; empty reference aborts', async () => {
+  it('Mark Paid (APPROVED): confirm disabled until a reference is typed, then submits', async () => {
     setup({ payouts: [payout({ status: 'APPROVED', creatorUserId: 'c-mp' })] });
     vi.mocked(adminPost).mockResolvedValue({});
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const promptSpy = vi.spyOn(window, 'prompt');
     render(<PayoutsPage />);
     await screen.findByText('Nova');
-    const markPaid = screen.getByRole('button', { name: 'Mark Paid' });
-    expect(markPaid).not.toBeDisabled();
-    // empty/whitespace reference -> aborts
-    promptSpy.mockReturnValueOnce('   ');
-    fireEvent.click(markPaid);
-    expect(adminPost).not.toHaveBeenCalled();
-    // valid reference
-    promptSpy.mockReturnValueOnce(' TRX-1 ');
-    fireEvent.click(markPaid);
-    await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/mark-paid', { reference: 'TRX-1' }));
-  });
 
-  it('Mark Paid reference prompt returns null -> aborts (optional chaining branch)', async () => {
-    setup({ payouts: [payout({ status: 'APPROVED', creatorUserId: 'c-mp2' })] });
-    vi.mocked(adminPost).mockResolvedValue({});
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(window, 'prompt').mockReturnValueOnce(null);
-    render(<PayoutsPage />);
-    await screen.findByText('Nova');
-    fireEvent.click(screen.getByRole('button', { name: 'Mark Paid' }));
-    expect(adminPost).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Mark Paid' })).not.toBeDisabled(); // trigger enabled
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Paid' })); // open dialog
+    const dialog = screen.getByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Mark Paid' });
+    // required -> confirm disabled while empty
+    expect(confirm).toBeDisabled();
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'TRX-1' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/payouts/p1/mark-paid', { reference: 'TRX-1' }));
   });
 
   it('Mark Paid disabled when status not APPROVED', async () => {

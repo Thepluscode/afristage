@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -118,11 +118,13 @@ describe('ReportsPage', () => {
 
   it('actions a report with a typed reason', async () => {
     vi.mocked(adminGet).mockResolvedValue([report()]);
-    vi.spyOn(window, 'prompt').mockReturnValue('typed reason');
     render(<ReportsPage />);
     await screen.findByText('Harassment');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review' })); // trigger
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'typed reason' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Review' })); // confirm
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/reports/report-1/action', { action: 'REVIEWING', reason: 'typed reason' })
     );
@@ -130,11 +132,12 @@ describe('ReportsPage', () => {
 
   it('actions a report falling back to the action as the reason', async () => {
     vi.mocked(adminGet).mockResolvedValue([report()]);
-    vi.spyOn(window, 'prompt').mockReturnValue(null);
     render(<ReportsPage />);
     await screen.findByText('Harassment');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Escalate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Escalate' })); // trigger
+    // submit with an empty reason -> action used as the reason
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Escalate' }));
     await waitFor(() =>
       expect(adminPost).toHaveBeenCalledWith('/admin/reports/report-1/action', { action: 'ESCALATE', reason: 'ESCALATE' })
     );
@@ -142,14 +145,15 @@ describe('ReportsPage', () => {
 
   it('fires the remaining action buttons', async () => {
     vi.mocked(adminGet).mockResolvedValue([report()]);
-    vi.spyOn(window, 'prompt').mockReturnValue('r');
     render(<ReportsPage />);
     await screen.findByText('Harassment');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Mark Actioned' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend User' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Suspend Room' }));
+    for (const label of ['Dismiss', 'Mark Actioned', 'Suspend User', 'Suspend Room']) {
+      fireEvent.click(screen.getByRole('button', { name: label })); // trigger
+      const dialog = screen.getByRole('dialog');
+      fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'r' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: label })); // confirm
+    }
 
     await waitFor(() => expect(adminPost).toHaveBeenCalledTimes(4));
     const actions = vi.mocked(adminPost).mock.calls.map((c) => (c[1] as { action: string }).action);

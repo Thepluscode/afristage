@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({ adminGet: vi.fn(), adminPost: vi.fn(), adminPatch: vi.fn(), adminLogout: vi.fn() }));
@@ -51,35 +51,39 @@ describe('GiftsPage', () => {
     await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/gifts', { name: 'NewGift', coinPrice: 25 }));
   });
 
-  it('editPrice: cancel (prompt null) does nothing; confirm patches', async () => {
+  it('editPrice: cancel closes without patching; confirm patches', async () => {
     vi.mocked(adminGet).mockResolvedValue([gift({ name: 'Rose', coinPrice: 10 })]);
     vi.mocked(adminPatch).mockResolvedValue({});
     render(<GiftsPage />);
     await screen.findByText('Rose');
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValueOnce(null);
-    fireEvent.click(screen.getByText('Edit Price'));
+    // open the prompt then cancel -> no patch
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Price' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(adminPatch).not.toHaveBeenCalled();
-    promptSpy.mockReturnValueOnce('42');
-    fireEvent.click(screen.getByText('Edit Price'));
+    // reopen, type a new price and save -> patch
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Price' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: '42' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save Price' }));
     await waitFor(() => expect(adminPatch).toHaveBeenCalledWith('/admin/gifts/g1', { coinPrice: 42 }));
   });
 
-  it('toggle active gift (confirm true) disables it', async () => {
+  it('toggle active gift (confirm) disables it', async () => {
     vi.mocked(adminGet).mockResolvedValue([gift({ isActive: true, name: 'Rose' })]);
     vi.mocked(adminPatch).mockResolvedValue({});
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<GiftsPage />);
     await screen.findByText('Rose');
-    fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Disable' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Disable' })); // confirm
     await waitFor(() => expect(adminPatch).toHaveBeenCalledWith('/admin/gifts/g1', { isActive: false }));
   });
 
-  it('ConfirmDialog declined (confirm false) does not toggle', async () => {
+  it('ConfirmDialog cancelled does not toggle', async () => {
     vi.mocked(adminGet).mockResolvedValue([gift({ isActive: true, name: 'Rose' })]);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<GiftsPage />);
     await screen.findByText('Rose');
-    fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Disable' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(adminPatch).not.toHaveBeenCalled();
   });
 

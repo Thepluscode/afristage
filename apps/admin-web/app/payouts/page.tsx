@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
-import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
+import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
 
 type Payout = {
   id: string;
@@ -116,36 +116,42 @@ export default function PayoutsPage() {
                   {p.status === 'HELD' ? (
                     <button className="button secondary" onClick={() => action(p.id, 'release')}>Release Hold</button>
                   ) : null}
-                  <button className="button secondary" disabled={p.status !== 'UNDER_REVIEW'} onClick={() => action(p.id, 'hold', { reason: prompt('Hold reason') || 'admin hold' })}>Hold Payout</button>
-                  <button
-                    className="button"
-                    disabled={ledgerBlocked || !['UNDER_REVIEW', 'HELD'].includes(p.status)}
-                    onClick={() =>
-                      window.confirm(
-                        `Approve payout of ${p.coinAmount} coins (${p.fiatMinor} ${p.fiatCurrency} minor)?\n\nThis authorises a real money transfer and cannot be casually undone.`
-                      ) && action(p.id, 'approve')
-                    }
-                  >
-                    Approve Payout
-                  </button>
-                  <button
-                    className="button secondary"
-                    disabled={!['UNDER_REVIEW', 'HELD'].includes(p.status)}
-                    onClick={() => action(p.id, 'reject', { reason: prompt('Rejection reason') || 'Rejected by admin' })}
-                  >
-                    Reject Payout
-                  </button>
+                  <PromptDialog
+                    triggerLabel="Hold Payout"
+                    title="Hold payout"
+                    inputLabel="Hold reason"
+                    placeholder="Why hold this payout?"
+                    confirmLabel="Hold Payout"
+                    disabled={p.status !== 'UNDER_REVIEW'}
+                    onSubmit={(reason) => action(p.id, 'hold', { reason: reason || 'admin hold' })}
+                  />
                   <ConfirmDialog
+                    triggerLabel="Approve Payout"
+                    title="Approve payout"
+                    body={`Approve payout of ${p.coinAmount} coins (${p.fiatMinor} ${p.fiatCurrency} minor)? This authorises a real money transfer and cannot be casually undone.`}
+                    confirmLabel="Approve"
+                    disabled={ledgerBlocked || !['UNDER_REVIEW', 'HELD'].includes(p.status)}
+                    onConfirm={() => action(p.id, 'approve')}
+                  />
+                  <PromptDialog
+                    triggerLabel="Reject Payout"
+                    title="Reject payout"
+                    inputLabel="Rejection reason"
+                    placeholder="Why reject?"
+                    confirmLabel="Reject Payout"
+                    disabled={!['UNDER_REVIEW', 'HELD'].includes(p.status)}
+                    onSubmit={(reason) => action(p.id, 'reject', { reason: reason || 'Rejected by admin' })}
+                  />
+                  <PromptDialog
+                    triggerLabel="Mark Paid"
                     title="Mark payout paid"
-                    body="Only mark paid after confirming the external transfer. You'll be asked for the transfer reference."
+                    body="Only mark paid after confirming the external transfer. The reference keeps PAID reconcilable."
+                    inputLabel="External transfer reference"
+                    placeholder="bank/Paystack transaction id"
                     confirmLabel="Mark Paid"
+                    required
                     disabled={p.status !== 'APPROVED'}
-                    onConfirm={() => {
-                      // Require the external transfer id so PAID is always reconcilable.
-                      const reference = prompt('External transfer reference (bank/Paystack transaction id)')?.trim();
-                      if (!reference) return;
-                      action(p.id, 'mark-paid', { reference });
-                    }}
+                    onSubmit={(reference) => action(p.id, 'mark-paid', { reference })}
                   />
                   </ActionMenu>
                 </td>

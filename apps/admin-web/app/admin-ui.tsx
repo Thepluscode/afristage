@@ -1,6 +1,6 @@
 'use client';
 
-import { Children } from 'react';
+import { Children, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -202,29 +202,157 @@ export function MoneyAmount({
   return <strong>{(Number(minor) / 100).toFixed(2)} {currency}</strong>;
 }
 
+// In-app modal — replaces native window.confirm/prompt so destructive admin
+// actions get a styled, accessible dialog instead of a browser popup.
+export function Modal({
+  title,
+  onClose,
+  children
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" role="presentation" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function ConfirmDialog({
   title,
   body,
   confirmLabel,
   onConfirm,
-  disabled = false
+  disabled = false,
+  triggerLabel
 }: {
   title: string;
   body: string;
   confirmLabel: string;
   onConfirm: () => void;
   disabled?: boolean;
+  triggerLabel?: string;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <button
-      className="button danger"
-      disabled={disabled}
-      onClick={() => {
-        if (window.confirm(`${title}\n\n${body}`)) onConfirm();
-      }}
-    >
-      {confirmLabel}
-    </button>
+    <>
+      <button className="button danger" disabled={disabled} onClick={() => setOpen(true)}>
+        {triggerLabel ?? confirmLabel}
+      </button>
+      {open && (
+        <Modal title={title} onClose={() => setOpen(false)}>
+          <h2 className="modal-title">{title}</h2>
+          <p className="modal-body">{body}</p>
+          <div className="modal-actions">
+            <button className="button secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+            <button
+              className="button danger"
+              onClick={() => {
+                setOpen(false);
+                onConfirm();
+              }}
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+// Collects one value in a styled modal (replaces native prompt()). onSubmit
+// receives the trimmed value; when `required`, the confirm button stays
+// disabled until something is entered.
+export function PromptDialog({
+  triggerLabel,
+  title,
+  body,
+  inputLabel,
+  placeholder,
+  defaultValue = '',
+  confirmLabel,
+  onSubmit,
+  required = false,
+  disabled = false,
+  danger = false,
+  triggerClassName
+}: {
+  triggerLabel: string;
+  title: string;
+  body?: string;
+  inputLabel: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmLabel: string;
+  onSubmit: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  danger?: boolean;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(defaultValue);
+  const submit = () => {
+    const v = value.trim();
+    if (required && !v) return;
+    setOpen(false);
+    onSubmit(v);
+  };
+  return (
+    <>
+      <button
+        className={triggerClassName ?? (danger ? 'button danger' : 'button secondary')}
+        disabled={disabled}
+        onClick={() => {
+          setValue(defaultValue);
+          setOpen(true);
+        }}
+      >
+        {triggerLabel}
+      </button>
+      {open && (
+        <Modal title={title} onClose={() => setOpen(false)}>
+          <h2 className="modal-title">{title}</h2>
+          {body && <p className="modal-body">{body}</p>}
+          <label className="modal-field">
+            <span>{inputLabel}</span>
+            <input
+              className="modal-input"
+              autoFocus
+              value={value}
+              placeholder={placeholder}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submit();
+              }}
+            />
+          </label>
+          <div className="modal-actions">
+            <button className="button secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+            <button className={danger ? 'button danger' : 'button'} disabled={required && !value.trim()} onClick={submit}>
+              {confirmLabel}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
