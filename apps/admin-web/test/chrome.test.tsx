@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
   adminGet: vi.fn(),
@@ -9,9 +9,14 @@ vi.mock('../lib/api', () => ({
 }));
 
 let path = '/users';
-vi.mock('next/navigation', () => ({ usePathname: () => path }));
+vi.mock('next/navigation', () => ({ usePathname: () => path, useRouter: () => ({ push: vi.fn() }) }));
 
-import { adminLogout } from '../lib/api';
+import { adminGet, adminLogout } from '../lib/api';
+
+// Topbar fires /auth/me + /notifications/unread-count on mount; keep them resolving.
+beforeEach(() => {
+  vi.mocked(adminGet).mockResolvedValue({} as any);
+});
 
 afterEach(() => {
   vi.resetModules();
@@ -51,6 +56,24 @@ describe('AdminChrome', () => {
     const logoutBtn = screen.getByRole('button', { name: /Log out/ });
     logoutBtn.click();
     expect(vi.mocked(adminLogout)).toHaveBeenCalled();
+  });
+
+  it('toggles the mobile sidebar drawer via the hamburger and closes it via the scrim', async () => {
+    path = '/users';
+    const AdminChrome = await loadChrome();
+    const { container } = render(<AdminChrome><div /></AdminChrome>);
+
+    expect(container.querySelector('.sidebar')?.className).toBe('sidebar');
+    expect(container.querySelector('.sidebar-scrim')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+    expect(container.querySelector('.sidebar')?.className).toBe('sidebar open');
+    const scrim = container.querySelector('.sidebar-scrim');
+    expect(scrim).not.toBeNull();
+
+    fireEvent.click(scrim!);
+    expect(container.querySelector('.sidebar')?.className).toBe('sidebar');
+    expect(container.querySelector('.sidebar-scrim')).toBeNull();
   });
 
   it('returns just the children on the /login route (early return)', async () => {
