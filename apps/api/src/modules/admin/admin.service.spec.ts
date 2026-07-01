@@ -87,3 +87,72 @@ describe('AdminService list filters', () => {
     await expect(service.auditLogs()).resolves.toEqual([]);
   });
 });
+
+describe('AdminService.search', () => {
+  function searchBuild(data: { users?: any[]; rooms?: any[]; payments?: any[]; payouts?: any[] } = {}) {
+    const prisma: any = {
+      user: { findMany: jest.fn().mockResolvedValue(data.users ?? []) },
+      liveRoom: { findMany: jest.fn().mockResolvedValue(data.rooms ?? []) },
+      paymentIntent: { findMany: jest.fn().mockResolvedValue(data.payments ?? []) },
+      payoutRequest: { findMany: jest.fn().mockResolvedValue(data.payouts ?? []) }
+    };
+    return { service: new AdminService(prisma), prisma };
+  }
+
+  it('returns an empty list without querying when q is blank or missing', async () => {
+    const { service, prisma } = searchBuild();
+    await expect(service.search()).resolves.toEqual([]);
+    await expect(service.search('   ')).resolves.toEqual([]);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('trims the term and queries every entity case-insensitively', async () => {
+    const { service, prisma } = searchBuild();
+    await service.search('  Ada  ');
+    const where = prisma.user.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual(
+      expect.arrayContaining([{ email: { contains: 'Ada', mode: 'insensitive' } }, { phone: { contains: 'Ada' } }])
+    );
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { title: { contains: 'Ada', mode: 'insensitive' } } }));
+    expect(prisma.payoutRequest.findMany).toHaveBeenCalled();
+  });
+
+  it('maps results across types with every label/sublabel fallback', async () => {
+    const { service } = searchBuild({
+      users: [
+        { id: 'u1', role: 'ADMIN', email: 'e1', phone: 'p1', profile: { displayName: 'Display One', username: 'un1' } },
+        { id: 'u2', role: 'CREATOR', email: 'e2', phone: 'p2', profile: { displayName: '', username: 'un2' } },
+        { id: 'u3', role: 'MODERATOR', email: 'e3', phone: null, profile: null },
+        { id: 'u4', role: 'VIEWER', email: null, phone: 'p4', profile: null },
+        { id: 'u5', role: 'VIEWER', email: null, phone: null, profile: null }
+      ],
+      rooms: [{ id: 'r1', title: 'Friday Night', status: 'LIVE' }],
+      payments: [
+        { id: 'pm1', providerReference: 'pref1', status: 'SUCCEEDED', coinAmount: 100 },
+        { id: 'pm2', providerReference: null, status: 'PENDING', coinAmount: 50 }
+      ],
+      payouts: [
+        { id: 'po1', payoutDestinationReference: 'dest1', providerReference: null, status: 'APPROVED' },
+        { id: 'po2', payoutDestinationReference: null, providerReference: 'prov2', status: 'PAID' },
+        { id: 'po3', payoutDestinationReference: null, providerReference: null, status: 'HELD' }
+      ]
+    });
+    const res = await service.search('x');
+    const byId = Object.fromEntries(res.map((r) => [r.id, r]));
+    // user label fallbacks: displayName -> username -> email -> phone -> id
+    expect(byId.u1).toMatchObject({ type: 'user', label: 'Display One', sublabel: 'e1', href: '/users' });
+    expect(byId.u2.label).toBe('un2');
+    expect(byId.u3.label).toBe('e3');
+    expect(byId.u4.label).toBe('p4');
+    expect(byId.u5).toMatchObject({ label: 'u5', sublabel: 'VIEWER' });
+    // room
+    expect(byId.r1).toMatchObject({ type: 'room', label: 'Friday Night', sublabel: 'LIVE', href: '/live-rooms' });
+    // payment label: providerReference -> id; sublabel composes status + coins
+    expect(byId.pm1).toMatchObject({ type: 'payment', label: 'pref1', sublabel: 'SUCCEEDED · 100 coins', href: '/payments' });
+    expect(byId.pm2.label).toBe('pm2');
+    // payout label: destinationReference -> providerReference -> id
+    expect(byId.po1).toMatchObject({ type: 'payout', label: 'dest1', href: '/payouts' });
+    expect(byId.po2.label).toBe('prov2');
+    expect(byId.po3.label).toBe('po3');
+  });
+});

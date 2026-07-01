@@ -58,6 +58,11 @@ export class AdminController {
     return this.admin.users(q, status, role);
   }
 
+  @Get('search')
+  search(@Query('q') q?: string) {
+    return this.admin.search(q);
+  }
+
   @Get('creators')
   creators(@Query('approvalStatus') approvalStatus?: string) {
     return this.admin.creators(approvalStatus);
