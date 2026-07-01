@@ -1094,13 +1094,22 @@ code {
 }
 .notif-panel ul { margin: 0; padding: 0; list-style: none; max-height: 360px; overflow: auto; }
 .notif-panel li {
-  display: grid;
-  gap: 3px;
-  padding: 11px 14px;
   border-bottom: 1px solid var(--border);
 }
 .notif-panel li:last-child { border-bottom: 0; }
 .notif-panel li.unread { border-left: 3px solid var(--gold); }
+.notif-item {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.notif-item:hover { background: rgba(var(--rgb-soft), 0.9); }
 .notif-panel li strong { font-size: 13px; }
 .notif-panel li span { color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
 .notif-panel li small { color: var(--text-muted); font-size: 11px; }

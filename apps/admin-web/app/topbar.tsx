@@ -41,18 +41,27 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
   const [results, setResults] = useState<SearchResult[]>([]);
   const root = useRef<HTMLDivElement>(null);
 
-  // Live data search across users/rooms/payments/payouts (server-side).
-  // ponytail: one request per keystroke, no debounce — fine at beta typing/volume;
-  // add a debounce + stale-response guard if search traffic grows.
+  // Live data search across users/rooms/payments/payouts (server-side), debounced
+  // so one request fires after typing settles; `active` drops a stale response
+  // if the query changed (or the component unmounted) before it resolved.
   useEffect(() => {
     const term = query.trim();
     if (!term) {
       setResults([]);
       return;
     }
-    adminGet<SearchResult[]>(`/admin/search?q=${encodeURIComponent(term)}`)
-      .then(setResults)
-      .catch(() => setResults([]));
+    let active = true;
+    const t = setTimeout(() => {
+      adminGet<SearchResult[]>(`/admin/search?q=${encodeURIComponent(term)}`)
+        .catch(() => [] as SearchResult[])
+        .then((r) => {
+          if (active) setResults(r);
+        });
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
   }, [query]);
 
   // Reflect the theme the no-FOUC script already applied to <html>.
@@ -107,6 +116,19 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
       setNotifs((prev) => prev?.map((n) => ({ ...n, readAt: n.readAt ?? n.createdAt })) ?? prev);
     } catch {
       /* leave state as-is; the badge simply won't clear */
+    }
+  }
+
+  // Mark one notification read on click. Guaranteed non-null list here (items
+  // only render when notifs is a populated array).
+  async function markRead(n: Notif) {
+    if (n.readAt) return;
+    try {
+      await adminPost(`/notifications/${n.id}/read`);
+      setNotifs((prev) => prev!.map((x) => (x.id === n.id ? { ...x, readAt: x.createdAt } : x)));
+      setUnread((u) => Math.max(0, u - 1));
+    } catch {
+      /* leave state as-is */
     }
   }
 
@@ -190,9 +212,11 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
               <ul>
                 {notifs.map((n) => (
                   <li key={n.id} className={n.readAt ? 'read' : 'unread'}>
-                    <strong>{n.title}</strong>
-                    {n.body ? <span>{n.body}</span> : null}
-                    <small>{new Date(n.createdAt).toLocaleString()}</small>
+                    <button type="button" className="notif-item" onClick={() => markRead(n)}>
+                      <strong>{n.title}</strong>
+                      {n.body ? <span>{n.body}</span> : null}
+                      <small>{new Date(n.createdAt).toLocaleString()}</small>
+                    </button>
                   </li>
                 ))}
               </ul>
