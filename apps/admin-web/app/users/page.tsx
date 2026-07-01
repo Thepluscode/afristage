@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, UserCell } from "../admin-ui";
+import { useRowHighlight } from "../highlight";
 
 type User = {
   id: string;
@@ -20,6 +21,7 @@ export default function UsersPage() {
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const highlightId = useRowHighlight(rows);
 
   async function load(query = "") {
     try {
@@ -83,7 +85,7 @@ export default function UsersPage() {
       </FilterBar>
       <DataTable columns={['User', 'Role', 'Status', 'Country', 'Wallet', 'Creator', 'Last activity', 'Actions']} empty={<EmptyState>No users match this search.</EmptyState>}>
             {filtered.map((u) => (
-              <tr key={u.id}>
+              <tr key={u.id} id={`row-${u.id}`} className={u.id === highlightId ? 'row-highlight' : undefined}>
                 <td><UserCell name={u.profile?.displayName || u.profile?.username || u.email} sub={u.id} /></td>
                 <td><span className="pill creator">{u.role}</span></td>
                 <td><StatusBadge status={u.status} /></td>

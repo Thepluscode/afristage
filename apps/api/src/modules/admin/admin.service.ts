@@ -128,22 +128,22 @@ export class AdminService {
         id: u.id,
         label: u.profile?.displayName || u.profile?.username || u.email || u.phone || u.id,
         sublabel: u.email || u.phone || u.role,
-        href: '/users'
+        href: `/users?id=${u.id}`
       })),
-      ...rooms.map((r) => ({ type: 'room', id: r.id, label: r.title, sublabel: r.status, href: '/live-rooms' })),
+      ...rooms.map((r) => ({ type: 'room', id: r.id, label: r.title, sublabel: r.status, href: `/live-rooms?id=${r.id}` })),
       ...payments.map((p) => ({
         type: 'payment',
         id: p.id,
         label: p.providerReference || p.id,
         sublabel: `${p.status} · ${p.coinAmount} coins`,
-        href: '/payments'
+        href: `/payments?id=${p.id}`
       })),
       ...payouts.map((p) => ({
         type: 'payout',
         id: p.id,
         label: p.payoutDestinationReference || p.providerReference || p.id,
         sublabel: p.status,
-        href: '/payouts'
+        href: `/payouts?id=${p.id}`
       }))
     ];
   }

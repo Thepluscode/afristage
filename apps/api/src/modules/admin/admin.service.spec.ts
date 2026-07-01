@@ -139,19 +139,19 @@ describe('AdminService.search', () => {
     });
     const res = await service.search('x');
     const byId = Object.fromEntries(res.map((r) => [r.id, r]));
-    // user label fallbacks: displayName -> username -> email -> phone -> id
-    expect(byId.u1).toMatchObject({ type: 'user', label: 'Display One', sublabel: 'e1', href: '/users' });
+    // user label fallbacks: displayName -> username -> email -> phone -> id; href carries the record id
+    expect(byId.u1).toMatchObject({ type: 'user', label: 'Display One', sublabel: 'e1', href: '/users?id=u1' });
     expect(byId.u2.label).toBe('un2');
     expect(byId.u3.label).toBe('e3');
     expect(byId.u4.label).toBe('p4');
     expect(byId.u5).toMatchObject({ label: 'u5', sublabel: 'VIEWER' });
     // room
-    expect(byId.r1).toMatchObject({ type: 'room', label: 'Friday Night', sublabel: 'LIVE', href: '/live-rooms' });
+    expect(byId.r1).toMatchObject({ type: 'room', label: 'Friday Night', sublabel: 'LIVE', href: '/live-rooms?id=r1' });
     // payment label: providerReference -> id; sublabel composes status + coins
-    expect(byId.pm1).toMatchObject({ type: 'payment', label: 'pref1', sublabel: 'SUCCEEDED · 100 coins', href: '/payments' });
+    expect(byId.pm1).toMatchObject({ type: 'payment', label: 'pref1', sublabel: 'SUCCEEDED · 100 coins', href: '/payments?id=pm1' });
     expect(byId.pm2.label).toBe('pm2');
     // payout label: destinationReference -> providerReference -> id
-    expect(byId.po1).toMatchObject({ type: 'payout', label: 'dest1', href: '/payouts' });
+    expect(byId.po1).toMatchObject({ type: 'payout', label: 'dest1', href: '/payouts?id=po1' });
     expect(byId.po2.label).toBe('prov2');
     expect(byId.po3.label).toBe('po3');
   });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, PageHeader, RoomCell, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
+import { useRowHighlight } from '../highlight';
 
 type Room = {
   id: string;
@@ -20,6 +21,7 @@ type Room = {
 export default function LiveRoomsPage() {
   const [rows, setRows] = useState<Room[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const highlightId = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -52,7 +54,7 @@ export default function LiveRoomsPage() {
       ) : null}
       <DataTable columns={['Room', 'Host', 'Status', 'Viewers', 'Category', 'Region', 'Reports', 'Started', 'Actions']} empty={<EmptyState>No live rooms need operator attention.</EmptyState>}>
             {ordered.map((r) => (
-              <tr key={r.id}>
+              <tr key={r.id} id={`row-${r.id}`} className={r.id === highlightId ? 'row-highlight' : undefined}>
                 <td><RoomCell title={r.title} sub={r.id.slice(0, 8)} /></td>
                 <td><UserCell name={r.host?.creatorProfile?.stageName || r.host?.profile?.displayName} /></td>
                 <td><StatusBadge status={r.status} /></td>
