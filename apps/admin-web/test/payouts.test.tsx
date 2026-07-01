@@ -2,10 +2,16 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({ adminGet: vi.fn(), adminPost: vi.fn(), adminPatch: vi.fn(), adminLogout: vi.fn() }));
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost } from '../lib/api';
 import PayoutsPage from '../app/payouts/page';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 const payout = (over: Partial<any> = {}) => ({
   id: 'p1',
@@ -62,7 +68,7 @@ describe('PayoutsPage', () => {
   });
 
   it('highlights the row targeted by ?id=', async () => {
-    (window.location as any).search = '?id=po-b';
+    nav.search = 'id=po-b';
     setup({ payouts: [payout({ id: 'po-a', status: 'PAID', creatorUserId: 'c1' }), payout({ id: 'po-b', status: 'PAID', creatorUserId: 'c2' })] });
     const { container } = render(<PayoutsPage />);
     await waitFor(() => expect(container.querySelector('#row-po-b')).not.toBeNull());

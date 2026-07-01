@@ -8,6 +8,9 @@ vi.mock('../lib/api', () => ({
   adminLogout: vi.fn()
 }));
 
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost } from '../lib/api';
 import UsersPage from '../app/users/page';
 
@@ -26,7 +29,10 @@ beforeEach(() => {
   vi.mocked(adminGet).mockResolvedValue([]);
   vi.mocked(adminPost).mockResolvedValue({} as never);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 describe('UsersPage', () => {
   it('renders the empty state when no users match', async () => {
@@ -36,10 +42,23 @@ describe('UsersPage', () => {
   });
 
   it('highlights the row targeted by ?id=', async () => {
-    (window.location as any).search = '?id=user-b';
+    nav.search = 'id=user-b';
     vi.mocked(adminGet).mockResolvedValue([user({ id: 'user-a' }), user({ id: 'user-b' })]);
     const { container } = render(<UsersPage />);
     await waitFor(() => expect(container.querySelector('#row-user-b')).not.toBeNull());
+    expect(container.querySelector('#row-user-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-user-a')?.className || '').not.toContain('row-highlight');
+  });
+
+  it('moves the highlight when ?id= changes without a remount (re-search on the same page)', async () => {
+    nav.search = 'id=user-a';
+    vi.mocked(adminGet).mockResolvedValue([user({ id: 'user-a' }), user({ id: 'user-b' })]);
+    const { container, rerender } = render(<UsersPage />);
+    await waitFor(() => expect(container.querySelector('#row-user-a')).not.toBeNull());
+    expect(container.querySelector('#row-user-a')?.className).toContain('row-highlight');
+    // re-search: same mounted page, new ?id=
+    nav.search = 'id=user-b';
+    rerender(<UsersPage />);
     expect(container.querySelector('#row-user-b')?.className).toContain('row-highlight');
     expect(container.querySelector('#row-user-a')?.className || '').not.toContain('row-highlight');
   });

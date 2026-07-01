@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, UserCell } from "../admin-ui";
 import { useRowHighlight } from "../highlight";
@@ -15,7 +15,7 @@ type User = {
   creatorProfile?: { approvalStatus?: string } | null;
 };
 
-export default function UsersPage() {
+function UsersPageInner() {
   const [rows, setRows] = useState<User[]>([]);
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
@@ -110,5 +110,13 @@ export default function UsersPage() {
             ))}
       </DataTable>
     </>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <UsersPageInner />
+    </Suspense>
   );
 }

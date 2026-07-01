@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
 import { useRowHighlight } from '../highlight';
@@ -28,7 +28,7 @@ function maskRef(ref?: string | null) {
 type Integrity = { ok: boolean; unbalancedTransactions: number };
 type Risk = { riskScore: number; recommendedAction: 'NONE' | 'SOFT_FLAG' | 'MANUAL_REVIEW' | 'PAYOUT_HOLD' };
 
-export default function PayoutsPage() {
+function PayoutsPageInner() {
   const [rows, setRows] = useState<Payout[]>([]);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [risk, setRisk] = useState<Record<string, Risk>>({});
@@ -164,5 +164,13 @@ export default function PayoutsPage() {
         <PayoutActionPanel blocked={ledgerBlocked} />
       </div>
     </>
+  );
+}
+
+export default function PayoutsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PayoutsPageInner />
+    </Suspense>
   );
 }

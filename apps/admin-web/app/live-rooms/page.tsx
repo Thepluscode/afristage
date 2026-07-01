@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, PageHeader, RoomCell, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
 import { useRowHighlight } from '../highlight';
@@ -18,7 +18,7 @@ type Room = {
   host?: { profile?: { displayName?: string }; creatorProfile?: { stageName?: string } };
 };
 
-export default function LiveRoomsPage() {
+function LiveRoomsPageInner() {
   const [rows, setRows] = useState<Room[]>([]);
   const [error, setError] = useState<string | null>(null);
   const highlightId = useRowHighlight(rows);
@@ -85,5 +85,13 @@ export default function LiveRoomsPage() {
             ))}
       </DataTable>
     </>
+  );
+}
+
+export default function LiveRoomsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LiveRoomsPageInner />
+    </Suspense>
   );
 }
