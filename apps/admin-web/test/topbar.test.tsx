@@ -185,6 +185,27 @@ describe('Topbar search quick-nav', () => {
     fireEvent.change(input, { target: { value: 'boom' } });
     await waitFor(() => expect(screen.getByText(/No matches for/)).toBeInTheDocument());
   });
+
+  it('debounces and ignores a stale response when the query changes mid-flight', async () => {
+    let resolveFirst!: (v: unknown) => void;
+    vi.mocked(adminGet).mockImplementation((p: string) => {
+      if (p.endsWith('q=aa')) return new Promise((r) => (resolveFirst = r)); // first query stays pending
+      if (p.includes('q=aab')) return Promise.resolve([{ type: 'user', id: 'fresh', label: 'Fresh Result', href: '/users' }]);
+      if (p === '/auth/me') return Promise.resolve({ sub: 'u', role: 'ADMIN' });
+      if (p === '/notifications/unread-count') return Promise.resolve({ count: 0 });
+      return Promise.resolve([]);
+    });
+    renderTopbar();
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
+    fireEvent.change(input, { target: { value: 'aa' } });
+    await waitFor(() => expect(resolveFirst).toBeDefined()); // debounced 'aa' fetch has started
+    fireEvent.change(input, { target: { value: 'aab' } }); // supersedes 'aa'
+    expect(await screen.findByText('Fresh Result')).toBeInTheDocument();
+    resolveFirst([{ type: 'user', id: 'stale', label: 'Stale Result', href: '/users' }]); // late/stale
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByText('Stale Result')).not.toBeInTheDocument();
+  });
 });
 
 describe('Topbar notifications', () => {
@@ -264,6 +285,40 @@ describe('Topbar notifications', () => {
     vi.mocked(adminPost).mockRejectedValueOnce(new Error('nope'));
     fireEvent.click(screen.getByRole('button', { name: /Mark all read/ }));
     await waitFor(() => expect(adminPost).toHaveBeenCalledTimes(2));
+  });
+
+  it('marks a single notification read on click and leaves an already-read one alone', async () => {
+    mockApi({
+      count: 2,
+      notifs: [
+        { id: 'n1', title: 'First', readAt: null, createdAt: '2026-06-01T00:00:00Z' },
+        { id: 'n2', title: 'Second', readAt: '2026-06-02T00:00:00Z', createdAt: '2026-06-02T00:00:00Z' }
+      ]
+    });
+    vi.mocked(adminPost).mockResolvedValue({ ok: true } as any);
+    renderTopbar();
+    await waitFor(() => expect(screen.getByText('2')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    await screen.findByText('First');
+    // already-read item -> no request
+    fireEvent.click(screen.getByText('Second').closest('button')!);
+    expect(adminPost).not.toHaveBeenCalled();
+    // unread item -> marks read + decrements the badge
+    fireEvent.click(screen.getByText('First').closest('button')!);
+    expect(adminPost).toHaveBeenCalledWith('/notifications/n1/read');
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+  });
+
+  it('swallows a failing single mark-read (badge unchanged)', async () => {
+    mockApi({ count: 1, notifs: [{ id: 'n1', title: 'X', readAt: null, createdAt: '2026-06-01T00:00:00Z' }] });
+    vi.mocked(adminPost).mockRejectedValue(new Error('no'));
+    renderTopbar();
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    await screen.findByText('X');
+    fireEvent.click(screen.getByText('X').closest('button')!);
+    await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/notifications/n1/read'));
+    expect(screen.getByText('1')).toBeInTheDocument(); // unchanged
   });
 });
 
