@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { adminGet } from "../../lib/api";
 import { DataTable, EmptyState, ErrorState, FilterBar, MoneyAmount, PageHeader, StatusBadge, UserCell } from "../admin-ui";
 import { useRowHighlight } from "../highlight";
@@ -19,7 +19,7 @@ type Payment = {
   webhookStatus?: string;
 };
 
-export default function PaymentsPage() {
+function PaymentsPageInner() {
   const [rows, setRows] = useState<Payment[]>([]);
   const [provider, setProvider] = useState("");
   const [status, setStatus] = useState("");
@@ -65,5 +65,13 @@ export default function PaymentsPage() {
             ))}
       </DataTable>
     </>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentsPageInner />
+    </Suspense>
   );
 }

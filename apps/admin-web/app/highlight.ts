@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-// Reads the `?id=` search param once, then scrolls the matching row
-// (id="row-<id>") into view when the data it lives in is ready. Returns the id
-// so callers can visually highlight that row. Used for search click-through.
+// Reactively tracks the `?id=` search param (updates even when re-searching on
+// the same route), scrolls the matching row (id="row-<id>") into view when the
+// data it lives in is ready, and returns the id so callers can highlight it.
 export function useRowHighlight(ready: unknown): string | null {
-  const [id, setId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setId(new URLSearchParams(window.location.search).get('id'));
-  }, []);
+  const params = useSearchParams();
+  const id = params?.get('id') ?? null;
 
   useEffect(() => {
     if (!id) return;

@@ -1,5 +1,9 @@
 import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { useRowHighlight } from '../app/highlight';
 
 function Harness({ renderRow = true }: { renderRow?: boolean }) {
@@ -13,7 +17,7 @@ function Harness({ renderRow = true }: { renderRow?: boolean }) {
 }
 
 afterEach(() => {
-  (window.location as any).search = '';
+  nav.search = '';
 });
 
 describe('useRowHighlight', () => {
@@ -25,7 +29,7 @@ describe('useRowHighlight', () => {
   });
 
   it('reads ?id= and scrolls the matching row into view', () => {
-    (window.location as any).search = '?id=abc';
+    nav.search = 'id=abc';
     const scroll = vi.spyOn(window.HTMLElement.prototype, 'scrollIntoView');
     const { getByTestId } = render(<Harness />);
     expect(getByTestId('id').textContent).toBe('abc');
@@ -33,7 +37,7 @@ describe('useRowHighlight', () => {
   });
 
   it('does not scroll when the id has no matching row element', () => {
-    (window.location as any).search = '?id=orphan';
+    nav.search = 'id=orphan';
     const scroll = vi.spyOn(window.HTMLElement.prototype, 'scrollIntoView');
     const { getByTestId } = render(<Harness renderRow={false} />);
     expect(getByTestId('id').textContent).toBe('orphan');

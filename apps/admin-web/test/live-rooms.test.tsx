@@ -8,6 +8,9 @@ vi.mock('../lib/api', () => ({
   adminLogout: vi.fn()
 }));
 
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost } from '../lib/api';
 import LiveRoomsPage from '../app/live-rooms/page';
 
@@ -29,7 +32,10 @@ beforeEach(() => {
   vi.mocked(adminGet).mockResolvedValue([]);
   vi.mocked(adminPost).mockResolvedValue({} as never);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 describe('LiveRoomsPage', () => {
   it('renders the empty state', async () => {
@@ -44,7 +50,7 @@ describe('LiveRoomsPage', () => {
   });
 
   it('highlights the row targeted by ?id=', async () => {
-    (window.location as any).search = '?id=room-b';
+    nav.search = 'id=room-b';
     vi.mocked(adminGet).mockResolvedValue([room({ id: 'room-a', status: 'LIVE' }), room({ id: 'room-b', status: 'LIVE' })]);
     const { container } = render(<LiveRoomsPage />);
     await waitFor(() => expect(container.querySelector('#row-room-b')).not.toBeNull());

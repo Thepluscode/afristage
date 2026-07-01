@@ -2,10 +2,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({ adminGet: vi.fn(), adminPost: vi.fn(), adminPatch: vi.fn(), adminLogout: vi.fn() }));
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet } from '../lib/api';
 import PaymentsPage from '../app/payments/page';
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  nav.search = '';
+});
 
 describe('PaymentsPage', () => {
   it('shows loading (empty table) until data arrives', () => {
@@ -21,7 +27,7 @@ describe('PaymentsPage', () => {
   });
 
   it('highlights the row targeted by ?id=', async () => {
-    (window.location as any).search = '?id=pay-b';
+    nav.search = 'id=pay-b';
     vi.mocked(adminGet).mockResolvedValue([
       { id: 'pay-a', provider: 'STRIPE', amountMinor: 100, currency: 'USD', coinAmount: 10, status: 'SUCCEEDED', createdAt: '2024-01-01T00:00:00Z' },
       { id: 'pay-b', provider: 'STRIPE', amountMinor: 200, currency: 'USD', coinAmount: 20, status: 'PENDING', createdAt: '2024-01-02T00:00:00Z' }
