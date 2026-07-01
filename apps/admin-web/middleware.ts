@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const COOKIE_NAME = process.env.ADMIN_COOKIE_NAME || 'afristage_admin_token';
+import { ACCESS_COOKIE, REFRESH_COOKIE } from './lib/session';
 
 // UX-only expiry check: decode the JWT payload (no signature verification — the
 // backend remains the real auth/RBAC boundary) and treat a past `exp` as logged
@@ -20,24 +19,28 @@ function isExpired(token: string): boolean {
   }
 }
 
-// Gate every page on a *valid* admin session cookie; expired/stale cookies are
-// cleared so the login form is reachable and the redirect loop can't form.
+// Authed if EITHER token is still valid. An expired access token with a live
+// refresh token is still a valid session — the proxy refreshes it on the first
+// data call — so let the page through instead of redirecting to /login.
 export function middleware(req: NextRequest) {
-  const token = req.cookies.get(COOKIE_NAME)?.value;
-  const authed = Boolean(token) && !isExpired(token!);
+  const access = req.cookies.get(ACCESS_COOKIE)?.value;
+  const refresh = req.cookies.get(REFRESH_COOKIE)?.value;
+  const authed = (Boolean(access) && !isExpired(access!)) || (Boolean(refresh) && !isExpired(refresh!));
   const { pathname } = req.nextUrl;
+
+  const clearStale = (res: NextResponse) => {
+    if (access) res.cookies.delete(ACCESS_COOKIE);
+    if (refresh) res.cookies.delete(REFRESH_COOKIE);
+    return res;
+  };
 
   if (pathname === '/login') {
     if (authed) return NextResponse.redirect(new URL('/', req.url));
-    const res = NextResponse.next();
-    if (token) res.cookies.delete(COOKIE_NAME); // drop a stale cookie sitting on /login
-    return res;
+    return clearStale(NextResponse.next()); // drop stale cookies sitting on /login
   }
 
   if (!authed) {
-    const res = NextResponse.redirect(new URL('/login', req.url));
-    if (token) res.cookies.delete(COOKIE_NAME); // expired -> clear it, breaks the / <-> /login loop
-    return res;
+    return clearStale(NextResponse.redirect(new URL('/login', req.url)));
   }
   return NextResponse.next();
 }

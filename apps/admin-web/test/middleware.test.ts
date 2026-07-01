@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
 import { middleware } from '../middleware';
 
-const COOKIE = 'afristage_admin_token';
+const ACCESS = 'afristage_admin_token';
+const REFRESH = 'afristage_admin_refresh';
 
 // Build a JWT-shaped token (header.payload.sig) with the given exp (seconds).
 function token(exp?: number): string {
@@ -11,9 +12,10 @@ function token(exp?: number): string {
   return `h.${b64}.s`;
 }
 
-function req(path: string, cookie?: string): NextRequest {
+function req(path: string, cookies: { access?: string; refresh?: string } = {}): NextRequest {
   const r = new NextRequest(new URL(`http://localhost${path}`));
-  if (cookie) r.cookies.set(COOKIE, cookie);
+  if (cookies.access) r.cookies.set(ACCESS, cookies.access);
+  if (cookies.refresh) r.cookies.set(REFRESH, cookies.refresh);
   return r;
 }
 
@@ -21,39 +23,56 @@ const future = Math.floor(Date.now() / 1000) + 3600;
 const past = Math.floor(Date.now() / 1000) - 3600;
 
 describe('admin middleware', () => {
-  it('lets an authed user through to a page', () => {
-    const res = middleware(req('/users', token(future)));
-    expect(res.headers.get('location')).toBeNull(); // NextResponse.next()
+  it('lets a user with a valid access token through', () => {
+    const res = middleware(req('/users', { access: token(future) }));
+    expect(res.headers.get('location')).toBeNull();
   });
 
-  it('redirects an unauthenticated user to /login', () => {
+  it('lets a user through on a valid refresh token alone (access absent)', () => {
+    const res = middleware(req('/users', { refresh: token(future) }));
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('lets an expired access token through when the refresh token is still valid', () => {
+    const res = middleware(req('/users', { access: token(past), refresh: token(future) }));
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('redirects when there are no cookies', () => {
     const res = middleware(req('/users'));
     expect(res.headers.get('location')).toContain('/login');
   });
 
-  it('redirects an expired cookie to /login and clears it', () => {
-    const res = middleware(req('/users', token(past)));
+  it('redirects and clears both cookies when access and refresh are both expired', () => {
+    const res = middleware(req('/users', { access: token(past), refresh: token(past) }));
     expect(res.headers.get('location')).toContain('/login');
-    expect(res.cookies.get(COOKIE)?.value).toBe(''); // deleted
+    expect(res.cookies.get(ACCESS)?.value).toBe('');
+    expect(res.cookies.get(REFRESH)?.value).toBe('');
+  });
+
+  it('redirects and clears an expired access token with no refresh cookie', () => {
+    const res = middleware(req('/users', { access: token(past) }));
+    expect(res.headers.get('location')).toContain('/login');
+    expect(res.cookies.get(ACCESS)?.value).toBe('');
   });
 
   it('treats a malformed token (no payload) as expired', () => {
-    const res = middleware(req('/users', 'not-a-jwt'));
+    const res = middleware(req('/users', { access: 'not-a-jwt' }));
     expect(res.headers.get('location')).toContain('/login');
   });
 
   it('treats an unparseable payload as expired', () => {
-    const res = middleware(req('/users', 'h.%%%.s'));
+    const res = middleware(req('/users', { access: 'h.%%%.s' }));
     expect(res.headers.get('location')).toContain('/login');
   });
 
-  it('a token without exp is accepted (no forced logout)', () => {
-    const res = middleware(req('/users', token()));
+  it('accepts a token without exp (no forced logout)', () => {
+    const res = middleware(req('/users', { access: token() }));
     expect(res.headers.get('location')).toBeNull();
   });
 
   it('redirects an authed user away from /login to /', () => {
-    const res = middleware(req('/login', token(future)));
+    const res = middleware(req('/login', { access: token(future) }));
     expect(res.headers.get('location')).toMatch(/\/$/);
   });
 
@@ -62,9 +81,10 @@ describe('admin middleware', () => {
     expect(res.headers.get('location')).toBeNull();
   });
 
-  it('clears a stale cookie sitting on /login', () => {
-    const res = middleware(req('/login', token(past)));
+  it('clears stale cookies sitting on /login', () => {
+    const res = middleware(req('/login', { access: token(past), refresh: token(past) }));
     expect(res.headers.get('location')).toBeNull(); // not authed -> stays on /login
-    expect(res.cookies.get(COOKIE)?.value).toBe('');
+    expect(res.cookies.get(ACCESS)?.value).toBe('');
+    expect(res.cookies.get(REFRESH)?.value).toBe('');
   });
 });
