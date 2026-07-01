@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, UserCell } from "../admin-ui";
-import { useRowHighlight } from "../highlight";
+import { RowHighlightNotice, useRowHighlight } from "../highlight";
 
 type User = {
   id: string;
@@ -21,7 +21,7 @@ function UsersPageInner() {
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const highlightId = useRowHighlight(rows);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   async function load(query = "") {
     try {
@@ -83,6 +83,7 @@ function UsersPageInner() {
         </select>
         <button className="button">Search</button>
       </FilterBar>
+      <RowHighlightNotice missing={missing} />
       <DataTable columns={['User', 'Role', 'Status', 'Country', 'Wallet', 'Creator', 'Last activity', 'Actions']} empty={<EmptyState>No users match this search.</EmptyState>}>
             {filtered.map((u) => (
               <tr key={u.id} id={`row-${u.id}`} className={u.id === highlightId ? 'row-highlight' : undefined}>

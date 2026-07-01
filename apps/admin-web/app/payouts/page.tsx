@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
-import { useRowHighlight } from '../highlight';
+import { RowHighlightNotice, useRowHighlight } from '../highlight';
 
 type Payout = {
   id: string;
@@ -33,7 +33,7 @@ function PayoutsPageInner() {
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [risk, setRisk] = useState<Record<string, Risk>>({});
   const [error, setError] = useState<string | null>(null);
-  const highlightId = useRowHighlight(rows);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -76,6 +76,7 @@ function PayoutsPageInner() {
       {ledgerBlocked ? (
         <WarningBanner>Ledger imbalance detected. Do not approve payouts until integrity is resolved.</WarningBanner>
       ) : null}
+      <RowHighlightNotice missing={missing} />
       <div className="command-grid">
         <section>
           <DataTable columns={['Creator', 'Coins', 'Fiat', 'Status', 'Requested', 'Method', 'Risk flags', 'Hold', 'Reviewer', 'Actions']} empty={<EmptyState>No payout requests yet.</EmptyState>}>

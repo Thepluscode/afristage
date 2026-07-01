@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge, UserCell } from "../admin-ui";
+import { RowHighlightNotice, useRowHighlight } from "../highlight";
 
 type Creator = {
   id: string;
@@ -19,10 +20,11 @@ type Creator = {
   user?: { email?: string | null };
 };
 
-export default function CreatorsPage() {
+function CreatorsPageInner() {
   const [rows, setRows] = useState<Creator[]>([]);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -65,9 +67,10 @@ export default function CreatorsPage() {
         <span />
         <span />
       </FilterBar>
+      <RowHighlightNotice missing={missing} />
       <DataTable columns={['Creator', 'Country', 'Category', 'Approval', 'Applied', 'Earnings', 'Rooms', 'Reports', 'Actions']} empty={<EmptyState>No creator applications need review.</EmptyState>}>
             {filtered.map((c) => (
-              <tr key={c.id}>
+              <tr key={c.id} id={`row-${c.id}`} className={c.id === highlightId ? 'row-highlight' : undefined}>
                 <td><UserCell name={c.stageName || c.user?.email} sub={c.userId} /></td>
                 <td>{c.country || '—'}</td>
                 <td>{c.category || '—'}</td>
@@ -93,5 +96,13 @@ export default function CreatorsPage() {
             ))}
       </DataTable>
     </>
+  );
+}
+
+export default function CreatorsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CreatorsPageInner />
+    </Suspense>
   );
 }

@@ -8,6 +8,9 @@ vi.mock('../lib/api', () => ({
   adminLogout: vi.fn()
 }));
 
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost } from '../lib/api';
 import CreatorsPage from '../app/creators/page';
 
@@ -31,12 +34,24 @@ beforeEach(() => {
   vi.mocked(adminGet).mockResolvedValue([]);
   vi.mocked(adminPost).mockResolvedValue({} as never);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 describe('CreatorsPage', () => {
   it('renders the empty state', async () => {
     render(<CreatorsPage />);
     expect(await screen.findByText('No creator applications need review.')).toBeInTheDocument();
+  });
+
+  it('highlights the row targeted by ?id=', async () => {
+    nav.search = 'id=cr-b';
+    vi.mocked(adminGet).mockResolvedValue([creator({ id: 'cr-a' }), creator({ id: 'cr-b' })]);
+    const { container } = render(<CreatorsPage />);
+    await waitFor(() => expect(container.querySelector('#row-cr-b')).not.toBeNull());
+    expect(container.querySelector('#row-cr-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-cr-a')?.className || '').not.toContain('row-highlight');
   });
 
   it('renders the error state', async () => {

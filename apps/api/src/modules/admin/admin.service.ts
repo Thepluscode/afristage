@@ -107,17 +107,29 @@ export class AdminService {
     const term = (q || '').trim();
     if (!term) return [];
     const like = { contains: term, mode: 'insensitive' as const };
-    const [users, rooms, payments, payouts] = await Promise.all([
+    const [users, creators, rooms, reports, payments, payouts, gifts, tickets] = await Promise.all([
       this.prisma.user.findMany({
         where: { OR: [{ email: like }, { phone: { contains: term } }, { profile: { username: like } }, { profile: { displayName: like } }] },
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: { profile: true }
       }),
+      this.prisma.creatorProfile.findMany({
+        where: { OR: [{ stageName: like }, { user: { email: like } }] },
+        take: 5,
+        orderBy: { createdAt: 'desc' }
+      }),
       this.prisma.liveRoom.findMany({ where: { title: like }, take: 5, orderBy: { createdAt: 'desc' } }),
+      this.prisma.report.findMany({ where: { details: like }, take: 5, orderBy: { createdAt: 'desc' } }),
       this.prisma.paymentIntent.findMany({ where: { providerReference: like }, take: 5, orderBy: { createdAt: 'desc' } }),
       this.prisma.payoutRequest.findMany({
         where: { OR: [{ providerReference: like }, { payoutDestinationReference: like }] },
+        take: 5,
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.gift.findMany({ where: { name: like }, take: 5, orderBy: { createdAt: 'desc' } }),
+      this.prisma.supportTicket.findMany({
+        where: { OR: [{ subject: like }, { description: like }] },
         take: 5,
         orderBy: { createdAt: 'desc' }
       })
@@ -130,7 +142,9 @@ export class AdminService {
         sublabel: u.email || u.phone || u.role,
         href: `/users?id=${u.id}`
       })),
+      ...creators.map((c) => ({ type: 'creator', id: c.id, label: c.stageName, sublabel: c.approvalStatus, href: `/creators?id=${c.id}` })),
       ...rooms.map((r) => ({ type: 'room', id: r.id, label: r.title, sublabel: r.status, href: `/live-rooms?id=${r.id}` })),
+      ...reports.map((r) => ({ type: 'report', id: r.id, label: r.reason, sublabel: r.status, href: `/reports?id=${r.id}` })),
       ...payments.map((p) => ({
         type: 'payment',
         id: p.id,
@@ -144,7 +158,9 @@ export class AdminService {
         label: p.payoutDestinationReference || p.providerReference || p.id,
         sublabel: p.status,
         href: `/payouts?id=${p.id}`
-      }))
+      })),
+      ...gifts.map((g) => ({ type: 'gift', id: g.id, label: g.name, sublabel: g.isActive ? 'active' : 'inactive', href: `/gifts?id=${g.id}` })),
+      ...tickets.map((t) => ({ type: 'ticket', id: t.id, label: t.subject, sublabel: t.status, href: `/support?id=${t.id}` }))
     ];
   }
 

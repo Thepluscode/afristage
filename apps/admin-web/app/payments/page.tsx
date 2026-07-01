@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { adminGet } from "../../lib/api";
 import { DataTable, EmptyState, ErrorState, FilterBar, MoneyAmount, PageHeader, StatusBadge, UserCell } from "../admin-ui";
-import { useRowHighlight } from "../highlight";
+import { RowHighlightNotice, useRowHighlight } from "../highlight";
 
 type Payment = {
   id: string;
@@ -24,7 +24,7 @@ function PaymentsPageInner() {
   const [provider, setProvider] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const highlightId = useRowHighlight(rows);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   useEffect(() => {
     adminGet<Payment[]>("/admin/payments")
@@ -49,6 +49,7 @@ function PaymentsPageInner() {
         </select>
         <span />
       </FilterBar>
+      <RowHighlightNotice missing={missing} />
       <DataTable columns={['Reference', 'Provider', 'User', 'Amount', 'Coins', 'Status', 'Webhook', 'Created', 'Processed']} empty={<EmptyState>No payments have been recorded.</EmptyState>}>
             {filtered.map((p) => (
               <tr key={p.id} id={`row-${p.id}`} className={p.id === highlightId ? 'row-highlight' : undefined}>

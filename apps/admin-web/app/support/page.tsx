@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PriorityBadge, StatusBadge, TicketThread, UserCell } from "../admin-ui";
+import { RowHighlightNotice, useRowHighlight } from "../highlight";
 
 type Ticket = {
   id: string;
@@ -14,11 +15,12 @@ type Ticket = {
   createdAt: string;
 };
 
-export default function SupportPage() {
+function SupportPageInner() {
   const [rows, setRows] = useState<Ticket[]>([]);
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -62,10 +64,11 @@ export default function SupportPage() {
         </select>
         <span />
       </FilterBar>
+      <RowHighlightNotice missing={missing} />
       <div className="command-grid">
         <DataTable columns={['Subject', 'Requester', 'Type', 'Priority', 'Status', 'Created', 'Assigned', 'Actions']} empty={<EmptyState>No support tickets are open.</EmptyState>}>
             {filtered.map((t) => (
-              <tr key={t.id}>
+              <tr key={t.id} id={`row-${t.id}`} className={t.id === highlightId ? 'row-highlight' : undefined}>
                 <td>{t.subject}</td>
                 <td><UserCell sub={t.requesterId} /></td>
                 <td>{t.type}</td>
@@ -93,5 +96,13 @@ export default function SupportPage() {
         {selected ? <TicketThread subject={selected.subject} requester={selected.requesterId} /> : <TicketThread subject="No ticket selected" requester="system" />}
       </div>
     </>
+  );
+}
+
+export default function SupportPage() {
+  return (
+    <Suspense fallback={null}>
+      <SupportPageInner />
+    </Suspense>
   );
 }
