@@ -26,12 +26,15 @@ function mockApi({
   meReject = false,
   count = 0,
   countReject = false,
-  notifs = [] as any[]
+  notifs = [] as any[],
+  results = [] as any[],
+  resultsReject = false
 } = {}) {
   vi.mocked(adminGet).mockImplementation((p: string) => {
     if (p === '/auth/me') return meReject ? Promise.reject(new Error('x')) : Promise.resolve(me);
     if (p === '/notifications/unread-count') return countReject ? Promise.reject(new Error('x')) : Promise.resolve({ count });
     if (p === '/notifications/me') return Promise.resolve(notifs);
+    if (p.startsWith('/admin/search')) return resultsReject ? Promise.reject(new Error('x')) : Promise.resolve(results);
     return Promise.resolve(undefined);
   });
 }
@@ -111,7 +114,7 @@ describe('Topbar theme toggle', () => {
 describe('Topbar search quick-nav', () => {
   it('filters sections, navigates on click, and clears', async () => {
     renderTopbar();
-    const input = screen.getByPlaceholderText('Jump to a section…');
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: 'pay' } });
     const listbox = screen.getByRole('listbox');
@@ -124,19 +127,63 @@ describe('Topbar search quick-nav', () => {
 
   it('navigates to the first match on Enter', async () => {
     renderTopbar();
-    const input = screen.getByPlaceholderText('Jump to a section…');
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
     fireEvent.change(input, { target: { value: 'user' } });
+    fireEvent.keyDown(input, { key: 'a' }); // non-Enter keys are ignored
+    expect(push).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(push).toHaveBeenCalledWith('/users');
   });
 
   it('does nothing on Enter when there is no match', async () => {
     renderTopbar();
-    const input = screen.getByPlaceholderText('Jump to a section…');
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
     fireEvent.change(input, { target: { value: 'zzz' } });
-    expect(screen.getByText(/No section matches/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/No matches for/)).toBeInTheDocument());
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('shows live data results from /admin/search and navigates on click', async () => {
+    mockApi({
+      results: [
+        { type: 'user', id: 'u9', label: 'Ada Lovelace', sublabel: 'ada@x', href: '/users' },
+        { type: 'payment', id: 'pm1', label: 'pref-1', sublabel: 'SUCCEEDED', href: '/payments' }
+      ]
+    });
+    renderTopbar();
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
+    fireEvent.change(input, { target: { value: 'ada' } });
+    const result = await screen.findByText('Ada Lovelace');
+    expect(screen.getByText('pref-1')).toBeInTheDocument();
+    expect(screen.getAllByText('User').length).toBeGreaterThan(0);
+    fireEvent.click(result.closest('button')!);
+    expect(push).toHaveBeenCalledWith('/users');
+    expect((input as HTMLInputElement).value).toBe('');
+  });
+
+  it('navigates to a data result on Enter when no section matches', async () => {
+    mockApi({ results: [{ type: 'room', id: 'r1', label: 'Friday', href: '/live-rooms' }] });
+    renderTopbar();
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
+    fireEvent.change(input, { target: { value: 'friday' } });
+    await screen.findByText('Friday');
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(push).toHaveBeenCalledWith('/live-rooms');
+  });
+
+  it('renders an unknown result type label verbatim and tolerates a failed search', async () => {
+    mockApi({ results: [{ type: 'mystery', id: 'm1', label: 'Odd one', href: '/users' }] });
+    renderTopbar();
+    const input = screen.getByPlaceholderText('Search users, rooms, payments…');
+    fireEvent.change(input, { target: { value: 'odd' } });
+    await screen.findByText('Odd one');
+    expect(screen.getByText('mystery')).toBeInTheDocument(); // falls back to the raw type
+
+    // a failing search clears results back to empty
+    mockApi({ resultsReject: true });
+    fireEvent.change(input, { target: { value: 'boom' } });
+    await waitFor(() => expect(screen.getByText(/No matches for/)).toBeInTheDocument());
   });
 });
 

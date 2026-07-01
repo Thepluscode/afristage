@@ -8,6 +8,14 @@ import { adminGet, adminLogout, adminPost } from '../lib/api';
 type NavItem = { label: string; href: string; group: string };
 type Me = { sub?: string; email?: string; role?: string };
 type Notif = { id: string; title: string; body?: string | null; readAt?: string | null; createdAt: string };
+type SearchResult = { type: string; id: string; label: string; sublabel?: string; href: string };
+
+const RESULT_TYPE_LABEL: Record<string, string> = {
+  user: 'User',
+  room: 'Live room',
+  payment: 'Payment',
+  payout: 'Payout'
+};
 
 const THEME_KEY = 'afristage-admin-theme';
 type Panel = 'search' | 'notif' | 'profile' | null;
@@ -30,7 +38,22 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
   const [me, setMe] = useState<Me | null>(null);
   const [unread, setUnread] = useState(0);
   const [notifs, setNotifs] = useState<Notif[] | null>(null);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const root = useRef<HTMLDivElement>(null);
+
+  // Live data search across users/rooms/payments/payouts (server-side).
+  // ponytail: one request per keystroke, no debounce — fine at beta typing/volume;
+  // add a debounce + stale-response guard if search traffic grows.
+  useEffect(() => {
+    const term = query.trim();
+    if (!term) {
+      setResults([]);
+      return;
+    }
+    adminGet<SearchResult[]>(`/admin/search?q=${encodeURIComponent(term)}`)
+      .then(setResults)
+      .catch(() => setResults([]));
+  }, [query]);
 
   // Reflect the theme the no-FOUC script already applied to <html>.
   useEffect(() => {
@@ -109,7 +132,7 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
           <span>Search</span>
           <Search size={16} aria-hidden="true" />
           <input
-            placeholder="Jump to a section…"
+            placeholder="Search users, rooms, payments…"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -117,22 +140,27 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
             }}
             onFocus={() => setPanel('search')}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && matches[0]) go(matches[0].href);
+              if (e.key !== 'Enter') return;
+              const first = matches[0]?.href || results[0]?.href;
+              if (first) go(first);
             }}
           />
         </label>
         {panel === 'search' && query.trim() && (
           <div className="dropdown search-results" role="listbox">
-            {matches.length ? (
-              matches.map((m) => (
-                <button key={m.href} type="button" role="option" aria-selected="false" onClick={() => go(m.href)}>
-                  <span>{m.label}</span>
-                  <small>{m.group}</small>
-                </button>
-              ))
-            ) : (
-              <p className="dropdown-empty">No section matches “{query.trim()}”.</p>
-            )}
+            {matches.map((m) => (
+              <button key={`nav-${m.href}`} type="button" role="option" aria-selected="false" onClick={() => go(m.href)}>
+                <span>{m.label}</span>
+                <small>{m.group}</small>
+              </button>
+            ))}
+            {results.map((r) => (
+              <button key={`${r.type}-${r.id}`} type="button" role="option" aria-selected="false" onClick={() => go(r.href)}>
+                <span>{r.label}</span>
+                <small>{RESULT_TYPE_LABEL[r.type] || r.type}</small>
+              </button>
+            ))}
+            {!matches.length && !results.length && <p className="dropdown-empty">No matches for “{query.trim()}”.</p>}
           </div>
         )}
       </div>

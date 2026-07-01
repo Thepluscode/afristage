@@ -100,6 +100,54 @@ export class AdminService {
     return this.prisma.paymentIntent.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
   }
 
+  // Global operator search across the entities reviewers actually look people/things up by.
+  // Returns a flat, typed, capped list; each result points at the section that owns it.
+  // ponytail: one query per entity, 5 each, no debounce server-side — fine at beta volume.
+  async search(q?: string) {
+    const term = (q || '').trim();
+    if (!term) return [];
+    const like = { contains: term, mode: 'insensitive' as const };
+    const [users, rooms, payments, payouts] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { OR: [{ email: like }, { phone: { contains: term } }, { profile: { username: like } }, { profile: { displayName: like } }] },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: { profile: true }
+      }),
+      this.prisma.liveRoom.findMany({ where: { title: like }, take: 5, orderBy: { createdAt: 'desc' } }),
+      this.prisma.paymentIntent.findMany({ where: { providerReference: like }, take: 5, orderBy: { createdAt: 'desc' } }),
+      this.prisma.payoutRequest.findMany({
+        where: { OR: [{ providerReference: like }, { payoutDestinationReference: like }] },
+        take: 5,
+        orderBy: { createdAt: 'desc' }
+      })
+    ]);
+    return [
+      ...users.map((u) => ({
+        type: 'user',
+        id: u.id,
+        label: u.profile?.displayName || u.profile?.username || u.email || u.phone || u.id,
+        sublabel: u.email || u.phone || u.role,
+        href: '/users'
+      })),
+      ...rooms.map((r) => ({ type: 'room', id: r.id, label: r.title, sublabel: r.status, href: '/live-rooms' })),
+      ...payments.map((p) => ({
+        type: 'payment',
+        id: p.id,
+        label: p.providerReference || p.id,
+        sublabel: `${p.status} · ${p.coinAmount} coins`,
+        href: '/payments'
+      })),
+      ...payouts.map((p) => ({
+        type: 'payout',
+        id: p.id,
+        label: p.payoutDestinationReference || p.providerReference || p.id,
+        sublabel: p.status,
+        href: '/payouts'
+      }))
+    ];
+  }
+
   ledgerTransactions() {
     return this.prisma.ledgerTransaction.findMany({ orderBy: { createdAt: 'desc' }, take: 100, include: { entries: { include: { account: true } } } });
   }
