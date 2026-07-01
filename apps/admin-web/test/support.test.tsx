@@ -8,6 +8,9 @@ vi.mock('../lib/api', () => ({
   adminLogout: vi.fn()
 }));
 
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost } from '../lib/api';
 import SupportPage from '../app/support/page';
 
@@ -26,7 +29,10 @@ beforeEach(() => {
   vi.mocked(adminGet).mockResolvedValue([]);
   vi.mocked(adminPost).mockResolvedValue({} as never);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 describe('SupportPage', () => {
   it('renders the empty state and a placeholder ticket thread when nothing is selected', async () => {
@@ -34,6 +40,15 @@ describe('SupportPage', () => {
     expect(await screen.findByText('No support tickets are open.')).toBeInTheDocument();
     // selected is undefined -> placeholder TicketThread
     expect(screen.getByText('No ticket selected')).toBeInTheDocument();
+  });
+
+  it('highlights the row targeted by ?id=', async () => {
+    nav.search = 'id=tkt-b';
+    vi.mocked(adminGet).mockResolvedValue([ticket({ id: 'tkt-a' }), ticket({ id: 'tkt-b' })]);
+    const { container } = render(<SupportPage />);
+    await waitFor(() => expect(container.querySelector('#row-tkt-b')).not.toBeNull());
+    expect(container.querySelector('#row-tkt-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-tkt-a')?.className || '').not.toContain('row-highlight');
   });
 
   it('renders the error state', async () => {

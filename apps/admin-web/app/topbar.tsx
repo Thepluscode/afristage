@@ -12,9 +12,13 @@ type SearchResult = { type: string; id: string; label: string; sublabel?: string
 
 const RESULT_TYPE_LABEL: Record<string, string> = {
   user: 'User',
+  creator: 'Creator',
   room: 'Live room',
+  report: 'Report',
   payment: 'Payment',
-  payout: 'Payout'
+  payout: 'Payout',
+  gift: 'Gift',
+  ticket: 'Support'
 };
 
 const THEME_KEY = 'afristage-admin-theme';

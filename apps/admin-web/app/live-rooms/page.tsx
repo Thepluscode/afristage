@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, PageHeader, RoomCell, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
-import { useRowHighlight } from '../highlight';
+import { RowHighlightNotice, useRowHighlight } from '../highlight';
 
 type Room = {
   id: string;
@@ -21,7 +21,7 @@ type Room = {
 function LiveRoomsPageInner() {
   const [rows, setRows] = useState<Room[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const highlightId = useRowHighlight(rows);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -52,6 +52,7 @@ function LiveRoomsPageInner() {
       {ordered.some((r) => (r.reportsCount ?? 0) > 0) ? (
         <WarningBanner>Reported live rooms are prioritised at the top of the queue.</WarningBanner>
       ) : null}
+      <RowHighlightNotice missing={missing} />
       <DataTable columns={['Room', 'Host', 'Status', 'Viewers', 'Category', 'Region', 'Reports', 'Started', 'Actions']} empty={<EmptyState>No live rooms need operator attention.</EmptyState>}>
             {ordered.map((r) => (
               <tr key={r.id} id={`row-${r.id}`} className={r.id === highlightId ? 'row-highlight' : undefined}>

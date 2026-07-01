@@ -2,10 +2,17 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({ adminGet: vi.fn(), adminPost: vi.fn(), adminPatch: vi.fn(), adminLogout: vi.fn() }));
+
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost, adminPatch } from '../lib/api';
 import GiftsPage from '../app/gifts/page';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 const gift = (over: Partial<any> = {}) => ({ id: 'g1', name: 'Rose', coinPrice: 10, isActive: true, animationUrl: null, ...over });
 
@@ -14,6 +21,18 @@ describe('GiftsPage', () => {
     vi.mocked(adminGet).mockRejectedValue(new Error('gifts-boom'));
     render(<GiftsPage />);
     expect(await screen.findByText('gifts-boom')).toBeInTheDocument();
+  });
+
+  it('highlights the row targeted by ?id=', async () => {
+    nav.search = 'id=gift-b';
+    vi.mocked(adminGet).mockResolvedValue([
+      { id: 'gift-a', name: 'Rose', coinPrice: 10, isActive: true, animationUrl: null },
+      { id: 'gift-b', name: 'Fire', coinPrice: 50, isActive: true, animationUrl: null }
+    ]);
+    const { container } = render(<GiftsPage />);
+    await waitFor(() => expect(container.querySelector('#row-gift-b')).not.toBeNull());
+    expect(container.querySelector('#row-gift-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-gift-a')?.className || '').not.toContain('row-highlight');
   });
 
   it('empty -> empty state', async () => {

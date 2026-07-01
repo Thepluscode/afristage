@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { adminGet, adminPost, adminPatch } from "../../lib/api";
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge } from "../admin-ui";
+import { RowHighlightNotice, useRowHighlight } from "../highlight";
 
 type Gift = {
   id: string;
@@ -12,11 +13,12 @@ type Gift = {
   animationUrl?: string | null;
 };
 
-export default function GiftsPage() {
+function GiftsPageInner() {
   const [rows, setRows] = useState<Gift[]>([]);
   const [name, setName] = useState("");
   const [coinPrice, setCoinPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { id: highlightId, missing } = useRowHighlight(rows);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingGift = useRef<string | null>(null);
@@ -110,9 +112,10 @@ export default function GiftsPage() {
         />
         <button className="button">Create Gift</button>
       </FilterBar>
+      <RowHighlightNotice missing={missing} />
       <DataTable columns={["Gift", "Coins", "Status", "Animation", "Actions"]} empty={<EmptyState>No gifts have been configured.</EmptyState>}>
             {rows.map((g) => (
-              <tr key={g.id}>
+              <tr key={g.id} id={`row-${g.id}`} className={g.id === highlightId ? 'row-highlight' : undefined}>
                 <td>{g.name}</td>
                 <td>{g.coinPrice}</td>
                 <td><StatusBadge status={g.isActive ? "ACTIVE" : "INACTIVE"} /></td>
@@ -148,5 +151,13 @@ export default function GiftsPage() {
             ))}
       </DataTable>
     </>
+  );
+}
+
+export default function GiftsPage() {
+  return (
+    <Suspense fallback={null}>
+      <GiftsPageInner />
+    </Suspense>
   );
 }

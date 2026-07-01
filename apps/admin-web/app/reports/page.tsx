@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PriorityBadge, PromptDialog, RoomCell, StatusBadge, UserCell } from '../admin-ui';
+import { RowHighlightNotice, useRowHighlight } from '../highlight';
 
 type Report = {
   id: string;
@@ -16,12 +17,13 @@ type Report = {
   room?: { title?: string };
 };
 
-export default function ReportsPage() {
+function ReportsPageInner() {
   const [rows, setRows] = useState<Report[]>([]);
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { id: highlightId, missing } = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -66,9 +68,10 @@ export default function ReportsPage() {
         </select>
         <input placeholder="Reason / target / country" value={reason} onChange={(e) => setReason(e.target.value)} />
       </FilterBar>
+      <RowHighlightNotice missing={missing} />
       <DataTable columns={['Priority', 'Reason', 'Target', 'Reporter', 'Room', 'Status', 'Created', 'Reviewer', 'Actions']} empty={<EmptyState>No reports in the moderation queue.</EmptyState>}>
             {filtered.map((r) => (
-              <tr key={r.id}>
+              <tr key={r.id} id={`row-${r.id}`} className={r.id === highlightId ? 'row-highlight' : undefined}>
                 <td><PriorityBadge priority={r.priority} /></td>
                 <td>{r.reason}</td>
                 <td><UserCell name={r.targetUser?.profile?.username || 'N/A'} /></td>
@@ -91,5 +94,13 @@ export default function ReportsPage() {
             ))}
       </DataTable>
     </>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReportsPageInner />
+    </Suspense>
   );
 }

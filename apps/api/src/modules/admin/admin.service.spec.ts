@@ -89,12 +89,18 @@ describe('AdminService list filters', () => {
 });
 
 describe('AdminService.search', () => {
-  function searchBuild(data: { users?: any[]; rooms?: any[]; payments?: any[]; payouts?: any[] } = {}) {
+  function searchBuild(
+    data: { users?: any[]; creators?: any[]; rooms?: any[]; reports?: any[]; payments?: any[]; payouts?: any[]; gifts?: any[]; tickets?: any[] } = {}
+  ) {
     const prisma: any = {
       user: { findMany: jest.fn().mockResolvedValue(data.users ?? []) },
+      creatorProfile: { findMany: jest.fn().mockResolvedValue(data.creators ?? []) },
       liveRoom: { findMany: jest.fn().mockResolvedValue(data.rooms ?? []) },
+      report: { findMany: jest.fn().mockResolvedValue(data.reports ?? []) },
       paymentIntent: { findMany: jest.fn().mockResolvedValue(data.payments ?? []) },
-      payoutRequest: { findMany: jest.fn().mockResolvedValue(data.payouts ?? []) }
+      payoutRequest: { findMany: jest.fn().mockResolvedValue(data.payouts ?? []) },
+      gift: { findMany: jest.fn().mockResolvedValue(data.gifts ?? []) },
+      supportTicket: { findMany: jest.fn().mockResolvedValue(data.tickets ?? []) }
     };
     return { service: new AdminService(prisma), prisma };
   }
@@ -114,6 +120,10 @@ describe('AdminService.search', () => {
       expect.arrayContaining([{ email: { contains: 'Ada', mode: 'insensitive' } }, { phone: { contains: 'Ada' } }])
     );
     expect(prisma.liveRoom.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { title: { contains: 'Ada', mode: 'insensitive' } } }));
+    expect(prisma.report.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { details: { contains: 'Ada', mode: 'insensitive' } } }));
+    expect(prisma.gift.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { name: { contains: 'Ada', mode: 'insensitive' } } }));
+    expect(prisma.creatorProfile.findMany).toHaveBeenCalled();
+    expect(prisma.supportTicket.findMany).toHaveBeenCalled();
     expect(prisma.payoutRequest.findMany).toHaveBeenCalled();
   });
 
@@ -126,7 +136,9 @@ describe('AdminService.search', () => {
         { id: 'u4', role: 'VIEWER', email: null, phone: 'p4', profile: null },
         { id: 'u5', role: 'VIEWER', email: null, phone: null, profile: null }
       ],
+      creators: [{ id: 'c1', stageName: 'Nova', approvalStatus: 'APPROVED' }],
       rooms: [{ id: 'r1', title: 'Friday Night', status: 'LIVE' }],
+      reports: [{ id: 'rp1', reason: 'HARASSMENT', status: 'OPEN' }],
       payments: [
         { id: 'pm1', providerReference: 'pref1', status: 'SUCCEEDED', coinAmount: 100 },
         { id: 'pm2', providerReference: null, status: 'PENDING', coinAmount: 50 }
@@ -135,7 +147,12 @@ describe('AdminService.search', () => {
         { id: 'po1', payoutDestinationReference: 'dest1', providerReference: null, status: 'APPROVED' },
         { id: 'po2', payoutDestinationReference: null, providerReference: 'prov2', status: 'PAID' },
         { id: 'po3', payoutDestinationReference: null, providerReference: null, status: 'HELD' }
-      ]
+      ],
+      gifts: [
+        { id: 'g1', name: 'Rose', isActive: true },
+        { id: 'g2', name: 'Fire', isActive: false }
+      ],
+      tickets: [{ id: 't1', subject: 'Cannot withdraw', status: 'OPEN' }]
     });
     const res = await service.search('x');
     const byId = Object.fromEntries(res.map((r) => [r.id, r]));
@@ -154,5 +171,11 @@ describe('AdminService.search', () => {
     expect(byId.po1).toMatchObject({ type: 'payout', label: 'dest1', href: '/payouts?id=po1' });
     expect(byId.po2.label).toBe('prov2');
     expect(byId.po3.label).toBe('po3');
+    // new entity types
+    expect(byId.c1).toMatchObject({ type: 'creator', label: 'Nova', sublabel: 'APPROVED', href: '/creators?id=c1' });
+    expect(byId.rp1).toMatchObject({ type: 'report', label: 'HARASSMENT', sublabel: 'OPEN', href: '/reports?id=rp1' });
+    expect(byId.g1).toMatchObject({ type: 'gift', label: 'Rose', sublabel: 'active', href: '/gifts?id=g1' });
+    expect(byId.g2.sublabel).toBe('inactive'); // isActive false branch
+    expect(byId.t1).toMatchObject({ type: 'ticket', label: 'Cannot withdraw', sublabel: 'OPEN', href: '/support?id=t1' });
   });
 });

@@ -8,6 +8,9 @@ vi.mock('../lib/api', () => ({
   adminLogout: vi.fn()
 }));
 
+const nav = vi.hoisted(() => ({ search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+
 import { adminGet, adminPost } from '../lib/api';
 import ReportsPage from '../app/reports/page';
 
@@ -28,12 +31,24 @@ beforeEach(() => {
   vi.mocked(adminGet).mockResolvedValue([]);
   vi.mocked(adminPost).mockResolvedValue({} as never);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  nav.search = '';
+});
 
 describe('ReportsPage', () => {
   it('renders the empty state', async () => {
     render(<ReportsPage />);
     expect(await screen.findByText('No reports in the moderation queue.')).toBeInTheDocument();
+  });
+
+  it('highlights the row targeted by ?id=', async () => {
+    nav.search = 'id=rep-b';
+    vi.mocked(adminGet).mockResolvedValue([report({ id: 'rep-a' }), report({ id: 'rep-b' })]);
+    const { container } = render(<ReportsPage />);
+    await waitFor(() => expect(container.querySelector('#row-rep-b')).not.toBeNull());
+    expect(container.querySelector('#row-rep-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-rep-a')?.className || '').not.toContain('row-highlight');
   });
 
   it('renders the error state', async () => {

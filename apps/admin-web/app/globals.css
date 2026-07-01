@@ -1176,3 +1176,15 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .row-highlight td { animation: none; }
 }
+
+/* Search click-through to a record not in the loaded list */
+.row-missing-note {
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  border-radius: 12px;
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--warning);
+  font-size: 13px;
+}
+[data-theme='light'] .row-missing-note { color: #c2410c; }
