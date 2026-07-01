@@ -20,6 +20,18 @@ describe('PaymentsPage', () => {
     expect(await screen.findByText('boom-payments')).toBeInTheDocument();
   });
 
+  it('highlights the row targeted by ?id=', async () => {
+    (window.location as any).search = '?id=pay-b';
+    vi.mocked(adminGet).mockResolvedValue([
+      { id: 'pay-a', provider: 'STRIPE', amountMinor: 100, currency: 'USD', coinAmount: 10, status: 'SUCCEEDED', createdAt: '2024-01-01T00:00:00Z' },
+      { id: 'pay-b', provider: 'STRIPE', amountMinor: 200, currency: 'USD', coinAmount: 20, status: 'PENDING', createdAt: '2024-01-02T00:00:00Z' }
+    ]);
+    const { container } = render(<PaymentsPage />);
+    await waitFor(() => expect(container.querySelector('#row-pay-b')).not.toBeNull());
+    expect(container.querySelector('#row-pay-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-pay-a')?.className || '').not.toContain('row-highlight');
+  });
+
   it('renders rows with both branches of optional fields', async () => {
     vi.mocked(adminGet).mockResolvedValue([
       {

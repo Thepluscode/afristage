@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
+import { useRowHighlight } from '../highlight';
 
 type Payout = {
   id: string;
@@ -32,6 +33,7 @@ export default function PayoutsPage() {
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
   const [risk, setRisk] = useState<Record<string, Risk>>({});
   const [error, setError] = useState<string | null>(null);
+  const highlightId = useRowHighlight(rows);
 
   async function load() {
     try {
@@ -78,7 +80,7 @@ export default function PayoutsPage() {
         <section>
           <DataTable columns={['Creator', 'Coins', 'Fiat', 'Status', 'Requested', 'Method', 'Risk flags', 'Hold', 'Reviewer', 'Actions']} empty={<EmptyState>No payout requests yet.</EmptyState>}>
             {rows.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} id={`row-${p.id}`} className={p.id === highlightId ? 'row-highlight' : undefined}>
                 <td><UserCell name={p.creator?.creatorProfile?.stageName || p.creator?.profile?.displayName || p.creator?.email} sub={p.creatorUserId} /></td>
                 <td>{p.coinAmount}</td>
                 <td><MoneyAmount minor={p.fiatMinor} currency={p.fiatCurrency} /></td>

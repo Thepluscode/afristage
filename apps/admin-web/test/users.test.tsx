@@ -35,6 +35,15 @@ describe('UsersPage', () => {
     expect(await screen.findByText('No users match this search.')).toBeInTheDocument();
   });
 
+  it('highlights the row targeted by ?id=', async () => {
+    (window.location as any).search = '?id=user-b';
+    vi.mocked(adminGet).mockResolvedValue([user({ id: 'user-a' }), user({ id: 'user-b' })]);
+    const { container } = render(<UsersPage />);
+    await waitFor(() => expect(container.querySelector('#row-user-b')).not.toBeNull());
+    expect(container.querySelector('#row-user-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-user-a')?.className || '').not.toContain('row-highlight');
+  });
+
   it('renders the error state when load fails', async () => {
     vi.mocked(adminGet).mockRejectedValue(new Error('boom'));
     render(<UsersPage />);

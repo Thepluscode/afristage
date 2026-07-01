@@ -1148,3 +1148,17 @@ code {
 [data-theme='light'] .pill.creator,
 [data-theme='light'] .pill.premium,
 [data-theme='light'] .room-dot { color: #6d28d9; }
+
+/* Search click-through: flash + mark the row that ?id= points at */
+.row-highlight td {
+  background: rgba(255, 200, 87, 0.14);
+  animation: row-flash 1.6s ease;
+}
+.row-highlight td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+@keyframes row-flash {
+  0% { background: rgba(255, 200, 87, 0.42); }
+  100% { background: rgba(255, 200, 87, 0.14); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-highlight td { animation: none; }
+}

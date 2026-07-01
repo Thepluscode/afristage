@@ -61,6 +61,15 @@ describe('PayoutsPage', () => {
     expect(await screen.findByText('payouts-boom')).toBeInTheDocument();
   });
 
+  it('highlights the row targeted by ?id=', async () => {
+    (window.location as any).search = '?id=po-b';
+    setup({ payouts: [payout({ id: 'po-a', status: 'PAID', creatorUserId: 'c1' }), payout({ id: 'po-b', status: 'PAID', creatorUserId: 'c2' })] });
+    const { container } = render(<PayoutsPage />);
+    await waitFor(() => expect(container.querySelector('#row-po-b')).not.toBeNull());
+    expect(container.querySelector('#row-po-b')?.className).toContain('row-highlight');
+    expect(container.querySelector('#row-po-a')?.className || '').not.toContain('row-highlight');
+  });
+
   it('empty payouts -> empty state, integrity ok (no banner)', async () => {
     setup({ payouts: [] });
     render(<PayoutsPage />);
