@@ -137,8 +137,9 @@ void main() {
       () async {
     var cleared = false;
     final api = _client((req) async {
-      if (req.url.path.endsWith('/auth/refresh'))
+      if (req.url.path.endsWith('/auth/refresh')) {
         throw Exception('network down');
+      }
       return _json({'message': 'expired'}, 401);
     })
       ..refreshToken = 'rt'

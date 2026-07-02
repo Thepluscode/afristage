@@ -25,7 +25,13 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> {
   late Future<List<LiveRoom>> _rooms;
   String _category = 'For You';
+  // Local Stage: filter the feed to the viewer's profile country (privacy-safe
+  // coarse region — no GPS, no permission; see docs/reverse-engineering/R4 §2).
+  String _scope = 'All Stages';
+  String? _myCountry;
   int _unread = 0;
+
+  static const _scopes = ['All Stages', 'Local'];
   List<Map<String, dynamic>> _upcoming = const [];
   final Set<String> _reminded = {};
 
@@ -45,6 +51,22 @@ class _FeedScreenState extends State<FeedScreen> {
     _rooms = _load();
     _loadUnread();
     _loadUpcoming();
+    _loadMyCountry();
+  }
+
+  // Best-effort: the Local chip needs the viewer's profile country. A failure
+  // just leaves Local showing the "set your country" hint.
+  Future<void> _loadMyCountry() async {
+    try {
+      final me = await context.read<AppState>().api.get('/users/me');
+      final profile = me['profile'] as Map<String, dynamic>?;
+      final country = profile?['country'] as String?;
+      if (mounted && country != null && country.isNotEmpty) {
+        setState(() => _myCountry = country);
+      }
+    } catch (e) {
+      debugPrint('Viewer country failed to load: $e');
+    }
   }
 
   Future<void> _loadUnread() async {
@@ -123,11 +145,22 @@ class _FeedScreenState extends State<FeedScreen> {
             builder: (_) => CreatorProfileScreen(creatorId: room.hostId!)));
   }
 
-  List<LiveRoom> _filter(List<LiveRoom> rooms) => _category == 'For You'
-      ? rooms
-      : rooms
-          .where((r) => r.category.toLowerCase() == _category.toLowerCase())
+  List<LiveRoom> _filter(List<LiveRoom> rooms) {
+    var result = _category == 'For You'
+        ? rooms
+        : rooms
+            .where((r) => r.category.toLowerCase() == _category.toLowerCase())
+            .toList();
+    if (_scope == 'Local') {
+      // Unknown viewer country matches nothing — the empty state explains why.
+      result = result
+          .where((r) =>
+              _myCountry != null &&
+              r.country.toUpperCase() == _myCountry!.toUpperCase())
           .toList();
+    }
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -248,17 +281,29 @@ class _FeedScreenState extends State<FeedScreen> {
                 ),
                 const SizedBox(height: 22),
 
-                // Live now rail.
+                // Live now rail, scoped All Stages / Local (viewer's region).
                 _SectionHeader(
-                    title: 'Live now', trailing: '${live.length} live'),
+                    title: _scope == 'Local' ? 'Live near you' : 'Live now',
+                    trailing: '${live.length} live'),
+                const SizedBox(height: 12),
+                AfriCategoryChips(
+                    items: _scopes,
+                    selected: _scope,
+                    onSelected: (v) => setState(() => _scope = v)),
                 const SizedBox(height: 12),
                 if (rail.isEmpty)
                   AfriEmptyState(
-                    icon: Icons.live_tv,
-                    title: _category == 'For You'
-                        ? 'No other rooms live'
-                        : 'No $_category rooms live',
-                    body: 'Follow creators or check back soon.',
+                    icon: _scope == 'Local' ? Icons.place : Icons.live_tv,
+                    title: _scope == 'Local'
+                        ? 'No local rooms live'
+                        : _category == 'For You'
+                            ? 'No other rooms live'
+                            : 'No $_category rooms live',
+                    body: _scope == 'Local'
+                        ? (_myCountry == null
+                            ? 'Set your country in your profile to see local rooms.'
+                            : 'No live rooms in $_myCountry right now.')
+                        : 'Follow creators or check back soon.',
                   )
                 else
                   SizedBox(
