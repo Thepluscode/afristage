@@ -81,8 +81,9 @@ class _FakeApi extends ApiClient {
   @override
   Future<Map<String, dynamic>> post(String path,
       [Map<String, dynamic>? body]) async {
-    if (errors.contains(path) || postErrors.contains(path))
+    if (errors.contains(path) || postErrors.contains(path)) {
       throw const ApiException(500, 'boom');
+    }
     posts.add(path);
     return maps[path] ?? const {};
   }
@@ -2096,6 +2097,76 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('FeedScreen Local scope filters to the viewer country',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/live-rooms': [
+        feedRoom('r1', 'MUSIC', 'DJ'), // NG (feedRoom default)
+        feedRoom('r2', 'COMEDY', 'Ada')..['country'] = 'GH',
+      ],
+    }, maps: {
+      '/users/me': {
+        'profile': {'country': 'GH'}
+      }
+    });
+    await tester.pumpWidget(_wrap(api, const FeedScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('2 live'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Local'), 150,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Local'));
+    await tester.pumpAndSettle();
+    expect(find.text('Live near you'), findsOneWidget);
+    expect(find.text('1 live'), findsOneWidget); // only the GH room
+
+    await tester.tap(find.text('All Stages'));
+    await tester.pumpAndSettle();
+    expect(find.text('Live now'), findsWidgets);
+    expect(find.text('2 live'), findsOneWidget);
+  });
+
+  testWidgets('FeedScreen Local empty state names the viewer country',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/live-rooms': [feedRoom('r1', 'MUSIC', 'DJ')], // NG only
+    }, maps: {
+      '/users/me': {
+        'profile': {'country': 'GH'}
+      }
+    });
+    await tester.pumpWidget(_wrap(api, const FeedScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Local'), 150,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Local'));
+    await tester.pumpAndSettle();
+    expect(find.text('No local rooms live'), findsOneWidget);
+    expect(find.text('No live rooms in GH right now.'), findsOneWidget);
+  });
+
+  testWidgets('FeedScreen Local hints when the viewer country is unknown',
+      (tester) async {
+    _tall(tester);
+    // /users/me fails -> country stays unknown (best-effort catch path).
+    final api = _FakeApi(lists: {
+      '/live-rooms': [feedRoom('r1', 'MUSIC', 'DJ')],
+    }, errors: {
+      '/users/me'
+    });
+    await tester.pumpWidget(_wrap(api, const FeedScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Local'), 150,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Local'));
+    await tester.pumpAndSettle();
+    expect(find.text('No local rooms live'), findsOneWidget);
+    expect(find.text('Set your country in your profile to see local rooms.'),
+        findsOneWidget);
+  });
+
   testWidgets('FeedScreen opens a room from the hero', (tester) async {
     _tall(tester);
     _stubRoomSockets();
@@ -2233,6 +2304,7 @@ void main() {
   // non-const to exercise it.
   test('screen constructors execute (non-const)', () {
     // ignore_for_file: prefer_const_constructors
+    expect(FeedScreen(), isA<FeedScreen>());
     expect(SearchScreen(), isA<SearchScreen>());
     expect(LoginScreen(), isA<LoginScreen>());
     expect(LiveScreen(), isA<LiveScreen>());
