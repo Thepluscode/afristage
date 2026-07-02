@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { LedgerDirection, LedgerTransactionType, RoomStatus, UserStatus, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ChatGateway } from '../chat/chat.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SendGiftDto } from './dto/send-gift.dto';
@@ -14,7 +15,8 @@ export class GiftsService {
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
     private readonly ledger: LedgerService,
-    private readonly chat: ChatGateway
+    private readonly chat: ChatGateway,
+    private readonly notifications: NotificationsService
   ) {}
 
   list() {
@@ -174,6 +176,25 @@ export class GiftsService {
       platformFeeMinor: platformFee,
       createdAt: giftTx.createdAt
     });
+
+    // GIFT_RECOGNITION (R4 taxonomy): tell the sender when this gift makes them
+    // the room's top supporter. Optional dependency — a notification failure
+    // must never fail the gift, and the type's per-room throttle in
+    // NotificationsService caps this at one ping per room per window.
+    try {
+      const [top] = await this.topGifters(roomId, 1);
+      if (top?.viewerId === viewerId) {
+        await this.notifications.notifyUser(
+          viewerId,
+          'GIFT_RECOGNITION',
+          'You are the top supporter!',
+          `Your gifts made you the top supporter in "${room.title}".`,
+          roomId
+        );
+      }
+    } catch {
+      /* recognition is best-effort; the gift itself already succeeded */
+    }
     return giftTx;
   }
 }

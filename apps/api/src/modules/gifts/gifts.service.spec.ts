@@ -8,7 +8,7 @@ function build(overrides: any = {}) {
     liveRoom: { findUnique: jest.fn() },
     user: { findUnique: jest.fn() },
     gift: { findUnique: jest.fn() },
-    giftTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), groupBy: jest.fn(), findMany: jest.fn() },
+    giftTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn() },
     ledgerTransaction: { findUnique: jest.fn().mockResolvedValue(null) },
     profile: { findMany: jest.fn().mockResolvedValue([]) }
   };
@@ -19,11 +19,12 @@ function build(overrides: any = {}) {
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
   const chat: any = { emitToRoom: jest.fn() };
-  prisma.liveRoom.findUnique.mockResolvedValue(overrides.room ?? { id: 'r1', status: 'LIVE', hostUserId: 'creator' });
+  const notifications: any = { notifyUser: jest.fn().mockResolvedValue(null) };
+  prisma.liveRoom.findUnique.mockResolvedValue(overrides.room ?? { id: 'r1', status: 'LIVE', hostUserId: 'creator', title: 'Friday Jam' });
   prisma.user.findUnique.mockResolvedValue(overrides.viewer ?? { id: 'v1', status: 'ACTIVE' });
   prisma.gift.findUnique.mockResolvedValue(overrides.gift ?? { id: 'g1', isActive: true, coinPrice: 10, name: 'Rose' });
-  const service = new GiftsService(prisma, wallet, ledger, chat);
-  return { service, prisma, wallet, ledger, chat };
+  const service = new GiftsService(prisma, wallet, ledger, chat, notifications);
+  return { service, prisma, wallet, ledger, chat, notifications };
 }
 
 describe('GiftsService.send', () => {
@@ -84,6 +85,38 @@ describe('GiftsService.send', () => {
       'gift.sent',
       expect.objectContaining({ giftTransactionId: 'gt1', giftName: 'Rose', senderId: 'v1', totalCoinAmount: 10 })
     );
+  });
+
+  it('sends GIFT_RECOGNITION when this gift makes the sender the top supporter', async () => {
+    const { service, prisma, notifications } = build();
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ viewerId: 'v1', _sum: { totalCoinAmount: 10, quantity: 1 } }]);
+    prisma.profile.findMany.mockResolvedValue([]);
+    await service.send('v1', 'r1', dto);
+    expect(notifications.notifyUser).toHaveBeenCalledWith(
+      'v1',
+      'GIFT_RECOGNITION',
+      expect.any(String),
+      expect.stringContaining('Friday Jam'),
+      'r1'
+    );
+  });
+
+  it('does not send GIFT_RECOGNITION when someone else is still on top', async () => {
+    const { service, prisma, notifications } = build();
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ viewerId: 'whale', _sum: { totalCoinAmount: 9999, quantity: 4 } }]);
+    prisma.profile.findMany.mockResolvedValue([]);
+    await service.send('v1', 'r1', dto);
+    expect(notifications.notifyUser).not.toHaveBeenCalled();
+  });
+
+  it('a recognition failure never fails the gift (optional dependency)', async () => {
+    const { service, prisma } = build();
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    prisma.giftTransaction.groupBy.mockRejectedValue(new Error('agg down'));
+    const result = await service.send('v1', 'r1', dto);
+    expect(result).toEqual({ id: 'gt1', createdAt: new Date(0) }); // gift still returned
   });
 });
 
