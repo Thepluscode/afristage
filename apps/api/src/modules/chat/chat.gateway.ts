@@ -1,23 +1,28 @@
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { createAdapter } from '@socket.io/redis-adapter';
+import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../database/prisma.service';
 import { ChatService } from './chat.service';
 
 @WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
+  private redisPub?: Redis;
+  private redisSub?: Redis;
 
   // Live presence: who is watching each room RIGHT NOW, keyed by socket id.
   // This is the display source of truth — it self-heals on disconnect (no ghost
   // viewers), unlike the RoomParticipant table (historical watch-time/ranking).
-  // ponytail: in-memory, single-instance + counts connections not unique users;
-  // move to a Redis adapter / dedupe by userId when the API scales horizontally.
+  // ponytail: presence stays PER-INSTANCE (counts this node's connections, not
+  // unique users) even with the Redis adapter below; cross-instance counts need
+  // adapter-aware fetchSockets() or Redis-backed presence when we scale out.
   private readonly viewers = new Map<string, Set<string>>();
 
   // When each socket joined each room, keyed `${roomId}::${socketId}`. Used to
@@ -35,6 +40,39 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService
   ) {}
+
+  // Attach the Socket.IO Redis adapter so to(room).emit / emitToRoom fan out
+  // across every API instance, not just the one holding the socket (R5 §9 #2).
+  // Realtime is an optional layer (Rule 9): if Redis is misconfigured the API
+  // still boots single-instance — logged loudly, never fatal. Disable with
+  // CHAT_REDIS_ADAPTER=off (e.g. one-off local runs without Redis).
+  afterInit(server: Server) {
+    if (process.env.CHAT_REDIS_ADAPTER === 'off') {
+      this.logger.warn('Chat Redis adapter disabled (CHAT_REDIS_ADAPTER=off) — events fan out on this instance only');
+      return;
+    }
+    try {
+      const url = process.env.REDIS_URL || 'redis://localhost:6379';
+      this.redisPub = new Redis(url);
+      this.redisSub = this.redisPub.duplicate();
+      // Surface adapter connection problems instead of unhandled 'error' events.
+      this.redisPub.on('error', (err) => this.logger.error(`Chat Redis pub error: ${err.message}`));
+      this.redisSub.on('error', (err) => this.logger.error(`Chat Redis sub error: ${err.message}`));
+      // Namespaced gateways receive the Namespace here, which has no adapter
+      // setter — attach on the parent Server, which re-inits the adapter on
+      // every existing namespace (including /chat).
+      const io: any = (server as any).server ?? server;
+      io.adapter(createAdapter(this.redisPub, this.redisSub));
+      this.logger.log('Chat Redis adapter attached — room events fan out across instances');
+    } catch (err: any) {
+      this.logger.error(`Chat Redis adapter failed to attach (single-instance fan-out only): ${err?.message}`);
+    }
+  }
+
+  async onModuleDestroy() {
+    await this.redisPub?.quit().catch(() => {});
+    await this.redisSub?.quit().catch(() => {});
+  }
 
   // Current live viewer count for one room.
   countFor(roomId: string): number {

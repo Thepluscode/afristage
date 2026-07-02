@@ -134,3 +134,104 @@ describe('ChatGateway messaging + auth + resilience', () => {
     expect(() => gateway.emitToRoom('A', 'x', {})).not.toThrow();
   });
 });
+
+// --- Redis adapter (multi-instance fan-out) ---
+jest.mock('ioredis', () => {
+  const MockRedis = jest.fn().mockImplementation(() => {
+    const inst: any = { on: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
+    inst.duplicate = jest.fn(() => {
+      const dup: any = { on: jest.fn(), quit: jest.fn().mockResolvedValue('OK') };
+      (MockRedis as any).lastSub = dup;
+      return dup;
+    });
+    (MockRedis as any).lastPub = inst;
+    return inst;
+  });
+  return { __esModule: true, default: MockRedis };
+});
+jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: jest.fn().mockReturnValue('ADAPTER') }));
+
+// Re-import AFTER the mocks so the gateway sees the mocked modules.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const MockRedis = require('ioredis').default;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createAdapter } = require('@socket.io/redis-adapter');
+
+describe('ChatGateway Redis adapter', () => {
+  const freshGateway = () =>
+    new ChatGateway({} as any, {} as any, {} as any, { liveRoom: { updateMany: () => Promise.resolve({ count: 0 }) } } as any);
+
+  afterEach(() => {
+    delete process.env.CHAT_REDIS_ADAPTER;
+    jest.clearAllMocks();
+  });
+
+  it('attaches the adapter with a pub client and a duplicated sub client', () => {
+    const gateway = freshGateway();
+    const server: any = { adapter: jest.fn() };
+    gateway.afterInit(server);
+    expect(server.adapter).toHaveBeenCalledWith('ADAPTER');
+    expect(createAdapter).toHaveBeenCalledWith(MockRedis.lastPub, MockRedis.lastSub);
+    // connection problems are surfaced, not unhandled
+    expect(MockRedis.lastPub.on).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(MockRedis.lastSub.on).toHaveBeenCalledWith('error', expect.any(Function));
+    // the wired handlers log rather than throw
+    MockRedis.lastPub.on.mock.calls[0][1](new Error('pub down'));
+    MockRedis.lastSub.on.mock.calls[0][1](new Error('sub down'));
+  });
+
+  it('attaches on the parent Server when handed a Namespace (namespaced gateway)', () => {
+    const parent: any = { adapter: jest.fn() };
+    const namespace: any = { server: parent }; // what Nest injects for namespace:'/chat'
+    freshGateway().afterInit(namespace);
+    expect(parent.adapter).toHaveBeenCalledWith('ADAPTER');
+  });
+
+  it('uses REDIS_URL when set and the localhost default when not', () => {
+    const prev = process.env.REDIS_URL;
+    try {
+      process.env.REDIS_URL = 'redis://custom:6390';
+      freshGateway().afterInit({ adapter: jest.fn() } as any);
+      expect(MockRedis).toHaveBeenLastCalledWith('redis://custom:6390');
+      delete process.env.REDIS_URL;
+      freshGateway().afterInit({ adapter: jest.fn() } as any);
+      expect(MockRedis).toHaveBeenLastCalledWith('redis://localhost:6379');
+    } finally {
+      if (prev === undefined) delete process.env.REDIS_URL;
+      else process.env.REDIS_URL = prev;
+    }
+  });
+
+  it('skips the adapter when CHAT_REDIS_ADAPTER=off', () => {
+    process.env.CHAT_REDIS_ADAPTER = 'off';
+    const gateway = freshGateway();
+    const server: any = { adapter: jest.fn() };
+    gateway.afterInit(server);
+    expect(server.adapter).not.toHaveBeenCalled();
+  });
+
+  it('an adapter failure never breaks boot (single-instance fallback)', () => {
+    (createAdapter as jest.Mock).mockImplementationOnce(() => {
+      throw new Error('adapter boom');
+    });
+    const gateway = freshGateway();
+    const server: any = { adapter: jest.fn() };
+    expect(() => gateway.afterInit(server)).not.toThrow();
+    expect(server.adapter).not.toHaveBeenCalled();
+  });
+
+  it('onModuleDestroy quits both clients and is safe when none were attached', async () => {
+    const gateway = freshGateway();
+    await expect(gateway.onModuleDestroy()).resolves.toBeUndefined(); // nothing attached
+    gateway.afterInit({ adapter: jest.fn() } as any);
+    const pub = MockRedis.lastPub;
+    const sub = MockRedis.lastSub;
+    await gateway.onModuleDestroy();
+    expect(pub.quit).toHaveBeenCalled();
+    expect(sub.quit).toHaveBeenCalled();
+    // quit rejection is swallowed
+    pub.quit.mockRejectedValueOnce(new Error('gone'));
+    sub.quit.mockRejectedValueOnce(new Error('gone'));
+    await expect(gateway.onModuleDestroy()).resolves.toBeUndefined();
+  });
+});
