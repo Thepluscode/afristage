@@ -104,4 +104,9 @@ export class AdminController {
   auditLogs() {
     return this.admin.auditLogs();
   }
+
+  @Get('leaderboard')
+  leaderboard(@Query('type') type?: string, @Query('window') window?: string, @Query('limit') limit?: string) {
+    return this.admin.leaderboard(type, window, limit ? Number(limit) : undefined);
+  }
 }

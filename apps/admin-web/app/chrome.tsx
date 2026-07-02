@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trophy,
   UserCheck,
   UserCog,
   Users
@@ -35,6 +36,7 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
     links: [
       ['Dashboard', '/', <Home key="dashboard" size={iconSize} />],
       ['Analytics', '/analytics', <BarChart3 key="analytics" size={iconSize} />],
+      ['Charts', '/leaderboard', <Trophy key="charts" size={iconSize} />],
       ['Beta Ops', '/beta-ops', <ListChecks key="beta-ops" size={iconSize} />],
       ['Live Rooms', '/live-rooms', <MonitorPlay key="live-rooms" size={iconSize} />],
       ['Reports', '/reports', <ShieldAlert key="reports" size={iconSize} />],

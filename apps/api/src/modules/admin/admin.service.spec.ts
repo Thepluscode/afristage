@@ -88,6 +88,75 @@ describe('AdminService list filters', () => {
   });
 });
 
+describe('AdminService.leaderboard', () => {
+  function lbBuild(rows: any[] = [], users: any[] = []) {
+    const prisma: any = {
+      giftTransaction: { groupBy: jest.fn().mockResolvedValue(rows) },
+      user: { findMany: jest.fn().mockResolvedValue(users) }
+    };
+    return { service: new AdminService(prisma), prisma };
+  }
+
+  it('ranks top creators (default), resolves labels through every fallback, and windows by week', async () => {
+    const { service, prisma } = lbBuild(
+      [
+        { creatorId: 'c1', _sum: { totalCoinAmount: 500 } },
+        { creatorId: 'c2', _sum: { totalCoinAmount: 400 } },
+        { creatorId: 'c2b', _sum: { totalCoinAmount: 300 } },
+        { creatorId: 'c3', _sum: { totalCoinAmount: 200 } },
+        { creatorId: 'c4', _sum: { totalCoinAmount: null } }
+      ],
+      [
+        { id: 'c1', creatorProfile: { stageName: 'Nova' }, profile: { displayName: 'N D', username: 'nd' }, email: 'n@x' },
+        { id: 'c2', creatorProfile: null, profile: { displayName: 'Dee', username: 'dee' }, email: 'd@x' },
+        { id: 'c2b', creatorProfile: null, profile: { displayName: '', username: 'un2b' }, email: 'e2b@x' },
+        { id: 'c3', creatorProfile: null, profile: null, email: 'e3@x' }
+        // c4 has no user row -> id fallback
+      ]
+    );
+    const res = await service.leaderboard(); // creator / week / 20
+    expect(res[0]).toEqual({ rank: 1, userId: 'c1', label: 'Nova', totalCoins: 500 });
+    expect(res[1].label).toBe('Dee'); // no stageName -> displayName
+    expect(res[2].label).toBe('un2b'); // empty displayName -> username
+    expect(res[3].label).toBe('e3@x'); // no profile -> email
+    expect(res[4]).toEqual({ rank: 5, userId: 'c4', label: 'c4', totalCoins: 0 }); // missing user + null sum
+    expect(prisma.giftTransaction.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ['creatorId'], where: { createdAt: { gte: expect.any(Date) } }, take: 20 })
+    );
+  });
+
+  it('ranks top supporters over all-time with supporter label fallbacks', async () => {
+    const { service, prisma } = lbBuild(
+      [
+        { viewerId: 'v1', _sum: { totalCoinAmount: 90 } },
+        { viewerId: 'v2', _sum: { totalCoinAmount: 80 } },
+        { viewerId: 'v3', _sum: { totalCoinAmount: 70 } },
+        { viewerId: 'v4', _sum: { totalCoinAmount: 60 } }
+      ],
+      [
+        { id: 'v1', profile: { displayName: 'Ada', username: 'ada' }, email: 'a@x' },
+        { id: 'v2', profile: { displayName: '', username: 'un2' }, email: 'e2@x' },
+        { id: 'v3', profile: null, email: 'e3@x' }
+      ]
+    );
+    const res = await service.leaderboard('supporter', 'all');
+    expect(res.map((r) => r.label)).toEqual(['Ada', 'un2', 'e3@x', 'v4']);
+    expect(prisma.giftTransaction.groupBy).toHaveBeenCalledWith(expect.objectContaining({ by: ['viewerId'], where: {} }));
+  });
+
+  it('supports the day window and clamps the limit to 100', async () => {
+    const { service, prisma } = lbBuild([], []);
+    await service.leaderboard('creator', 'day', 500);
+    const call = prisma.giftTransaction.groupBy.mock.calls[0][0];
+    expect(call.take).toBe(100);
+    expect(call.where.createdAt.gte).toBeInstanceOf(Date);
+    // a falsy limit falls back to the default 20
+    await service.leaderboard('creator', 'day', 0);
+    expect(prisma.giftTransaction.groupBy.mock.calls[1][0].take).toBe(20);
+    await expect(service.leaderboard('creator', 'day', 500)).resolves.toEqual([]);
+  });
+});
+
 describe('AdminService.search', () => {
   function searchBuild(
     data: { users?: any[]; creators?: any[]; rooms?: any[]; reports?: any[]; payments?: any[]; payouts?: any[]; gifts?: any[]; tickets?: any[] } = {}
