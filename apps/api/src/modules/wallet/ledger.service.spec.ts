@@ -3,10 +3,14 @@ import { LedgerDirection, LedgerTransactionType } from '@prisma/client';
 import { LedgerService } from './ledger.service';
 
 // ponytail: hand-rolled Prisma stub, no test framework mocking lib needed.
-function makePrisma(existingByAccount: Record<string, any[]> = {}) {
+// Balances are materialised on the account row; the stub applies the same
+// atomic increments the service issues (prod serializes them via the row lock).
+function makePrisma(startingBalances: Record<string, bigint> = {}) {
   const created: any = { entries: [] };
+  const balances: Record<string, bigint> = { ...startingBalances };
   return {
     calls: created,
+    balances,
     ledgerTransaction: {
       findUnique: async () => null,
       create: async ({ data }: any) => ({ id: 'tx-1', ...data }),
@@ -19,15 +23,17 @@ function makePrisma(existingByAccount: Record<string, any[]> = {}) {
       }
     },
     $transaction: async (fn: any) => fn({
-      // FOR UPDATE lock — a no-op in the stub; the guard's correctness is in the
-      // balance recomputation below, which the row lock serializes in prod.
-      $queryRaw: async () => [],
+      walletAccount: {
+        update: async ({ where, data }: any) => {
+          balances[where.id] = (balances[where.id] ?? 0n) + BigInt(data.balanceMinor.increment);
+          return { id: where.id, balanceMinor: balances[where.id] };
+        }
+      },
       ledgerTransaction: {
         create: async ({ data }: any) => ({ id: 'tx-1', ...data }),
         findUniqueOrThrow: async () => ({ id: 'tx-1', entries: created.entries })
       },
       ledgerEntry: {
-        findMany: async ({ where }: any) => existingByAccount[where.accountId] ?? [],
         createMany: async ({ data }: any) => {
           created.entries = data;
           return { count: data.length };
@@ -106,11 +112,9 @@ describe('LedgerService.postTransaction', () => {
   });
 
   it('rejects a guarded debit that would overdraw the account', async () => {
-    // Account 'a' holds 50 (one 50-coin credit). A 100-coin debit guarded on 'a'
-    // would take it to -50, so the post must be rejected inside the transaction.
-    const prisma = makePrisma({
-      a: [{ accountId: 'a', direction: LedgerDirection.CREDIT, amountMinor: 50n, currency: 'COIN' }]
-    });
+    // Account 'a' holds 50. A 100-coin debit guarded on 'a' would take it to
+    // -50, so the post must be rejected inside the transaction (rollback).
+    const prisma = makePrisma({ a: 50n });
     const service = new LedgerService(prisma as any);
     await expect(
       service.postTransaction({
@@ -126,9 +130,7 @@ describe('LedgerService.postTransaction', () => {
   });
 
   it('allows a guarded debit fully covered by the balance', async () => {
-    const prisma = makePrisma({
-      a: [{ accountId: 'a', direction: LedgerDirection.CREDIT, amountMinor: 100n, currency: 'COIN' }]
-    });
+    const prisma = makePrisma({ a: 100n });
     const service = new LedgerService(prisma as any);
     const tx = await service.postTransaction({
       type: LedgerTransactionType.GIFT,
@@ -157,13 +159,8 @@ describe('LedgerService.postTransaction', () => {
 });
 
 describe('LedgerService guarded-account direction arms', () => {
-  it('nets both credit and debit entries (existing + new) on a guarded account', async () => {
-    const prisma = makePrisma({
-      g: [
-        { accountId: 'g', direction: LedgerDirection.CREDIT, amountMinor: 100n },
-        { accountId: 'g', direction: LedgerDirection.DEBIT, amountMinor: 20n }
-      ]
-    }); // existing balance 80
+  it('nets both credit and debit entries on a guarded account into one delta', async () => {
+    const prisma = makePrisma({ g: 80n });
     const svc = new LedgerService(prisma as any);
     const res = await svc.postTransaction({
       type: LedgerTransactionType.GIFT,
@@ -174,6 +171,54 @@ describe('LedgerService guarded-account direction arms', () => {
         { accountId: 'g', direction: LedgerDirection.DEBIT, amountMinor: 50n, currency: NGN }
       ]
     });
-    expect(res).toBeDefined(); // balance 80 + 50 - 50 = 80 >= 0
+    expect(res).toBeDefined();
+    expect(prisma.balances.g).toBe(80n); // 80 + 50 - 50
+  });
+});
+
+describe('LedgerService materialised balances', () => {
+  it('applies the net delta of every touched account, guarded or not', async () => {
+    const prisma = makePrisma({ a: 200n });
+    const svc = new LedgerService(prisma as any);
+    await svc.postTransaction({
+      type: LedgerTransactionType.GIFT,
+      idempotencyKey: 'k-mat',
+      guardNonNegative: ['a'],
+      entries: balancedEntries // a -100, b +60, c +40
+    });
+    expect(prisma.balances).toEqual({ a: 100n, b: 60n, c: 40n });
+  });
+
+  it('lets an unguarded account go negative (clearing accounts)', async () => {
+    const prisma = makePrisma(); // all start at 0
+    const svc = new LedgerService(prisma as any);
+    await svc.postTransaction({
+      type: LedgerTransactionType.COIN_PURCHASE,
+      idempotencyKey: 'k-clearing',
+      entries: [
+        { accountId: 'clearing', direction: LedgerDirection.DEBIT, amountMinor: 100n, currency: NGN },
+        { accountId: 'coin', direction: LedgerDirection.CREDIT, amountMinor: 100n, currency: NGN }
+      ]
+    });
+    expect(prisma.balances.clearing).toBe(-100n); // allowed: not guarded
+    expect(prisma.balances.coin).toBe(100n);
+  });
+
+  it('still checks a guarded account that has no entry in this post (zero delta)', async () => {
+    // Drifted-negative guarded account with no entries in the post: the 0-delta
+    // check preserves the old "guarded means checked" semantics.
+    const prisma = makePrisma({ z: -1n, a: 100n });
+    const svc = new LedgerService(prisma as any);
+    await expect(
+      svc.postTransaction({
+        type: LedgerTransactionType.GIFT,
+        idempotencyKey: 'k-zero-delta',
+        guardNonNegative: ['z'],
+        entries: [
+          { accountId: 'a', direction: LedgerDirection.DEBIT, amountMinor: 10n, currency: NGN },
+          { accountId: 'b', direction: LedgerDirection.CREDIT, amountMinor: 10n, currency: NGN }
+        ]
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

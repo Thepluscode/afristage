@@ -1,9 +1,12 @@
 import { LedgerIntegrityService } from './ledger-integrity.service';
 
-function build(grouped: any[] = [], imbalancedRows: any[] = []) {
+function build(grouped: any[] = [], imbalancedRows: any[] = [], drift: any[] = []) {
   const prisma: any = {
     ledgerEntry: { groupBy: jest.fn().mockResolvedValue(grouped) },
-    $queryRaw: jest.fn().mockResolvedValue(imbalancedRows)
+    // check() issues two raw queries: per-transaction balance and the
+    // materialised-balance drift scan — route by the table each one reads.
+    $queryRaw: jest.fn().mockImplementation((strings: TemplateStringsArray) =>
+      Promise.resolve(strings.join('').includes('wallet_accounts') ? drift : imbalancedRows))
   };
   return { service: new LedgerIntegrityService(prisma), prisma };
 }
@@ -58,6 +61,21 @@ describe('LedgerIntegrityService.check', () => {
     const res = await service.check();
     expect(res.ok).toBe(true);
     expect(res.currencies).toEqual([]);
+    expect(res.driftedAccounts).toEqual([]);
+  });
+
+  it('fails and lists accounts whose materialised balance drifts from the entry sums', async () => {
+    const { service } = build(
+      [
+        { currency: 'COIN', direction: 'DEBIT', _sum: { amountMinor: 1000n } },
+        { currency: 'COIN', direction: 'CREDIT', _sum: { amountMinor: 1000n } }
+      ],
+      [],
+      [{ id: 'acc-drift', materialised: 500n, from_entries: 480n }]
+    );
+    const res = await service.check();
+    expect(res.ok).toBe(false); // balanced ledger, but a drifted account still fails
+    expect(res.driftedAccounts).toEqual([{ id: 'acc-drift', materialised: '500', fromEntries: '480' }]);
   });
 });
 
