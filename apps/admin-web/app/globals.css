@@ -1188,3 +1188,21 @@ code {
   font-size: 13px;
 }
 [data-theme='light'] .row-missing-note { color: #c2410c; }
+
+/* Charts / leaderboard segmented controls */
+.chart-controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: rgba(var(--rgb-soft), 0.72); }
+.seg button {
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.seg button:hover { color: var(--text); }
+.seg button.seg-on { background: linear-gradient(135deg, var(--orange), var(--gold-strong)); color: #160b02; }
+td .rank { color: var(--gold); }

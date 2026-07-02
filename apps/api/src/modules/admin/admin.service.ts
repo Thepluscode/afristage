@@ -171,4 +171,49 @@ export class AdminService {
   auditLogs() {
     return this.prisma.adminAuditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
   }
+
+  // Regional/gift charts. Pure aggregation over settled gift transactions
+  // (gifts are non-reversible in the current model, so every row is settled):
+  //   creators   → who RECEIVED the most gift coins (group by creatorId)
+  //   supporters → who SENT the most gift coins (group by viewerId)
+  // over a time window. ponytail: computed on-demand; materialise per window if
+  // chart traffic grows (see docs/reverse-engineering/R5 §6).
+  async leaderboard(type = 'creator', window = 'week', limit = 20) {
+    const scope: 'creator' | 'supporter' = type === 'supporter' ? 'supporter' : 'creator';
+    const field = scope === 'creator' ? 'creatorId' : 'viewerId';
+    const take = Math.min(Math.max(Math.trunc(limit) || 20, 1), 100); // bounded 1..100
+
+    let since: Date | undefined;
+    if (window === 'day') {
+      since = new Date();
+      since.setHours(0, 0, 0, 0);
+    } else if (window === 'week') {
+      since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } // 'all' → no lower bound
+
+    const rows = await this.prisma.giftTransaction.groupBy({
+      by: [field],
+      where: since ? { createdAt: { gte: since } } : {},
+      _sum: { totalCoinAmount: true },
+      orderBy: { _sum: { totalCoinAmount: 'desc' } },
+      take
+    });
+
+    const ids = rows.map((r: any) => r[field] as string);
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      include: { profile: true, creatorProfile: true }
+    });
+    const byId = Object.fromEntries(users.map((u) => [u.id, u]));
+
+    return rows.map((r: any, i: number) => {
+      const id = r[field] as string;
+      const u = byId[id];
+      const label =
+        scope === 'creator'
+          ? u?.creatorProfile?.stageName || u?.profile?.displayName || u?.profile?.username || u?.email || id
+          : u?.profile?.displayName || u?.profile?.username || u?.email || id;
+      return { rank: i + 1, userId: id, label, totalCoins: r._sum.totalCoinAmount ?? 0 };
+    });
+  }
 }

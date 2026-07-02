@@ -1,7 +1,7 @@
 import { AdminController } from './admin.controller';
 describe('AdminController', () => {
   function make() {
-    const admin = { betaOpsDashboard: jest.fn(), dashboard: jest.fn(), users: jest.fn(), search: jest.fn(), creators: jest.fn(), liveRooms: jest.fn(), payments: jest.fn(), ledgerTransactions: jest.fn(), auditLogs: jest.fn() };
+    const admin = { betaOpsDashboard: jest.fn(), dashboard: jest.fn(), users: jest.fn(), search: jest.fn(), creators: jest.fn(), liveRooms: jest.fn(), payments: jest.fn(), ledgerTransactions: jest.fn(), auditLogs: jest.fn(), leaderboard: jest.fn() };
     const creators = { approveCreator: jest.fn(), rejectCreator: jest.fn(), suspendCreator: jest.fn() };
     const ledger = { check: jest.fn() };
     const rooms = { endStaleRooms: jest.fn(), get: jest.fn(), adminEnd: jest.fn() };
@@ -14,6 +14,14 @@ describe('AdminController', () => {
     c.liveRooms('LIVE'); c.liveRoom('r1'); c.payments(); c.ledgerTransactions(); c.auditLogs(); c.endStaleRooms(15);
     expect(admin.betaOpsDashboard).toHaveBeenCalled(); expect(ledger.check).toHaveBeenCalled(); expect(rooms.get).toHaveBeenCalledWith('r1');
     expect(admin.search).toHaveBeenCalledWith('ada');
+  });
+
+  it('delegates leaderboard with parsed limit and undefined defaults', () => {
+    const { c, admin } = make();
+    c.leaderboard('creator', 'day', '5');
+    c.leaderboard();
+    expect(admin.leaderboard).toHaveBeenNthCalledWith(1, 'creator', 'day', 5);
+    expect(admin.leaderboard).toHaveBeenNthCalledWith(2, undefined, undefined, undefined);
   });
   it('delegates creator + room moderation with default reasons', () => {
     const { c, creators, rooms } = make();
