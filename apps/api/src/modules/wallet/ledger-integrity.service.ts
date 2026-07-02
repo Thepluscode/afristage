@@ -9,6 +9,9 @@ export type IntegrityResult = {
   currencies: { currency: string; debits: string; credits: string; balanced: boolean }[];
   unbalancedTransactions: number;
   imbalancedTransactions: { id: string; debit: string; credit: string }[];
+  // Accounts whose materialised balance_minor disagrees with the sum of their
+  // entries — the entries are the source of truth, so any drift is a bug.
+  driftedAccounts: { id: string; materialised: string; fromEntries: string }[];
 };
 
 // Double-entry safety net: the whole ledger must net to zero per currency and
@@ -57,8 +60,30 @@ export class LedgerIntegrityService {
     const imbalancedTransactions = rows.map((r) => ({ id: r.transaction_id, debit: r.debit.toString(), credit: r.credit.toString() }));
     const unbalancedTransactions = imbalancedTransactions.length;
 
-    const ok = currencies.every((c) => c.balanced) && unbalancedTransactions === 0;
-    const result: IntegrityResult = { ok, checkedAt: new Date().toISOString(), currencies, unbalancedTransactions, imbalancedTransactions };
+    // Materialised-balance drift: every account's balance_minor must equal the
+    // sum of its entries (the entries remain the source of truth).
+    const drift = await this.prisma.$queryRaw<{ id: string; materialised: bigint; from_entries: bigint }[]>`
+      SELECT wa.id, wa.balance_minor AS materialised,
+        COALESCE(SUM(CASE WHEN le.direction = 'CREDIT' THEN le.amount_minor ELSE -le.amount_minor END), 0) AS from_entries
+      FROM wallet_accounts wa
+      LEFT JOIN ledger_entries le ON le.account_id = wa.id
+      GROUP BY wa.id, wa.balance_minor
+      HAVING wa.balance_minor <> COALESCE(SUM(CASE WHEN le.direction = 'CREDIT' THEN le.amount_minor ELSE -le.amount_minor END), 0)`;
+    const driftedAccounts = drift.map((d) => ({
+      id: d.id,
+      materialised: d.materialised.toString(),
+      fromEntries: d.from_entries.toString()
+    }));
+
+    const ok = currencies.every((c) => c.balanced) && unbalancedTransactions === 0 && driftedAccounts.length === 0;
+    const result: IntegrityResult = {
+      ok,
+      checkedAt: new Date().toISOString(),
+      currencies,
+      unbalancedTransactions,
+      imbalancedTransactions,
+      driftedAccounts
+    };
     this.lastResult = result;
 
     if (ok) {

@@ -45,22 +45,34 @@ export class LedgerService {
 
     if (debits !== credits) throw new BadRequestException('Ledger transaction is unbalanced');
 
+    // Net delta this post applies to each touched account. Guarded accounts
+    // with no entry still get a 0 delta so their balance is checked (preserves
+    // the pre-materialisation guard semantics).
+    const deltas = new Map<string, bigint>();
+    for (const entry of input.entries) {
+      const signed = entry.direction === LedgerDirection.CREDIT ? BigInt(entry.amountMinor) : -BigInt(entry.amountMinor);
+      deltas.set(entry.accountId, (deltas.get(entry.accountId) ?? 0n) + signed);
+    }
+    const guarded = new Set(input.guardNonNegative ?? []);
+    for (const accountId of guarded) {
+      if (!deltas.has(accountId)) deltas.set(accountId, 0n);
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // Lock each guarded account row FOR UPDATE so concurrent posts on it
-      // serialize, then recompute its balance INSIDE the transaction (seeing
-      // any already-committed debit) and reject if this post would overdraw it.
-      for (const accountId of input.guardNonNegative ?? []) {
-        await tx.$queryRaw`SELECT id FROM wallet_accounts WHERE id = ${accountId} FOR UPDATE`;
-        const entries = await tx.ledgerEntry.findMany({ where: { accountId } });
-        let balance = entries.reduce(
-          (sum, entry) =>
-            entry.direction === LedgerDirection.CREDIT ? sum + BigInt(entry.amountMinor) : sum - BigInt(entry.amountMinor),
-          0n
-        );
-        for (const entry of input.entries.filter((entry) => entry.accountId === accountId)) {
-          balance += entry.direction === LedgerDirection.CREDIT ? BigInt(entry.amountMinor) : -BigInt(entry.amountMinor);
+      // O(1) balance maintenance: the atomic increment takes the account's row
+      // lock, so concurrent posts on the same account serialize here — the same
+      // guarantee the old FOR-UPDATE + full entry re-sum gave, without scanning
+      // every historical entry on the hot gifting path (R5 §9 item 1). A
+      // guarded account that would go negative aborts the whole transaction,
+      // rolling the increments back.
+      for (const [accountId, delta] of deltas) {
+        const updated = await tx.walletAccount.update({
+          where: { id: accountId },
+          data: { balanceMinor: { increment: delta } }
+        });
+        if (guarded.has(accountId) && updated.balanceMinor < 0n) {
+          throw new BadRequestException('Insufficient balance');
         }
-        if (balance < 0n) throw new BadRequestException('Insufficient balance');
       }
 
       const transaction = await tx.ledgerTransaction.create({

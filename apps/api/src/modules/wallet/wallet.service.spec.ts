@@ -32,15 +32,11 @@ describe('WalletService.account', () => {
 });
 
 describe('WalletService.balance', () => {
-  it('nets credits against debits into a string balance', async () => {
+  it('returns the materialised account balance as a string (no entry scan)', async () => {
     const { service, prisma } = build();
-    prisma.walletAccount.findFirst.mockResolvedValue({ id: 'acc1' });
-    prisma.ledgerEntry.findMany.mockResolvedValue([
-      { amountMinor: '100', direction: 'CREDIT', currency: 'COIN' },
-      { amountMinor: '30', direction: 'DEBIT', currency: 'COIN' },
-      { amountMinor: '5', direction: 'CREDIT', currency: 'COIN' }
-    ]);
+    prisma.walletAccount.findFirst.mockResolvedValue({ id: 'acc1', balanceMinor: 75n });
     await expect(service.balance('u1', WalletAccountType.COIN, 'COIN')).resolves.toBe('75');
+    expect(prisma.ledgerEntry.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -82,7 +78,7 @@ describe('WalletService.ensureUserWallets', () => {
 describe('WalletService.summary', () => {
   it('provisions wallets then returns all three balances', async () => {
     const { service, prisma } = build();
-    prisma.walletAccount.findFirst.mockResolvedValue({ id: 'acc' }); // every balance() lookup resolves
+    prisma.walletAccount.findFirst.mockResolvedValue({ id: 'acc', balanceMinor: 0n }); // every balance() lookup resolves
     const res = await service.summary('u1');
     expect(prisma.walletAccount.createMany).toHaveBeenCalled();
     expect(res).toEqual({ coinBalance: '0', earningBalance: '0', payoutHoldBalance: '0' });

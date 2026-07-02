@@ -310,6 +310,11 @@ model WalletAccount {
   accountType WalletAccountType @map("account_type")
   currency    String
   status      WalletStatus      @default(ACTIVE)
+  // Materialised running balance, updated atomically in the SAME transaction as
+  // every ledger entry write (O(1) posting instead of re-summing all entries).
+  // The entries remain the source of truth; ledger-integrity cross-checks this
+  // column against the entry sums and fails loudly on drift.
+  balanceMinor BigInt           @default(0) @map("balance_minor")
   createdAt   DateTime          @default(now()) @map("created_at")
 
   user    User? @relation(fields: [userId], references: [id])

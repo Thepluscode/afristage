@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { LedgerDirection, WalletAccountType } from '@prisma/client';
+import { WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { LedgerService } from './ledger.service';
 
@@ -38,12 +38,10 @@ export class WalletService {
   }
 
   async balance(userId: string, accountType: WalletAccountType | string, currency: string) {
+    // O(1): the materialised balance is maintained atomically by every ledger
+    // post; ledger-integrity cross-checks it against the entry sums.
     const account = await this.account(userId, accountType as WalletAccountType, currency);
-    const entries = await this.prisma.ledgerEntry.findMany({ where: { accountId: account.id, currency } });
-    return entries.reduce((sum, entry) => {
-      const amount = BigInt(entry.amountMinor);
-      return entry.direction === LedgerDirection.CREDIT ? sum + amount : sum - amount;
-    }, 0n).toString();
+    return BigInt(account.balanceMinor).toString();
   }
 
   async summary(userId: string) {
