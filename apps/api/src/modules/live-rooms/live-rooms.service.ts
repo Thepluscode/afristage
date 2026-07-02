@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { ReportPriority, RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ChatGateway } from '../chat/chat.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateLiveRoomDto } from './dto/create-live-room.dto';
 import { LiveKitService } from './livekit.service';
 import { REPORT_SEVERITY, RoomFeatures, scoreRoom } from './ranking';
@@ -22,7 +23,8 @@ export class LiveRoomsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly livekit: LiveKitService,
-    private readonly chat: ChatGateway
+    private readonly chat: ChatGateway,
+    private readonly notifications: NotificationsService
   ) {}
 
   async create(hostUserId: string, dto: CreateLiveRoomDto) {
@@ -89,26 +91,12 @@ export class LiveRoomsService {
       where: { id: room.id },
       data: { status: RoomStatus.LIVE, livekitRoomName, startedAt: new Date() }
     });
-    // Notify followers AND anyone who set a reminder for this specific room,
-    // deduped into one notification each (a user who is both gets one, not two),
-    // never the host. Reminders are one-shot: clear them once fired.
-    const [followers, reminders] = await Promise.all([
-      this.prisma.follow.findMany({ where: { followingId: hostUserId } }),
-      this.prisma.roomReminder.findMany({ where: { roomId: updated.id } })
-    ]);
-    const recipientIds = new Set<string>([...followers.map((f) => f.followerId), ...reminders.map((r) => r.userId)]);
-    recipientIds.delete(hostUserId);
-    if (recipientIds.size) {
-      await this.prisma.notification.createMany({
-        data: [...recipientIds].map((userId) => ({
-          userId,
-          type: 'CREATOR_LIVE',
-          title: 'Creator is live',
-          body: updated.title,
-          roomId: updated.id
-        }))
-      });
-    }
+    // Notify followers AND anyone who set a reminder for this specific room —
+    // routed through the notifications service so the CREATOR_LIVE opt-out and
+    // per-room throttle apply (reminders override the opt-out: they're an
+    // explicit per-room request). Reminders are one-shot: clear them once fired.
+    const reminders = await this.prisma.roomReminder.findMany({ where: { roomId: updated.id } });
+    await this.notifications.notifyRoomLive(hostUserId, updated.id, updated.title, reminders.map((r) => r.userId));
     if (reminders.length) await this.prisma.roomReminder.deleteMany({ where: { roomId: updated.id } });
     return {
       ...updated,

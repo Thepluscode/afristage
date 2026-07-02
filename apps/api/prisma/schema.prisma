@@ -512,7 +512,22 @@ model Notification {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([userId, createdAt])
+  // Throttle lookup: latest notification of a type for a user (optionally per room).
+  @@index([userId, type, createdAt])
   @@map("notifications")
+}
+
+// Per-type opt-out. A row exists only when the user changed the default
+// (enabled=true is the implicit default for every type in the taxonomy).
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  enabled   Boolean
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
 }
 
 model CreatorStreamStat {

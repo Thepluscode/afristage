@@ -21,7 +21,8 @@ function build() {
   };
   const livekit: any = { createToken: jest.fn().mockResolvedValue('tok'), url: jest.fn().mockReturnValue('ws://lk') };
   const chat: any = { emitToRoom: jest.fn(), countFor: jest.fn().mockReturnValue(0) };
-  return { service: new LiveRoomsService(prisma, livekit, chat), prisma, livekit, chat };
+  const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
+  return { service: new LiveRoomsService(prisma, livekit, chat, notifications), prisma, livekit, chat, notifications };
 }
 
 const dto = { title: 'Friday Live', category: 'MUSIC', country: 'NG', language: 'pidgin' } as any;
@@ -129,20 +130,28 @@ describe('LiveRoomsService.start (guards + happy path)', () => {
     await expect(service.start('h1', 'r1')).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('goes live, notifies followers + reminder holders, and clears reminders', async () => {
-    const { service, prisma, livekit } = build();
+  it('goes live, routes the fan-out through the notifications service, and clears reminders', async () => {
+    const { service, prisma, livekit, notifications } = build();
     prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', hostUserId: 'h1', status: 'SCHEDULED', title: 'Show' });
     prisma.user.findUnique.mockResolvedValue({ id: 'h1', status: 'ACTIVE' });
-    prisma.follow.findMany.mockResolvedValue([{ followerId: 'f1' }, { followerId: 'h1' }]); // host filtered out
-    prisma.roomReminder.findMany.mockResolvedValue([{ userId: 'rm1' }, { userId: 'f1' }]); // f1 deduped
+    prisma.roomReminder.findMany.mockResolvedValue([{ userId: 'rm1' }, { userId: 'f1' }]);
 
     const res = await service.start('h1', 'r1');
 
     expect(res).toMatchObject({ status: 'LIVE', hostToken: 'tok', livekitUrl: 'ws://lk' });
-    const recipients = prisma.notification.createMany.mock.calls[0][0].data.map((d: any) => d.userId).sort();
-    expect(recipients).toEqual(['f1', 'rm1']); // host excluded, f1 not duplicated
+    // Fan-out is delegated so the CREATOR_LIVE opt-out + per-room throttle apply.
+    expect(notifications.notifyRoomLive).toHaveBeenCalledWith('h1', 'r1', 'Show', ['rm1', 'f1']);
     expect(prisma.roomReminder.deleteMany).toHaveBeenCalledWith({ where: { roomId: 'r1' } });
     expect(livekit.createToken).toHaveBeenCalledWith(expect.objectContaining({ canPublish: true }));
+  });
+
+  it('skips reminder cleanup when there were no reminders', async () => {
+    const { service, prisma, notifications } = build();
+    prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', hostUserId: 'h1', status: 'SCHEDULED', title: 'Show' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'h1', status: 'ACTIVE' });
+    await service.start('h1', 'r1');
+    expect(notifications.notifyRoomLive).toHaveBeenCalledWith('h1', 'r1', 'Show', []);
+    expect(prisma.roomReminder.deleteMany).not.toHaveBeenCalled();
   });
 });
 
@@ -222,7 +231,8 @@ function buildFeed() {
   };
   const livekit: any = { createToken: jest.fn(), url: jest.fn() };
   const chat: any = { countFor: jest.fn().mockReturnValue(0), emitToRoom: jest.fn() };
-  return { service: new LiveRoomsService(prisma, livekit, chat), prisma, chat };
+  const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
+  return { service: new LiveRoomsService(prisma, livekit, chat, notifications), prisma, chat };
 }
 
 const liveRoom = (over: any = {}) => ({

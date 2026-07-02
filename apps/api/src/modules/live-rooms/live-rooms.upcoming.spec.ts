@@ -10,8 +10,9 @@ function build() {
     user: { findUnique: jest.fn() }
   };
   const livekit: any = { createToken: jest.fn().mockResolvedValue('tok'), url: jest.fn().mockReturnValue('ws://lk') };
-  const service = new LiveRoomsService(prisma, livekit, {} as any);
-  return { service, prisma };
+  const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
+  const service = new LiveRoomsService(prisma, livekit, {} as any, notifications);
+  return { service, prisma, notifications };
 }
 
 describe('LiveRoomsService.upcoming', () => {
@@ -71,13 +72,13 @@ describe('LiveRoomsService.start notifications', () => {
     return ctx;
   }
 
-  it('notifies followers and reminder-holders, deduped, excluding the host', async () => {
-    const { service, prisma } = startCtx();
-    prisma.follow.findMany.mockResolvedValue([{ followerId: 'a' }, { followerId: 'b' }]);
+  it('routes the go-live fan-out through the notifications service with the reminder holders', async () => {
+    // Dedup, host-exclusion, opt-outs and throttling live in NotificationsService.notifyRoomLive
+    // (covered by its own spec) — start() just delegates with the reminder list.
+    const { service, prisma, notifications } = startCtx();
     prisma.roomReminder.findMany.mockResolvedValue([{ userId: 'b' }, { userId: 'c' }, { userId: 'host' }]);
     await service.start('host', 'r1');
-    const recipients = prisma.notification.createMany.mock.calls[0][0].data.map((d: any) => d.userId).sort();
-    expect(recipients).toEqual(['a', 'b', 'c']); // b deduped, host excluded
+    expect(notifications.notifyRoomLive).toHaveBeenCalledWith('host', 'r1', 'My Show', ['b', 'c', 'host']);
   });
 
   it('clears the fired reminders after start', async () => {
