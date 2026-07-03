@@ -15,6 +15,7 @@ import 'package:afristage_mobile/screens/history_screen.dart';
 import 'package:afristage_mobile/screens/live_screen.dart';
 import 'package:afristage_mobile/screens/login_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
+import 'package:afristage_mobile/screens/missions_screen.dart';
 import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
 import 'package:afristage_mobile/screens/payout_methods_screen.dart';
@@ -2302,6 +2303,132 @@ void main() {
   // Screens only ever built via `const` are canonicalized at compile time, so
   // their constructor line never executes at runtime. Construct each once
   // non-const to exercise it.
+  Map<String, dynamic> missionBoard() => <String, dynamic>{
+        'day': '2026-07-03',
+        'missions': [
+          {
+            'key': 'WATCH_3',
+            'label': 'Join 3 live rooms',
+            'target': 3,
+            'rewardCoins': 10,
+            'progress': 1,
+            'claimed': false,
+            'claimable': false
+          },
+          {
+            'key': 'GIFT_1',
+            'label': 'Send a gift',
+            'target': 1,
+            'rewardCoins': 10,
+            'progress': 1,
+            'claimed': false,
+            'claimable': true
+          },
+          {
+            'key': 'CHAT_5',
+            'label': 'Send 5 chat messages',
+            'target': 5,
+            'rewardCoins': 5,
+            'progress': 5,
+            'claimed': true,
+            'claimable': false
+          },
+        ],
+      };
+
+  testWidgets('MissionsScreen renders progress, claimable and claimed states',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {'/missions/me': missionBoard()});
+    await tester.pumpWidget(_wrap(api, const MissionsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Join 3 live rooms'), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
+    expect(find.text('Claimed'), findsOneWidget); // CHAT_5
+    // WATCH_3 not claimable -> its Claim button is disabled; GIFT_1 enabled.
+    final claimButtons = tester
+        .widgetList<FilledButton>(find.widgetWithText(FilledButton, 'Claim'));
+    expect(claimButtons.where((b) => b.onPressed != null).length, 1);
+    expect(claimButtons.where((b) => b.onPressed == null).length, 1);
+  });
+
+  testWidgets('MissionsScreen claims a completed mission and shows the reward',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/missions/me': missionBoard(),
+      '/missions/GIFT_1/claim': {'ok': true, 'rewardCoins': 10},
+      '/wallet/me': {
+        'coinBalance': '110',
+        'earningBalance': '0',
+        'payoutHoldBalance': '0'
+      }
+    });
+    await tester.pumpWidget(_wrap(api, const MissionsScreen()));
+    await tester.pumpAndSettle();
+    final enabled =
+        find.byWidgetPredicate((w) => w is FilledButton && w.onPressed != null);
+    await tester.tap(enabled.first);
+    await tester.pump();
+    expect(api.posts, contains('/missions/GIFT_1/claim'));
+    await tester.pump(); // let the snackbar mount
+    expect(find.text('+10 coins earned!'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5)); // snackbar gone
+  });
+
+  testWidgets('MissionsScreen shows an error snackbar when the claim fails',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(
+        maps: {'/missions/me': missionBoard()},
+        postErrors: {'/missions/GIFT_1/claim'});
+    await tester.pumpWidget(_wrap(api, const MissionsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find
+        .byWidgetPredicate((w) => w is FilledButton && w.onPressed != null)
+        .first);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Could not claim this mission yet.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('MissionsScreen error state retries and empty board explains',
+      (tester) async {
+    _tall(tester);
+    final errs = <String>{'/missions/me'};
+    final api = _FakeApi(maps: {'/missions/me': missionBoard()}, errors: errs);
+    await tester.pumpWidget(_wrap(api, const MissionsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load missions'), findsOneWidget);
+    errs.remove('/missions/me'); // backend recovers
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Send a gift'), findsOneWidget); // board loaded
+  });
+
+  testWidgets(
+      'MissionsScreen shows the empty state for a board with no missions',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(
+        _FakeApi(maps: {'/missions/me': <String, dynamic>{}}),
+        const MissionsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No missions today'), findsOneWidget);
+  });
+
+  testWidgets('Feed app bar opens the Daily missions screen', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {'/missions/me': missionBoard()});
+    await tester.pumpWidget(_wrap(api, const FeedScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Daily missions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Daily missions'), findsOneWidget);
+    expect(find.text('Send a gift'), findsOneWidget);
+  });
+
   test('screen constructors execute (non-const)', () {
     // ignore_for_file: prefer_const_constructors
     expect(FeedScreen(), isA<FeedScreen>());
