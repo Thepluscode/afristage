@@ -21,6 +21,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BetaModule } from './modules/beta/beta.module';
 import { SupportModule } from './modules/support/support.module';
+import { SupportersModule } from './modules/supporters/supporters.module';
 import { EventsModule } from './modules/events/events.module';
 import { FraudModule } from './modules/fraud/fraud.module';
 import { MissionsModule } from './modules/missions/missions.module';
@@ -49,6 +50,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     AnalyticsModule,
     BetaModule,
     SupportModule,
+    SupportersModule,
     EventsModule,
     FraudModule,
     MissionsModule,
