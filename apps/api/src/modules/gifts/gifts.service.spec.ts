@@ -48,6 +48,23 @@ describe('GiftsService.send', () => {
     await expect(service.send('v1', 'r1', dto)).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('rejects an event gift outside its window (before and after)', async () => {
+    const past = { startsAt: new Date(Date.now() - 2 * 86400000), endsAt: new Date(Date.now() - 86400000) };
+    const { service } = build({ gift: { id: 'g1', isActive: true, coinPrice: 10, name: 'Ended', event: past } });
+    await expect(service.send('v1', 'r1', dto)).rejects.toThrow('only available during its event');
+    const future = { startsAt: new Date(Date.now() + 86400000), endsAt: new Date(Date.now() + 2 * 86400000) };
+    const { service: s2 } = build({ gift: { id: 'g1', isActive: true, coinPrice: 10, name: 'NotYet', event: future } });
+    await expect(s2.send('v1', 'r1', dto)).rejects.toThrow('only available during its event');
+  });
+
+  it('sends an event gift while its window is open (same split, same ledger)', async () => {
+    const open = { startsAt: new Date(Date.now() - 3600000), endsAt: new Date(Date.now() + 3600000) };
+    const { service, prisma, ledger } = build({ gift: { id: 'g1', isActive: true, coinPrice: 10, name: 'Live Gift', event: open } });
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    await service.send('v1', 'r1', dto);
+    expect(ledger.postTransaction).toHaveBeenCalled(); // normal money path, unchanged
+  });
+
   it('rejects when balance is insufficient', async () => {
     const { service, wallet } = build();
     wallet.balance.mockResolvedValue('5'); // gift costs 10
@@ -187,11 +204,16 @@ describe('GiftsService.topGifters', () => {
 });
 
 describe('GiftsService catalog CRUD', () => {
-  it('list returns active gifts cheapest-first', async () => {
+  it('list returns active gifts cheapest-first, including only in-window event gifts', async () => {
     const { service, prisma } = build();
     prisma.gift.findMany = jest.fn().mockResolvedValue([]);
     await service.list();
-    expect(prisma.gift.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true } }));
+    const where = prisma.gift.findMany.mock.calls[0][0].where;
+    expect(where.isActive).toBe(true);
+    expect(where.OR[0]).toEqual({ eventId: null }); // evergreen gifts
+    // event gifts only while their window is open
+    expect(where.OR[1].event.startsAt.lte).toBeInstanceOf(Date);
+    expect(where.OR[1].event.endsAt.gte).toBeInstanceOf(Date);
   });
 
   it('create inserts a new gift', async () => {
