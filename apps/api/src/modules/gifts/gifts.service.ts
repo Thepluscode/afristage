@@ -19,8 +19,16 @@ export class GiftsService {
     private readonly notifications: NotificationsService
   ) {}
 
+  // Catalog: evergreen gifts plus event gifts whose window is currently open.
   list() {
-    return this.prisma.gift.findMany({ where: { isActive: true }, orderBy: { coinPrice: 'asc' } });
+    const now = new Date();
+    return this.prisma.gift.findMany({
+      where: {
+        isActive: true,
+        OR: [{ eventId: null }, { event: { startsAt: { lte: now }, endsAt: { gte: now } } }]
+      },
+      orderBy: { coinPrice: 'asc' }
+    });
   }
 
   create(dto: CreateGiftDto) {
@@ -102,8 +110,16 @@ export class GiftsService {
     const viewer = await this.prisma.user.findUnique({ where: { id: viewerId } });
     if (!viewer || viewer.status !== UserStatus.ACTIVE) throw new ForbiddenException('Account is not active');
 
-    const gift = await this.prisma.gift.findUnique({ where: { id: dto.giftId } });
+    const gift = await this.prisma.gift.findUnique({ where: { id: dto.giftId }, include: { event: true } });
     if (!gift || !gift.isActive) throw new NotFoundException('Gift not found');
+    // Limited-time gift: enforce the window at SEND time too (the catalog
+    // filter alone can't stop a stale client from buying after the event ends).
+    if (gift.event) {
+      const now = Date.now();
+      if (now < gift.event.startsAt.getTime() || now > gift.event.endsAt.getTime()) {
+        throw new BadRequestException('This gift is only available during its event');
+      }
+    }
 
     const total = gift.coinPrice * dto.quantity;
     const creatorShareBps = Number(process.env.CREATOR_SHARE_BPS || 6000);
