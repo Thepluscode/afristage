@@ -10,6 +10,7 @@ import '../widgets/afri_ui.dart';
 import 'creator_apply_screen.dart';
 import 'creator_profile_screen.dart';
 import 'creator_screen.dart';
+import 'missions_screen.dart';
 import 'notifications_screen.dart';
 import 'room_screen.dart';
 import 'search_screen.dart';
@@ -187,6 +188,12 @@ class _FeedScreenState extends State<FeedScreen> {
                   color: AfriColors.orange)),
         ]),
         actions: [
+          IconButton(
+            tooltip: 'Daily missions',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const MissionsScreen())),
+            icon: const Icon(Icons.task_alt),
+          ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
