@@ -66,6 +66,10 @@ enum WalletAccountType {
   PAYMENT_CLEARING
   PAYOUT_HOLD
   PAYOUT_CLEARING
+  // Funded mission-reward budget. Rewards DEBIT this account (never minted);
+  // it is funded by moving coins OUT of PLATFORM_REVENUE, so the promo budget
+  // is a real, capped line item and ledger integrity always holds.
+  PROMO
 }
 
 enum WalletStatus {
@@ -81,6 +85,8 @@ enum LedgerTransactionType {
   REFUND
   CHARGEBACK
   ADJUSTMENT
+  MISSION_REWARD
+  PROMO_FUNDING
 }
 
 enum LedgerTransactionStatus {
@@ -533,6 +539,22 @@ model NotificationPreference {
 
   @@unique([userId, type])
   @@map("notification_preferences")
+}
+
+// One row per claimed daily mission. The unique key is the double-claim guard;
+// the ledger transaction id ties every reward to a balanced PROMO -> COIN move.
+model MissionClaim {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  missionKey          String   @map("mission_key")
+  day                 String // UTC date bucket, YYYY-MM-DD
+  rewardCoins         Int      @map("reward_coins")
+  ledgerTransactionId String   @map("ledger_transaction_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, missionKey, day])
+  @@index([day])
+  @@map("mission_claims")
 }
 
 model CreatorStreamStat {
