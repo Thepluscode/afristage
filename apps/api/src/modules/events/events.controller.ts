@@ -24,6 +24,13 @@ export class EventsController {
 
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/events')
+  listAll() {
+    return this.events.listAll();
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Post('admin/events')
   create(@Body() dto: CreateEventDto) {
     return this.events.create(dto);

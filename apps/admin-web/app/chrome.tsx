@@ -40,7 +40,8 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
       ['Beta Ops', '/beta-ops', <ListChecks key="beta-ops" size={iconSize} />],
       ['Live Rooms', '/live-rooms', <MonitorPlay key="live-rooms" size={iconSize} />],
       ['Reports', '/reports', <ShieldAlert key="reports" size={iconSize} />],
-      ['Support', '/support', <HeartHandshake key="support" size={iconSize} />]
+      ['Support', '/support', <HeartHandshake key="support" size={iconSize} />],
+      ['Events', '/events', <CalendarClock key="events" size={iconSize} />]
     ]
   },
   {
@@ -49,7 +50,8 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
       ['Users', '/users', <Users key="users" size={iconSize} />],
       ['Creators', '/creators', <UserCheck key="creators" size={iconSize} />],
       ['Waitlist', '/beta-requests', <ClipboardList key="waitlist" size={iconSize} />],
-      ['Beta Invites', '/beta-invites', <KeyRound key="beta-invites" size={iconSize} />]
+      ['Beta Invites', '/beta-invites', <KeyRound key="beta-invites" size={iconSize} />],
+      ['Circles', '/circles', <Users key="circles" size={iconSize} />]
     ]
   },
   {

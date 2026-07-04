@@ -24,6 +24,14 @@ function build() {
 const event = { id: 'e1', name: 'Afrobeats Night', startsAt: new Date('2026-07-01T00:00:00Z'), endsAt: new Date('2026-07-10T00:00:00Z'), prizePoolCoins: 0, settledAt: null };
 
 describe('EventsService.listCurrent', () => {
+  it('listAll returns every event newest-first with gift counts', async () => {
+    const { service, prisma } = build();
+    await service.listAll();
+    const call = prisma.event.findMany.mock.calls[0][0];
+    expect(call.orderBy).toEqual({ startsAt: 'desc' });
+    expect(call.include._count.select.gifts).toBe(true);
+  });
+
   it('lists live + upcoming events with their active gifts, soonest first', async () => {
     const { service, prisma } = build();
     await service.listCurrent();
