@@ -35,4 +35,11 @@ export class EventsController {
   update(@Param('id') id: string, @Body() dto: UpdateEventDto) {
     return this.events.update(id, dto);
   }
+
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('admin/events/:id/settle')
+  settle(@Param('id') id: string) {
+    return this.events.settle(id);
+  }
 }

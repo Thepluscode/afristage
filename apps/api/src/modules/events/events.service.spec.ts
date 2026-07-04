@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { EventsService } from './events.service';
+import { EventsService, PRIZE_SHARES_BPS } from './events.service';
 
 function build() {
   const prisma: any = {
@@ -12,10 +12,16 @@ function build() {
     giftTransaction: { groupBy: jest.fn().mockResolvedValue([]) },
     profile: { findMany: jest.fn().mockResolvedValue([]) }
   };
-  return { service: new EventsService(prisma), prisma };
+  const wallet: any = {
+    ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'acc-promo' }),
+    ensureUserWallets: jest.fn().mockResolvedValue(undefined),
+    account: jest.fn().mockImplementation((userId: string) => Promise.resolve({ id: `acc-${userId}` }))
+  };
+  const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'ltx1' }) };
+  return { service: new EventsService(prisma, wallet, ledger), prisma, wallet, ledger };
 }
 
-const event = { id: 'e1', name: 'Afrobeats Night', startsAt: new Date('2026-07-01T00:00:00Z'), endsAt: new Date('2026-07-10T00:00:00Z') };
+const event = { id: 'e1', name: 'Afrobeats Night', startsAt: new Date('2026-07-01T00:00:00Z'), endsAt: new Date('2026-07-10T00:00:00Z'), prizePoolCoins: 0, settledAt: null };
 
 describe('EventsService.listCurrent', () => {
   it('lists live + upcoming events with their active gifts, soonest first', async () => {
@@ -102,5 +108,77 @@ describe('EventsService create/update', () => {
     // and a supplied startsAt is parsed and used
     await service.update('e1', { startsAt: '2026-07-02T00:00:00Z' });
     expect(prisma.event.update.mock.calls[1][0].data.startsAt.toISOString()).toBe('2026-07-02T00:00:00.000Z');
+  });
+
+  it('create carries the prize pool (default 0) and update rejects settled events', async () => {
+    const { service, prisma } = build();
+    await service.create({ name: 'Pooled', startsAt: '2026-08-01T18:00:00Z', endsAt: '2026-08-01T22:00:00Z', prizePoolCoins: 5000 });
+    expect(prisma.event.create.mock.calls[0][0].data.prizePoolCoins).toBe(5000);
+    await service.create({ name: 'NoPool', startsAt: '2026-08-01T18:00:00Z', endsAt: '2026-08-01T22:00:00Z' });
+    expect(prisma.event.create.mock.calls[1][0].data.prizePoolCoins).toBe(0);
+    prisma.event.findUnique.mockResolvedValue({ ...event, settledAt: new Date() });
+    await expect(service.update('e1', { name: 'Nope' })).rejects.toThrow('settled');
+  });
+});
+
+describe('EventsService.settle', () => {
+  const ended = { ...event, endsAt: new Date(Date.now() - 60_000), prizePoolCoins: 1000 };
+
+  it('rejects unknown, already-settled, unfunded, and still-running events', async () => {
+    const { service, prisma } = build();
+    await expect(service.settle('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    prisma.event.findUnique.mockResolvedValue({ ...ended, settledAt: new Date() });
+    await expect(service.settle('e1')).rejects.toThrow('already settled');
+    prisma.event.findUnique.mockResolvedValue({ ...ended, prizePoolCoins: 0 });
+    await expect(service.settle('e1')).rejects.toThrow('no prize pool');
+    prisma.event.findUnique.mockResolvedValue({ ...ended, endsAt: new Date(Date.now() + 3_600_000) });
+    await expect(service.settle('e1')).rejects.toThrow('not ended');
+  });
+
+  it('with no supporters, marks settled and pays nothing', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.event.findUnique.mockResolvedValue(ended);
+    const res = await service.settle('e1');
+    expect(res).toEqual({ ok: true, winners: [], paidCoins: 0 });
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+    expect(prisma.event.update.mock.calls[0][0].data.settledAt).toBeInstanceOf(Date);
+  });
+
+  it('splits the pool 50/30/20 across the top 3 in one balanced PROMO-guarded post', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.event.findUnique.mockResolvedValue(ended);
+    prisma.giftTransaction.groupBy.mockResolvedValue([
+      { viewerId: 'a', _sum: { totalCoinAmount: 900 } },
+      { viewerId: 'b', _sum: { totalCoinAmount: 500 } },
+      { viewerId: 'c', _sum: { totalCoinAmount: 100 } }
+    ]);
+    const res = await service.settle('e1');
+    expect(res.winners).toEqual([
+      { userId: 'a', rank: 1, coins: 500 },
+      { userId: 'b', rank: 2, coins: 300 },
+      { userId: 'c', rank: 3, coins: 200 }
+    ]);
+    expect(res.paidCoins).toBe(1000);
+    const post = ledger.postTransaction.mock.calls[0][0];
+    expect(post.type).toBe('EVENT_PRIZE');
+    expect(post.idempotencyKey).toBe('event-prize:e1');
+    expect(post.guardNonNegative).toEqual(['acc-promo']);
+    expect(post.entries[0]).toEqual({ accountId: 'acc-promo', direction: 'DEBIT', amountMinor: 1000, currency: 'COIN' });
+    expect(post.entries.slice(1).map((e: any) => e.amountMinor)).toEqual([500, 300, 200]);
+    // leaderboard queried only for as many ranks as there are prize shares
+    expect(prisma.giftTransaction.groupBy.mock.calls[0][0].take).toBe(PRIZE_SHARES_BPS.length);
+  });
+
+  it('drops zero-coin awards when the pool is too small for lower ranks', async () => {
+    const { service, prisma } = build();
+    prisma.event.findUnique.mockResolvedValue({ ...ended, prizePoolCoins: 3 }); // floor kills rank 2 (0.9) & 3 (0.6)
+    prisma.giftTransaction.groupBy.mockResolvedValue([
+      { viewerId: 'a', _sum: { totalCoinAmount: 900 } },
+      { viewerId: 'b', _sum: { totalCoinAmount: 500 } },
+      { viewerId: 'c', _sum: { totalCoinAmount: 100 } }
+    ]);
+    const res = await service.settle('e1');
+    expect(res.winners).toEqual([{ userId: 'a', rank: 1, coins: 1 }]);
+    expect(res.paidCoins).toBe(1);
   });
 });

@@ -87,6 +87,7 @@ enum LedgerTransactionType {
   ADJUSTMENT
   MISSION_REWARD
   PROMO_FUNDING
+  EVENT_PRIZE
 }
 
 enum LedgerTransactionStatus {
@@ -319,11 +320,13 @@ model Gift {
 // Owns a set of limited-time gifts and an event-scoped supporter leaderboard.
 // No new money path: economics are unchanged, only visibility and ranking scope.
 model Event {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  startsAt    DateTime @map("starts_at")
-  endsAt      DateTime @map("ends_at")
+  id             String    @id @default(uuid())
+  name           String    @unique
+  description    String?
+  startsAt       DateTime  @map("starts_at")
+  endsAt         DateTime  @map("ends_at")
+  prizePoolCoins Int       @default(0) @map("prize_pool_coins")
+  settledAt      DateTime? @map("settled_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
   gifts Gift[]
