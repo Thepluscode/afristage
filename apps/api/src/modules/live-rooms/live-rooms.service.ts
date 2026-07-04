@@ -12,6 +12,21 @@ const RANK_RETURN = 50;
 const GIFT_WINDOW_MINUTES = 10; // recent window for gift-velocity
 const DAY_MS = 86_400_000;
 
+// Feed slice cache (R5 §9 #3). TTL in seconds via FEED_CACHE_TTL_SECONDS:
+// default 10, clamped 0..300, 0 disables caching entirely (escape hatch).
+const feedCacheTtlMs = () => {
+  const s = Number(process.env.FEED_CACHE_TTL_SECONDS ?? 10);
+  return (Number.isFinite(s) ? Math.min(Math.max(s, 0), 300) : 10) * 1000;
+};
+const FEED_CACHE_MAX_KEYS = 64; // bound the (country,category) key space
+
+// Viewer-neutral room features — everything that does NOT depend on who asks.
+type NeutralFeatures = Omit<RoomFeatures, 'languageMatch' | 'countryMatch' | 'followsHost'>;
+interface FeedSlice {
+  rooms: any[];
+  features: Map<string, NeutralFeatures>;
+}
+
 // ponytail: never expose passwordHash/email/phone on a public host object. Safe fields only.
 const PUBLIC_HOST_INCLUDE = {
   host: { select: { id: true, role: true, profile: true, creatorProfile: true } }
@@ -20,6 +35,8 @@ const PUBLIC_HOST_INCLUDE = {
 @Injectable()
 export class LiveRoomsService {
   private readonly logger = new Logger(LiveRoomsService.name);
+  // key: `${country ?? '*'}:${category ?? '*'}` → cached feed slice
+  private readonly feedCache = new Map<string, { at: number; slice: FeedSlice }>();
   constructor(
     private readonly prisma: PrismaService,
     private readonly livekit: LiveKitService,
@@ -91,6 +108,7 @@ export class LiveRoomsService {
       where: { id: room.id },
       data: { status: RoomStatus.LIVE, livekitRoomName, startedAt: new Date() }
     });
+    this.feedCache.clear(); // a room went live — don't serve a stale slice for up to a TTL
     // Notify followers AND anyone who set a reminder for this specific room —
     // routed through the notifications service so the CREATOR_LIVE opt-out and
     // per-room throttle apply (reminders override the opt-out: they're an
@@ -110,6 +128,7 @@ export class LiveRoomsService {
     if (!room) throw new NotFoundException('Room not found');
     if (room.hostUserId !== hostUserId) throw new ForbiddenException('Not room host');
     const updated = await this.prisma.liveRoom.update({ where: { id: roomId }, data: { status: RoomStatus.ENDED, endedAt: new Date() } });
+    this.feedCache.clear();
     this.chat.emitToRoom(roomId, 'room.ended', { roomId, reason: 'HOST_ENDED' });
     return updated;
   }
@@ -118,10 +137,37 @@ export class LiveRoomsService {
   // `country`/`category` stay hard filters; `viewerLanguage`/`viewerCountry` are
   // soft personalization boosts. Each returned room carries its `ranking`
   // breakdown so the feed order is auditable.
-  // ponytail: per-request aggregation over a 100-room pool — fine at beta scale
-  // (blueprint phase 1: ~100 live rooms). Move to cached counters if it gets hot.
+  //
+  // R5 §9 #3: the expensive part (candidate query + 4 aggregations) is cached
+  // per (country, category) for a short TTL. Viewer-specific boosts are applied
+  // at request time over the cached slice, so personalization is never baked
+  // into the cache. Text search bypasses the cache (long-tail keys).
+  // ponytail: per-instance in-memory cache; move the slice to Redis when the
+  // instance count makes N-cold-starts-per-TTL matter.
   async list(query: { country?: string; category?: any; viewerLanguage?: string; viewerCountry?: string; q?: string }) {
     const q = query.q?.trim();
+    const ttl = feedCacheTtlMs();
+    if (q || ttl === 0) return this.rankSlice(await this.loadFeedSlice(query, q), query);
+
+    const key = `${query.country ?? '*'}:${query.category ?? '*'}`;
+    const hit = this.feedCache.get(key);
+    if (hit && Date.now() - hit.at < ttl) return this.rankSlice(hit.slice, query);
+
+    const slice = await this.loadFeedSlice(query, undefined);
+    if (this.feedCache.size >= FEED_CACHE_MAX_KEYS) {
+      this.feedCache.delete(this.feedCache.keys().next().value as string); // drop oldest key
+    }
+    this.feedCache.set(key, { at: Date.now(), slice });
+    return this.rankSlice(slice, query);
+  }
+
+  // The expensive half of the feed: candidate rooms + viewer/gift/report
+  // aggregations, reduced to viewer-NEUTRAL features (no language/country
+  // match — those depend on who is asking).
+  private async loadFeedSlice(
+    query: { country?: string; category?: any },
+    q: string | undefined
+  ): Promise<FeedSlice> {
     const rooms = await this.prisma.liveRoom.findMany({
       where: {
         status: RoomStatus.LIVE,
@@ -141,8 +187,10 @@ export class LiveRoomsService {
       take: RANK_CANDIDATE_POOL,
       include: PUBLIC_HOST_INCLUDE
     });
-    if (rooms.length <= 1)
-      return rooms.map((r) => ({ ...r, viewerCount: this.chat.countFor(r.id) || r.peakViewers, ranking: scoreRoom(this.emptyFeatures(r, query)) }));
+    if (rooms.length <= 1) {
+      // Trivial slice: no aggregation needed, neutral features are all zero.
+      return { rooms, features: new Map(rooms.map((r) => [r.id, this.zeroFeatures(r)])) };
+    }
 
     const roomIds = rooms.map((r) => r.id);
     const hostIds = rooms.map((r) => r.hostUserId);
@@ -181,38 +229,50 @@ export class LiveRoomsService {
     for (const r of roomReports) addRisk(`room:${r.roomId}`, r.priority);
     for (const r of hostReports) if (r.targetUserId) addRisk(`host:${r.targetUserId}`, r.priority);
 
-    const ranked = rooms
-      .map((room) => {
+    const features = new Map<string, NeutralFeatures>(
+      rooms.map((room) => {
         const viewers = viewersByRoom.get(room.id) ?? 0;
         const avgWatchMinutes = viewers ? watchMsByRoom.get(room.id)! / viewers / 60_000 : 0;
         const creatorCreatedAt = (room as any).host?.creatorProfile?.createdAt as Date | undefined;
+        return [
+          room.id,
+          {
+            activeViewers: viewers,
+            avgWatchMinutes,
+            giftCoinsPerMin: (giftCoinsByRoom.get(room.id) ?? 0) / GIFT_WINDOW_MINUTES,
+            creatorAgeDays: creatorCreatedAt ? (now - creatorCreatedAt.getTime()) / DAY_MS : null,
+            reportRiskPoints:
+              (riskByRoom.get(`room:${room.id}`) ?? 0) + (riskByRoom.get(`host:${room.hostUserId}`) ?? 0)
+          }
+        ];
+      })
+    );
+    return { rooms, features };
+  }
+
+  // The cheap half: viewer-specific boosts + scoring + sort over a slice
+  // (cached or fresh). viewerCount stays live — it never comes from the cache.
+  private rankSlice(slice: FeedSlice, query: { viewerLanguage?: string; viewerCountry?: string }) {
+    return slice.rooms
+      .map((room) => {
+        const neutral = slice.features.get(room.id) ?? this.zeroFeatures(room);
         const features: RoomFeatures = {
-          activeViewers: viewers,
-          avgWatchMinutes,
-          giftCoinsPerMin: (giftCoinsByRoom.get(room.id) ?? 0) / GIFT_WINDOW_MINUTES,
+          ...neutral,
           languageMatch: !!query.viewerLanguage && room.language === query.viewerLanguage,
           countryMatch: !!query.viewerCountry && room.country === query.viewerCountry,
-          followsHost: false, // ponytail: public feed has no identity; add when an authed feed variant is justified
-          creatorAgeDays: creatorCreatedAt ? (now - creatorCreatedAt.getTime()) / DAY_MS : null,
-          reportRiskPoints: (riskByRoom.get(`room:${room.id}`) ?? 0) + (riskByRoom.get(`host:${room.hostUserId}`) ?? 0)
+          followsHost: false // ponytail: public feed has no identity; add when an authed feed variant is justified
         };
         return { ...room, viewerCount: this.chat.countFor(room.id) || room.peakViewers, ranking: scoreRoom(features) };
       })
       .sort((a, b) => b.ranking.score - a.ranking.score)
       .slice(0, RANK_RETURN);
-
-    return ranked;
   }
 
-  // Features for the trivial 0/1-room case (no aggregation needed).
-  private emptyFeatures(room: any, query: { viewerLanguage?: string; viewerCountry?: string }): RoomFeatures {
+  private zeroFeatures(room: any): NeutralFeatures {
     return {
       activeViewers: 0,
       avgWatchMinutes: 0,
       giftCoinsPerMin: 0,
-      languageMatch: !!query.viewerLanguage && room.language === query.viewerLanguage,
-      countryMatch: !!query.viewerCountry && room.country === query.viewerCountry,
-      followsHost: false,
       creatorAgeDays: room.host?.creatorProfile?.createdAt
         ? (Date.now() - new Date(room.host.creatorProfile.createdAt).getTime()) / DAY_MS
         : null,
@@ -250,6 +310,7 @@ export class LiveRoomsService {
     const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
     if (!room) throw new NotFoundException('Room not found');
     const updated = await this.prisma.liveRoom.update({ where: { id: roomId }, data: { status: RoomStatus.ENDED, endedAt: new Date() } });
+    this.feedCache.clear();
     await this.prisma.adminAuditLog.create({ data: { actorId, action: 'room.ended', target: roomId, metadata: {} } });
     this.chat.emitToRoom(roomId, 'room.ended', { roomId, reason: 'ADMIN_ENDED' });
     return updated;

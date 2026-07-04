@@ -280,6 +280,93 @@ describe('LiveRoomsService.list (ranked feed)', () => {
   });
 });
 
+describe('LiveRoomsService.list feed cache (R5 §9 #3)', () => {
+  afterEach(() => {
+    delete process.env.FEED_CACHE_TTL_SECONDS;
+    jest.restoreAllMocks();
+  });
+
+  it('serves the second request from cache but still personalizes per viewer', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([
+      liveRoom({ id: 'r1', country: 'NG' }),
+      liveRoom({ id: 'r2', country: 'GH', hostUserId: 'h2' })
+    ]);
+    const first = await service.list({ viewerCountry: 'NG' });
+    const second = await service.list({ viewerCountry: 'GH' });
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1); // slice cached
+    // personalization applied per request over the SAME cached slice
+    const ngBoost = first.find((r: any) => r.id === 'r1')!.ranking.components.countryMatch;
+    const ghBoost = second.find((r: any) => r.id === 'r2')!.ranking.components.countryMatch;
+    expect(ngBoost).toBeGreaterThan(0);
+    expect(ghBoost).toBeGreaterThan(0);
+    expect(second.find((r: any) => r.id === 'r1')!.ranking.components.countryMatch).toBe(0);
+  });
+
+  it('caches per (country,category) key and re-queries after the TTL lapses', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    await service.list({ country: 'NG' });
+    await service.list({ country: 'GH' }); // different key -> own query
+    await service.list({ country: 'NG' }); // hit
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
+    const realNow = Date.now();
+    jest.spyOn(Date, 'now').mockReturnValue(realNow + 11_000); // past the 10s default TTL
+    await service.list({ country: 'NG' });
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(3);
+  });
+
+  it('text search bypasses the cache and TTL=0 disables it', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    await service.list({ q: 'afro' });
+    await service.list({ q: 'afro' });
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
+    process.env.FEED_CACHE_TTL_SECONDS = '0';
+    await service.list({});
+    await service.list({});
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(4);
+  });
+
+  it('a garbage TTL env falls back to the 10s default', async () => {
+    process.env.FEED_CACHE_TTL_SECONDS = 'not-a-number';
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    await service.list({});
+    await service.list({});
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1); // still cached
+  });
+
+  it('evicts the oldest key once the key space is full', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    for (let i = 0; i < 65; i++) await service.list({ country: `C${i}` }); // 64-key bound
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(65);
+    await service.list({ country: 'C0' }); // was evicted as oldest -> fresh query
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(66);
+    await service.list({ country: 'C64' }); // still cached
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(66);
+  });
+
+  it('rankSlice falls back to zero features for a room missing from the slice map', () => {
+    const { service } = buildFeed();
+    const ranked = (service as any).rankSlice({ rooms: [liveRoom()], features: new Map() }, {});
+    expect(ranked[0].ranking.score).toBeDefined();
+  });
+
+  it('starting and ending a room invalidates the cached slice', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    await service.list({});
+    // simulate an end() (host + room stubs for the guard path)
+    prisma.liveRoom.findUnique = jest.fn().mockResolvedValue({ id: 'r1', hostUserId: 'h1' });
+    prisma.liveRoom.update.mockResolvedValue({ id: 'r1' });
+    await service.end('h1', 'r1');
+    await service.list({});
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2); // cache was cleared
+  });
+});
+
 describe('LiveRoomsService.endStaleRooms', () => {
   it('auto-ends rooms idle past the window, keeps active ones', async () => {
     const { service, prisma } = buildFeed();
