@@ -1,6 +1,10 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class RegisterDto {
+  // Optional device label for the session list, e.g. "iPhone 13".
+  @IsOptional() @IsString() @MaxLength(80)
+  device?: string;
+
   @IsOptional()
   @IsEmail()
   email?: string;

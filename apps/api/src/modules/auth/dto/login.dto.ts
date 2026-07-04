@@ -1,6 +1,10 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class LoginDto {
+  // Optional device label for the session list, e.g. "iPhone 13".
+  @IsOptional() @IsString() @MaxLength(80)
+  device?: string;
+
   @IsString()
   identifier!: string;
 

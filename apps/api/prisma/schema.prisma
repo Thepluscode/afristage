@@ -774,3 +774,20 @@ model SupportTicketMessage {
   @@index([ticketId, createdAt])
   @@map("support_ticket_messages")
 }
+
+// R5 §9 #6: one row per signed-in device. The refresh token carries the session
+// id (sid); refresh is rejected once the row is revoked — per-device revocation
+// instead of the all-or-nothing tokenVersion bump (which still backs logout-all).
+model DeviceSession {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  device     String?   // client-supplied label, e.g. "iPhone 13" / "Chrome on Mac"
+  ip         String?
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  @@index([userId])
+  @@map("device_sessions")
+}

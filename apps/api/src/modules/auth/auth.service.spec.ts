@@ -14,7 +14,15 @@ function buildAuth() {
       create: jest.fn(),
       update: jest.fn().mockResolvedValue({})
     },
-    adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
+    adminAuditLog: { create: jest.fn().mockResolvedValue({}) },
+    deviceSession: {
+      create: jest.fn().mockResolvedValue({ id: 'sess1' }),
+      findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 })
+    }
   };
   const jwt: any = { sign: jest.fn().mockReturnValue('signed.jwt.token'), verify: jest.fn() };
   const wallet: any = { ensureUserWallets: jest.fn().mockResolvedValue(undefined) };
@@ -151,7 +159,15 @@ describe('AuthService MFA setup/enable', () => {
 
 function build(user: any = { id: 'u1', role: 'VIEWER', status: 'ACTIVE', email: 'v@a.live', tokenVersion: 0 }) {
   const prisma: any = {
-    user: { findUnique: jest.fn().mockResolvedValue(user), update: jest.fn().mockResolvedValue({}) }
+    user: { findUnique: jest.fn().mockResolvedValue(user), update: jest.fn().mockResolvedValue({}) },
+    deviceSession: {
+      create: jest.fn().mockResolvedValue({ id: 'sess1' }),
+      findUnique: jest.fn().mockResolvedValue({ id: 'sess1', userId: 'u1', revokedAt: null }),
+      findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 })
+    }
   };
   const jwt: any = {
     verify: jest.fn().mockReturnValue({ sub: 'u1', role: 'VIEWER', email: 'v@a.live', tv: 0 }),
@@ -293,6 +309,94 @@ describe('AuthService final branch arms', () => {
     prisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'u1', email: null, profile: null });
     const res = await service.setupMfa('u1');
     expect(res.otpauthUrl).toContain('u1');
+  });
+
+  it('device sessions: login opens a session, prunes dead rows, and embeds the sid', async () => {
+    const { service, prisma, jwt } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'u1', role: 'VIEWER', status: 'ACTIVE', passwordHash: await bcrypt.hash('pw', 4),
+      mfaEnabled: false, mfaRecoveryCodes: [], tokenVersion: 0
+    });
+    await service.login({ identifier: 'a@b.c', password: 'pw', device: 'iPhone 13' } as any, { ip: '9.9.9.9', userAgent: 'ua' });
+    expect(prisma.deviceSession.deleteMany).toHaveBeenCalled(); // prune
+    expect(prisma.deviceSession.create).toHaveBeenCalledWith({
+      data: { userId: 'u1', device: 'iPhone 13', ip: '9.9.9.9', userAgent: 'ua' }
+    });
+    expect(jwt.sign.mock.calls[0][0]).toMatchObject({ sid: 'sess1' });
+  });
+
+  it('device sessions: listSessions marks the current one; revoke guards ownership', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.deviceSession.findMany.mockResolvedValue([
+      { id: 's1', device: 'A', ip: null, userAgent: null, createdAt: new Date(0), lastSeenAt: new Date(0) },
+      { id: 's2', device: 'B', ip: null, userAgent: null, createdAt: new Date(0), lastSeenAt: new Date(0) }
+    ]);
+    const rows = await service.listSessions('u1', 's2');
+    expect(rows.map((r) => r.current)).toEqual([false, true]);
+
+    await expect(service.revokeSession('u1', 'ghost')).rejects.toThrow('Unknown session'); // not found
+    prisma.deviceSession.findUnique.mockResolvedValue({ id: 's1', userId: 'other', revokedAt: null });
+    await expect(service.revokeSession('u1', 's1')).rejects.toThrow('Unknown session'); // not mine
+    prisma.deviceSession.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', revokedAt: null });
+    await expect(service.revokeSession('u1', 's1')).resolves.toEqual({ ok: true });
+    expect(prisma.deviceSession.update).toHaveBeenCalledWith({ where: { id: 's1' }, data: { revokedAt: expect.any(Date) } });
+    prisma.deviceSession.update.mockClear();
+    prisma.deviceSession.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', revokedAt: new Date() });
+    await expect(service.revokeSession('u1', 's1')).resolves.toEqual({ ok: true }); // idempotent
+    expect(prisma.deviceSession.update).not.toHaveBeenCalled();
+  });
+
+  it('device sessions: logout revokes the current sid and is a no-op without one', async () => {
+    const { service, prisma } = buildAuth();
+    await expect(service.logout('u1', 'sess1')).resolves.toEqual({ ok: true });
+    expect(prisma.deviceSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'sess1', userId: 'u1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) }
+    });
+    prisma.deviceSession.updateMany.mockClear();
+    await expect(service.logout('u1')).resolves.toEqual({ ok: true }); // legacy token
+    expect(prisma.deviceSession.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('refresh rejects a revoked or foreign session and migrates legacy sid-less tokens', async () => {
+    // revoked session
+    let h = build();
+    h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0, sid: 'sess1' });
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 'sess1', userId: 'u1', revokedAt: new Date() });
+    await expect(h.service.refresh('t')).rejects.toThrow('signed out');
+    // session owned by someone else
+    h = build();
+    h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0, sid: 'sess1' });
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 'sess1', userId: 'other', revokedAt: null });
+    await expect(h.service.refresh('t')).rejects.toThrow('signed out');
+    // live session -> lastSeen touched, same sid reissued
+    h = build();
+    h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0, sid: 'sess1' });
+    await expect(h.service.refresh('t')).resolves.toMatchObject({ userId: 'u1' });
+    expect(h.prisma.deviceSession.update).toHaveBeenCalledWith({ where: { id: 'sess1' }, data: { lastSeenAt: expect.any(Date) } });
+    expect(h.jwt.sign.mock.calls[0][0]).toMatchObject({ sid: 'sess1' });
+    // legacy token without sid -> a session is opened for it
+    h = build();
+    h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0 });
+    await expect(h.service.refresh('t')).resolves.toMatchObject({ userId: 'u1' });
+    expect(h.prisma.deviceSession.create).toHaveBeenCalled();
+    expect(h.jwt.sign.mock.calls[0][0]).toMatchObject({ sid: 'sess1' });
+  });
+
+  it('issueTokens without a sid omits it from the payload', () => {
+    const h = build();
+    h.service.issueTokens({ id: 'u1', role: 'VIEWER' } as any);
+    expect(h.jwt.sign.mock.calls[0][0]).not.toHaveProperty('sid');
+  });
+
+  it('logoutAll also revokes every open device session', async () => {
+    const h = build();
+    await h.service.logoutAll('u1');
+    expect(h.prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { tokenVersion: { increment: 1 } } });
+    expect(h.prisma.deviceSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) }
+    });
   });
 
   it('falls back to default JWT secrets/TTLs when env is unset', async () => {
