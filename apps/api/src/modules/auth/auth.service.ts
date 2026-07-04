@@ -14,6 +14,11 @@ import { RegisterDto } from './dto/register.dto';
 authenticator.options = { window: 1 };
 
 const PRIVILEGED_ROLES: UserRole[] = [UserRole.MODERATOR, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.PAYOUT_REVIEWER];
+
+export interface SessionMeta {
+  ip?: string;
+  userAgent?: string;
+}
 const SEEDED_PRODUCTION_IDENTIFIERS = new Set([
   'admin@afristage.local',
   'viewer@afristage.local',
@@ -28,7 +33,7 @@ export class AuthService {
     private readonly wallet: WalletService
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, meta: SessionMeta = {}) {
     if (!dto.email && !dto.phone) throw new BadRequestException('Email or phone is required');
     if (!dto.ageConfirmed) throw new BadRequestException('Age confirmation is required');
 
@@ -53,10 +58,10 @@ export class AuthService {
     });
 
     await this.wallet.ensureUserWallets(user.id, 'COIN');
-    return this.issueTokens(user);
+    return this.issueTokens(user, await this.openSession(user.id, dto.device, meta));
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, meta: SessionMeta = {}) {
     if (
       process.env.NODE_ENV === 'production' &&
       process.env.ALLOW_SEEDED_PROD_LOGIN !== 'true' &&
@@ -89,7 +94,66 @@ export class AuthService {
     if (privileged) {
       await this.prisma.adminAuditLog.create({ data: { actorId: user.id, action: 'admin.login', target: user.id, metadata: { role: user.role } } });
     }
-    return this.issueTokens(user);
+    return this.issueTokens(user, await this.openSession(user.id, dto.device, meta));
+  }
+
+  // One row per signed-in device (R5 §9 #6). Also prunes dead rows so the
+  // table can't grow without bound: revoked >30d ago or idle >60d.
+  private async openSession(userId: string, device: string | undefined, meta: SessionMeta) {
+    const now = Date.now();
+    await this.prisma.deviceSession.deleteMany({
+      where: {
+        userId,
+        OR: [
+          { revokedAt: { lt: new Date(now - 30 * 86_400_000) } },
+          { lastSeenAt: { lt: new Date(now - 60 * 86_400_000) } }
+        ]
+      }
+    });
+    const session = await this.prisma.deviceSession.create({
+      data: { userId, device: device ?? null, ip: meta.ip ?? null, userAgent: meta.userAgent ?? null }
+    });
+    return session.id;
+  }
+
+  // Active devices for the caller, newest activity first. `current` marks the
+  // session behind the access token making this request.
+  async listSessions(userId: string, currentSid?: string) {
+    const rows = await this.prisma.deviceSession.findMany({
+      where: { userId, revokedAt: null },
+      orderBy: { lastSeenAt: 'desc' }
+    });
+    return rows.map((s) => ({
+      id: s.id,
+      device: s.device,
+      ip: s.ip,
+      userAgent: s.userAgent,
+      createdAt: s.createdAt,
+      lastSeenAt: s.lastSeenAt,
+      current: s.id === currentSid
+    }));
+  }
+
+  // Revoke ONE device: its refresh token dies on next use. The device's access
+  // token still runs out its short TTL — same bound the tokenVersion path has.
+  async revokeSession(userId: string, sessionId: string) {
+    const session = await this.prisma.deviceSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.userId !== userId) throw new BadRequestException('Unknown session');
+    if (!session.revokedAt) {
+      await this.prisma.deviceSession.update({ where: { id: sessionId }, data: { revokedAt: new Date() } });
+    }
+    return { ok: true };
+  }
+
+  // Sign out THIS device (no-op for legacy tokens that carry no sid).
+  async logout(userId: string, sid?: string) {
+    if (sid) {
+      await this.prisma.deviceSession.updateMany({
+        where: { id: sid, userId, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+    }
+    return { ok: true };
   }
 
   // Accept a valid TOTP code, or consume a one-time recovery code.
@@ -129,10 +193,11 @@ export class AuthService {
 
   // Exchange a valid refresh JWT for a fresh token pair. Re-loads the user so a
   // suspended/deleted account can't refresh, and role changes take effect.
-  // ponytail: stateless JWT refresh (no server-side rotation/revocation list yet).
-  // Before public beta, add rotation + a device-session revocation table.
-  async refresh(refreshToken: string) {
-    let payload: { sub: string; tv?: number };
+  // Session-aware (R5 §9 #6): a token carrying a sid must match a live, un-
+  // revoked device session. Legacy tokens without a sid pass the tv check only,
+  // and are migrated onto a fresh session so their next pair is revocable.
+  async refresh(refreshToken: string, meta: SessionMeta = {}) {
+    let payload: { sub: string; tv?: number; sid?: string };
     try {
       payload = this.jwt.verify(refreshToken, { secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh' });
     } catch {
@@ -143,18 +208,31 @@ export class AuthService {
     // Reject tokens issued before the last "sign out everywhere". Treat a missing
     // tv (legacy token) as version 0 so pre-revocation tokens still match a fresh account.
     if ((payload.tv ?? 0) !== (user.tokenVersion ?? 0)) throw new UnauthorizedException('Refresh token has been revoked');
-    return this.issueTokens(user);
+
+    let sid = payload.sid;
+    if (sid) {
+      const session = await this.prisma.deviceSession.findUnique({ where: { id: sid } });
+      if (!session || session.userId !== user.id || session.revokedAt) {
+        throw new UnauthorizedException('This device has been signed out');
+      }
+      await this.prisma.deviceSession.update({ where: { id: sid }, data: { lastSeenAt: new Date() } });
+    } else {
+      sid = await this.openSession(user.id, undefined, meta); // migrate legacy token
+    }
+    return this.issueTokens(user, sid);
   }
 
   // Invalidate every existing refresh token for this user by bumping the version
-  // embedded in them. Access tokens still expire on their own short TTL.
+  // embedded in them, and revoke every device session. Access tokens still
+  // expire on their own short TTL.
   async logoutAll(userId: string) {
     await this.prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
+    await this.prisma.deviceSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     return { ok: true };
   }
 
-  issueTokens(user: { id: string; role: UserRole; email?: string | null; tokenVersion?: number }) {
-    const payload = { sub: user.id, role: user.role, email: user.email, tv: user.tokenVersion ?? 0 };
+  issueTokens(user: { id: string; role: UserRole; email?: string | null; tokenVersion?: number }, sid?: string) {
+    const payload = { sub: user.id, role: user.role, email: user.email, tv: user.tokenVersion ?? 0, ...(sid ? { sid } : {}) };
     return {
       userId: user.id,
       role: user.role,
