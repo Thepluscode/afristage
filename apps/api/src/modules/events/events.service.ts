@@ -18,6 +18,16 @@ export class EventsService {
     private readonly ledger: LedgerService
   ) {}
 
+  // Admin view: every event newest-first (ended and settled included) — the
+  // settle action targets events the public listCurrent() filter hides.
+  listAll() {
+    return this.prisma.event.findMany({
+      orderBy: { startsAt: 'desc' },
+      take: 100,
+      include: { _count: { select: { gifts: true } } }
+    });
+  }
+
   // Live + upcoming campaigns, soonest first, with their limited-time gifts.
   listCurrent() {
     const now = new Date();
