@@ -10,6 +10,8 @@ import '../widgets/afri_ui.dart';
 import 'creator_apply_screen.dart';
 import 'creator_profile_screen.dart';
 import 'creator_screen.dart';
+import 'circles_screen.dart';
+import 'events_screen.dart';
 import 'missions_screen.dart';
 import 'notifications_screen.dart';
 import 'room_screen.dart';
@@ -188,6 +190,18 @@ class _FeedScreenState extends State<FeedScreen> {
                   color: AfriColors.orange)),
         ]),
         actions: [
+          IconButton(
+            tooltip: 'Events',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const EventsScreen())),
+            icon: const Icon(Icons.emoji_events_outlined),
+          ),
+          IconButton(
+            tooltip: 'Circles',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const CirclesScreen())),
+            icon: const Icon(Icons.groups_outlined),
+          ),
           IconButton(
             tooltip: 'Daily missions',
             onPressed: () => Navigator.push(context,

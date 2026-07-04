@@ -15,6 +15,8 @@ import 'package:afristage_mobile/screens/history_screen.dart';
 import 'package:afristage_mobile/screens/live_screen.dart';
 import 'package:afristage_mobile/screens/login_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
+import 'package:afristage_mobile/screens/circles_screen.dart';
+import 'package:afristage_mobile/screens/events_screen.dart';
 import 'package:afristage_mobile/screens/missions_screen.dart';
 import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
@@ -2429,9 +2431,322 @@ void main() {
     expect(find.text('Send a gift'), findsOneWidget);
   });
 
+  // ---------- EventsScreen ----------
+
+  List<dynamic> eventList() => [
+        {
+          'id': 'e1',
+          'name': 'Afrobeats Night',
+          'description': 'Big night',
+          'prizePoolCoins': 1000,
+          'gifts': [
+            {'name': 'Trophy', 'coinPrice': 60}
+          ],
+        },
+        {'id': 'e2', 'name': 'Quiet Event', 'prizePoolCoins': 0, 'gifts': []},
+      ];
+
+  testWidgets('EventsScreen renders pooled and plain events', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {'/events': eventList()});
+    await tester.pumpWidget(_wrap(api, const EventsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Afrobeats Night'), findsOneWidget);
+    expect(find.text('1000 coin pool'), findsOneWidget);
+    expect(find.text('Big night'), findsOneWidget);
+    expect(find.text('Trophy · 60c'), findsOneWidget);
+    expect(find.text('Quiet Event'), findsOneWidget); // no pool chip, no desc
+    expect(find.textContaining('coin pool'), findsOneWidget);
+  });
+
+  testWidgets('EventsScreen pull-to-refresh reloads the list', (tester) async {
+    // default surface: a short list must underfill the viewport for the fling
+    // to drive the RefreshIndicator
+    final api = _FakeApi(lists: {'/events': eventList()});
+    await tester.pumpWidget(_wrap(api, const EventsScreen()));
+    await tester.pumpAndSettle();
+    await _pullToRefresh(tester);
+    expect(find.text('Afrobeats Night'), findsOneWidget);
+  });
+
+  testWidgets('EventsScreen expands the supporter leaderboard and collapses',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {
+      '/events': eventList()
+    }, maps: {
+      '/events/e1/leaderboard': {
+        'supporters': [
+          {'rank': 1, 'displayName': 'Ada', 'totalCoins': 500},
+          {'rank': 2, 'totalCoins': null}, // Anonymous + null coins fallback
+        ]
+      }
+    });
+    await tester.pumpWidget(_wrap(api, const EventsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Afrobeats Night'));
+    await tester.pump(); // leaderboard future still loading
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Ada'), findsOneWidget);
+    expect(find.text('500 coins'), findsOneWidget);
+    expect(find.text('Anonymous'), findsOneWidget);
+    expect(find.text('0 coins'), findsOneWidget);
+    await tester.tap(find.text('Hide leaderboard'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ada'), findsNothing);
+  });
+
+  testWidgets('EventsScreen leaderboard error and empty branches',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(
+        lists: {'/events': eventList()},
+        maps: {'/events/e2/leaderboard': <String, dynamic>{}},
+        errors: {'/events/e1/leaderboard'});
+    await tester.pumpWidget(_wrap(api, const EventsScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Afrobeats Night'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load the leaderboard.'), findsOneWidget);
+    await tester.tap(find.text('Quiet Event'));
+    await tester.pumpAndSettle();
+    expect(find.text('No supporters yet — send an event gift to lead!'),
+        findsOneWidget);
+  });
+
+  testWidgets('EventsScreen error state retries and empty list explains',
+      (tester) async {
+    _tall(tester);
+    final errs = <String>{'/events'};
+    final api = _FakeApi(lists: {'/events': eventList()}, errors: errs);
+    await tester.pumpWidget(_wrap(api, const EventsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load events'), findsOneWidget);
+    errs.remove('/events');
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Afrobeats Night'), findsOneWidget);
+  });
+
+  testWidgets('EventsScreen shows the empty state', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const EventsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No events right now'), findsOneWidget);
+  });
+
+  testWidgets('Feed app bar opens Events and Circles', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {'circle': null}
+    });
+    await tester.pumpWidget(_wrap(api, const FeedScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Events'));
+    await tester.pumpAndSettle();
+    expect(find.text('No events right now'), findsOneWidget);
+    Navigator.of(tester.element(find.text('No events right now'))).pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Circles'));
+    await tester.pumpAndSettle();
+    expect(find.text('Start your own circle'), findsOneWidget);
+  });
+
+  // ---------- CirclesScreen ----------
+
+  Map<String, dynamic> circleDetail() => {
+        'id': 'ci1',
+        'name': 'Lagos Comedy Circle',
+        'city': 'Lagos',
+        'points': {
+          'week': {'total': 130},
+          'allTime': {'total': 1780},
+        },
+        'members': [
+          {'userId': 'u1', 'role': 'OWNER', 'displayName': 'Demo Viewer'},
+          {'userId': 'u2', 'role': 'MEMBER'}, // Anonymous fallback
+        ],
+      };
+
+  testWidgets('CirclesScreen shows my circle with points, members and board',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {
+        'circle': {'id': 'ci1'},
+        'role': 'OWNER'
+      },
+      '/circles/ci1': circleDetail(),
+    }, lists: {
+      '/circles/leaderboard?window=week': [
+        {'rank': 1, 'name': 'Lagos Comedy Circle', 'points': 130},
+        {'rank': 2, 'name': 'Accra Crew', 'points': null},
+      ]
+    });
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Lagos Comedy Circle'), findsNWidgets(2)); // card + board
+    expect(find.text('Owner'), findsOneWidget);
+    expect(find.text('Lagos'), findsOneWidget);
+    expect(find.text('130'), findsOneWidget);
+    expect(find.text('1780'), findsOneWidget);
+    expect(find.text('2 members'), findsOneWidget);
+    expect(find.text('Demo Viewer'), findsOneWidget);
+    expect(find.text('Anonymous'), findsOneWidget);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('130 pts'), findsOneWidget);
+    expect(find.text('0 pts'), findsOneWidget); // null points fallback
+  });
+
+  testWidgets('CirclesScreen member view: no city, singular member, defaults',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {
+        'circle': {'id': 'ci1'},
+        'role': 'MEMBER'
+      },
+      '/circles/ci1': {
+        'id': 'ci1',
+        'name': 'Solo Circle',
+        'members': [
+          {'userId': 'u2', 'role': 'MEMBER', 'displayName': 'Just Me'}
+        ],
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Member'), findsOneWidget);
+    expect(find.text('1 member'), findsOneWidget);
+    expect(find.text('0'), findsNWidgets(2)); // both points boxes default
+    expect(find.text('No circle activity yet this week.'), findsOneWidget);
+  });
+
+  testWidgets('CirclesScreen leave asks first: cancel keeps, confirm posts',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {
+        'circle': {'id': 'ci1'},
+        'role': 'OWNER'
+      },
+      '/circles/ci1': circleDetail(),
+    });
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave circle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(api.posts, isEmpty);
+    await tester.tap(find.text('Leave circle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/circles/leave'));
+  });
+
+  testWidgets('CirclesScreen leave failure shows the owner-rule snackbar',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {
+        'circle': {'id': 'ci1'},
+        'role': 'OWNER'
+      },
+      '/circles/ci1': circleDetail(),
+    }, postErrors: {
+      '/circles/leave'
+    });
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave circle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not leave (owners must be the last member).'),
+        findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CirclesScreen browse renders join targets and creates circles',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {'circle': null}
+    }, lists: {
+      '/circles': [
+        {
+          'id': 'c2',
+          'name': 'Accra Crew',
+          'city': 'Accra',
+          '_count': {'members': 3}
+        },
+        {'id': 'c3', 'name': 'Nairobi Nights'}, // no city, no count
+      ]
+    });
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('3 members · Accra'), findsOneWidget);
+    expect(find.text('0 members'), findsOneWidget);
+    await tester.tap(find.text('Join').first);
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/circles/c2/join'));
+    await tester.enterText(find.byType(TextField), 'My New Circle');
+    await tester.tap(find.text('Create circle'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/circles'));
+  });
+
+  testWidgets('CirclesScreen create and join failures show snackbars',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/circles/me': {'circle': null}
+    }, lists: {
+      '/circles': [
+        {'id': 'c2', 'name': 'Accra Crew'}
+      ]
+    }, postErrors: {
+      '/circles',
+      '/circles/c2/join'
+    });
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Taken Name');
+    await tester.tap(find.text('Create circle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not create the circle (name may be taken).'),
+        findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.tap(find.text('Join'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not join this circle.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('CirclesScreen error state retries into the loaded view',
+      (tester) async {
+    _tall(tester);
+    final errs = <String>{'/circles/me'};
+    final api = _FakeApi(maps: {
+      '/circles/me': {'circle': null}
+    }, errors: errs);
+    await tester.pumpWidget(_wrap(api, const CirclesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load circles'), findsOneWidget);
+    errs.remove('/circles/me');
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Start your own circle'), findsOneWidget);
+  });
+
   test('screen constructors execute (non-const)', () {
     // ignore_for_file: prefer_const_constructors
     expect(FeedScreen(), isA<FeedScreen>());
+    expect(EventsScreen(), isA<EventsScreen>());
+    expect(CirclesScreen(), isA<CirclesScreen>());
     expect(SearchScreen(), isA<SearchScreen>());
     expect(LoginScreen(), isA<LoginScreen>());
     expect(LiveScreen(), isA<LiveScreen>());
