@@ -563,6 +563,37 @@ model NotificationPreference {
   @@map("notification_preferences")
 }
 
+// Creator Circles (R4 §7): community groups (city / campus / diaspora / label /
+// comedy-house / faith). Points are pure AGGREGATION over members' existing
+// gift + mission activity — a circle never introduces a new money path.
+model Circle {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  city        String?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  members CircleMember[]
+
+  @@map("circles")
+}
+
+// A user belongs to AT MOST ONE circle (unique userId) — one gift/mission can
+// therefore never count toward two circles' points.
+model CircleMember {
+  id       String   @id @default(uuid())
+  circleId String   @map("circle_id")
+  userId   String   @unique @map("user_id")
+  role     String   @default("MEMBER") // OWNER | MEMBER
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  circle Circle @relation(fields: [circleId], references: [id])
+
+  @@index([circleId])
+  @@map("circle_members")
+}
+
 // One row per claimed daily mission. The unique key is the double-claim guard;
 // the ledger transaction id ties every reward to a balanced PROMO -> COIN move.
 model MissionClaim {

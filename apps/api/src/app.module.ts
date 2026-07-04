@@ -8,6 +8,7 @@ import { RedisService } from './common/redis.service';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { CirclesModule } from './modules/circles/circles.module';
 import { CreatorsModule } from './modules/creators/creators.module';
 import { LiveRoomsModule } from './modules/live-rooms/live-rooms.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -37,6 +38,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     PrismaModule,
     AuthModule,
     UsersModule,
+    CirclesModule,
     CreatorsModule,
     LiveRoomsModule,
     ChatModule,
