@@ -51,7 +51,8 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
       ['Creators', '/creators', <UserCheck key="creators" size={iconSize} />],
       ['Waitlist', '/beta-requests', <ClipboardList key="waitlist" size={iconSize} />],
       ['Beta Invites', '/beta-invites', <KeyRound key="beta-invites" size={iconSize} />],
-      ['Circles', '/circles', <Users key="circles" size={iconSize} />]
+      ['Circles', '/circles', <Users key="circles" size={iconSize} />],
+      ['Agencies', '/agencies', <UserCheck key="agencies" size={iconSize} />]
     ]
   },
   {

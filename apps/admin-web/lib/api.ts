@@ -23,6 +23,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const adminGet = <T>(path: string) => call<T>('GET', path);
 export const adminPost = <T>(path: string, body?: unknown) => call<T>('POST', path, body);
 export const adminPatch = <T>(path: string, body?: unknown) => call<T>('PATCH', path, body);
+export const adminDelete = <T>(path: string) => call<T>('DELETE', path);
 
 export async function adminLogout() {
   await fetch('/api/auth/logout', { method: 'POST' });
