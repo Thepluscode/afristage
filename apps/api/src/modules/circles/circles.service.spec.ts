@@ -46,6 +46,14 @@ describe('CirclesService join/leave', () => {
     expect(prisma.circleMember.create).toHaveBeenCalledWith({ data: { circleId: 'ci1', userId: 'u2' } });
   });
 
+  it('rejects joining a full circle (cap = the group-fraud assessment bound)', async () => {
+    const { service, prisma } = build();
+    prisma.circle.findUnique.mockResolvedValue({ id: 'ci1' });
+    prisma.circleMember.count.mockResolvedValue(200);
+    await expect(service.join('u2', 'ci1')).rejects.toThrow('full');
+    expect(prisma.circleMember.create).not.toHaveBeenCalled();
+  });
+
   it('join is idempotent for the same circle and rejected for a different one', async () => {
     const { service, prisma } = build();
     prisma.circle.findUnique.mockResolvedValue({ id: 'ci1' });

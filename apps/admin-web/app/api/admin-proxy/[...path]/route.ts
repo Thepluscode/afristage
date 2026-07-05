@@ -4,20 +4,31 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, setSessionCookies } from '../../../../li
 
 const API_BASE = process.env.AFRISTAGE_API_BASE || 'http://localhost:3000/api';
 
+// Refresh tokens ROTATE server-side (a used token is superseded), so two
+// concurrent proxied requests must not both spend the same cookie — the loser
+// would be rejected and bounce the admin to /login. Single-flight per token.
+const inflightRefresh = new Map<string, Promise<{ accessToken: string; refreshToken: string } | null>>();
+
 // Exchange the refresh cookie for a fresh token pair, persist both, and return
 // the new access token. Returns null if there's no refresh cookie or it's rejected.
 async function tryRefresh(secure: boolean): Promise<string | null> {
   const refreshToken = cookies().get(REFRESH_COOKIE)?.value;
   if (!refreshToken) return null;
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-    cache: 'no-store'
-  });
-  if (!res.ok) return null;
-  const data = await res.json().catch(() => null);
-  if (!data?.accessToken) return null;
+  let flight = inflightRefresh.get(refreshToken);
+  if (!flight) {
+    flight = fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+      cache: 'no-store'
+    })
+      .then(async (res) => (res.ok ? ((await res.json().catch(() => null)) as any) : null))
+      .then((data) => (data?.accessToken ? data : null));
+    inflightRefresh.set(refreshToken, flight);
+    flight.finally(() => inflightRefresh.delete(refreshToken));
+  }
+  const data = await flight;
+  if (!data) return null;
   setSessionCookies(cookies(), data.accessToken, data.refreshToken, secure);
   return data.accessToken;
 }

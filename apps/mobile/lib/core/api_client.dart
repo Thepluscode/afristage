@@ -91,7 +91,19 @@ class ApiClient {
     return decoded;
   }
 
-  Future<bool> _refresh() async {
+  // Refresh tokens rotate server-side: concurrent 401s must share ONE refresh
+  // call, or the loser spends a superseded token and logs the user out.
+  Future<bool>? _refreshing;
+
+  Future<bool> _refresh() {
+    final inflight = _refreshing;
+    if (inflight != null) return inflight;
+    final f = _doRefresh().whenComplete(() => _refreshing = null);
+    _refreshing = f;
+    return f;
+  }
+
+  Future<bool> _doRefresh() async {
     try {
       final r =
           await _raw('POST', '/auth/refresh', {'refreshToken': refreshToken});

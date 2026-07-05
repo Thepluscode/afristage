@@ -354,6 +354,15 @@ describe('LiveRoomsService.list feed cache (R5 §9 #3)', () => {
     expect(ranked[0].ranking.score).toBeDefined();
   });
 
+  it('clearFeedCache (the moderation hook) empties the cache directly', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    await service.list({});
+    service.clearFeedCache();
+    await service.list({});
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
+  });
+
   it('starting and ending a room invalidates the cached slice', async () => {
     const { service, prisma } = buildFeed();
     prisma.liveRoom.findMany.mockResolvedValue([]);
