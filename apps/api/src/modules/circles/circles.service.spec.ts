@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { CirclesService } from './circles.service';
 
 function build() {
@@ -19,7 +20,7 @@ function build() {
     missionClaim: { aggregate: jest.fn().mockResolvedValue({ _sum: { rewardCoins: 0 } }) },
     profile: { findMany: jest.fn().mockResolvedValue([]) }
   };
-  return { service: new CirclesService(prisma), prisma };
+  return { service: new CirclesService(prisma, new AggregationService(prisma)), prisma };
 }
 
 describe('CirclesService.create', () => {

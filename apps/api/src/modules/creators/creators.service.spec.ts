@@ -1,3 +1,4 @@
+import { AggregationService } from '../aggregation/aggregation.service';
 import { CreatorsService } from './creators.service';
 
 function build() {
@@ -12,7 +13,7 @@ function build() {
     giftTransaction: { groupBy: jest.fn().mockResolvedValue([]) }
   };
   const wallet: any = { ensureUserWallets: jest.fn() };
-  return { service: new CreatorsService(prisma, wallet), prisma };
+  return { service: new CreatorsService(prisma, wallet, new AggregationService(prisma)), prisma };
 }
 
 const dto = { stageName: 'X', category: 'MUSIC', country: 'NG', language: 'pidgin' } as any;
@@ -101,7 +102,7 @@ function buildFull() {
     roomReminder: { findUnique: jest.fn().mockResolvedValue(null) }
   };
   const wallet: any = { balance: jest.fn().mockResolvedValue('0'), ensureUserWallets: jest.fn() };
-  return { service: new CreatorsService(prisma, wallet), prisma, wallet };
+  return { service: new CreatorsService(prisma, wallet, new AggregationService(prisma)), prisma, wallet };
 }
 
 describe('CreatorsService.suspendCreator', () => {

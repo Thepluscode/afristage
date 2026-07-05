@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { LedgerDirection, LedgerTransactionType, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -15,7 +16,8 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
-    private readonly ledger: LedgerService
+    private readonly ledger: LedgerService,
+    private readonly agg: AggregationService
   ) {}
 
   // Admin view: every event newest-first (ended and settled included) — the
@@ -44,32 +46,24 @@ export class EventsService {
   async leaderboard(eventId: string, limit = 20) {
     const event = await this.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Event not found');
-    const take = Math.min(Math.max(Math.trunc(limit) || 20, 1), 100); // bounded 1..100
 
-    const rows = await this.prisma.giftTransaction.groupBy({
-      by: ['viewerId'],
-      where: {
-        gift: { eventId },
-        createdAt: { gte: event.startsAt, lte: event.endsAt }
-      },
-      _sum: { totalCoinAmount: true },
-      orderBy: { _sum: { totalCoinAmount: 'desc' } },
-      take
+    const rows = await this.agg.giftTotals({
+      by: 'viewerId',
+      where: { gift: { eventId } },
+      since: event.startsAt,
+      until: event.endsAt,
+      limit
     });
     if (!rows.length) return { event: { id: event.id, name: event.name }, supporters: [] };
 
-    const profiles = await this.prisma.profile.findMany({
-      where: { userId: { in: rows.map((r) => r.viewerId) } },
-      select: { userId: true, displayName: true, username: true }
-    });
-    const byId = new Map(profiles.map((p) => [p.userId, p]));
+    const byId = await this.agg.profilesFor(rows.map((r) => r.key));
     return {
       event: { id: event.id, name: event.name },
       supporters: rows.map((r, i) => ({
         rank: i + 1,
-        userId: r.viewerId,
-        displayName: byId.get(r.viewerId)?.displayName ?? byId.get(r.viewerId)?.username ?? 'Anonymous',
-        totalCoins: r._sum.totalCoinAmount ?? 0
+        userId: r.key,
+        displayName: byId.get(r.key)?.displayName ?? byId.get(r.key)?.username ?? 'Anonymous',
+        totalCoins: r.totalCoins
       }))
     };
   }
