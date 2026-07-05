@@ -16,7 +16,8 @@ function build(overrides: any = {}) {
   const wallet: any = {
     balance: jest.fn().mockResolvedValue('1000'),
     account: jest.fn().mockResolvedValue({ id: 'acc' }),
-    ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'sys' })
+    ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'sys' }),
+    ensureAccount: jest.fn().mockResolvedValue({ id: 'agency-acc' })
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
   const chat: any = { emitToRoom: jest.fn() };
@@ -25,8 +26,9 @@ function build(overrides: any = {}) {
   prisma.user.findUnique.mockResolvedValue(overrides.viewer ?? { id: 'v1', status: 'ACTIVE' });
   prisma.gift.findUnique.mockResolvedValue(overrides.gift ?? { id: 'g1', isActive: true, coinPrice: 10, name: 'Rose' });
   const fraud: any = { queueReassess: jest.fn() };
-  const service = new GiftsService(prisma, wallet, ledger, chat, notifications, new AggregationService(prisma), fraud);
-  return { service, prisma, wallet, ledger, chat, notifications, fraud };
+  const agencies: any = { commissionFor: jest.fn().mockResolvedValue(null) }; // unmanaged by default
+  const service = new GiftsService(prisma, wallet, ledger, chat, notifications, new AggregationService(prisma), fraud, agencies);
+  return { service, prisma, wallet, ledger, chat, notifications, fraud, agencies };
 }
 
 describe('GiftsService.send', () => {
@@ -291,5 +293,38 @@ describe('GiftsService limit + share defaults', () => {
     } finally {
       if (prev !== undefined) process.env.CREATOR_SHARE_BPS = prev;
     }
+  });
+});
+
+describe('GiftsService.send agency commission (R4 §8)', () => {
+  it("splits a managed creator's share into a fourth AGENCY_EARNING leg", async () => {
+    const { service, prisma, ledger, agencies, wallet } = build();
+    agencies.commissionFor.mockResolvedValue({ agencyId: 'ag1', ownerUserId: 'owner1', commissionBps: 1000 });
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    await service.send('v1', 'r1', dto); // Rose x1 = 10 coins -> share 6, cut 0 (floor 0.6)... use bigger dto
+    // 10 coins: creatorShare=6, agencyCut=floor(6*0.10)=0 -> NO agency leg
+    expect(ledger.postTransaction.mock.calls[0][0].entries).toHaveLength(3);
+
+    ledger.postTransaction.mockClear();
+    await service.send('v1', 'r1', { ...dto, quantity: 10, idempotencyKey: 'k2' } as any);
+    // 100 coins: creatorShare=60, agencyCut=6, creatorNet=54, platform=40
+    const post = ledger.postTransaction.mock.calls[0][0];
+    expect(post.entries).toHaveLength(4);
+    expect(post.entries[0]).toMatchObject({ direction: 'DEBIT', amountMinor: 100 });
+    expect(post.entries[1]).toMatchObject({ amountMinor: 54 }); // creator net
+    expect(post.entries[2]).toMatchObject({ accountId: 'agency-acc', amountMinor: 6 }); // agency cut
+    expect(post.entries[3]).toMatchObject({ amountMinor: 40 }); // platform fee
+    expect(post.metadata).toMatchObject({ agencyId: 'ag1', agencyCommissionMinor: 6 });
+    expect(wallet.ensureAccount).toHaveBeenCalledWith('owner1', 'AGENCY_EARNING', 'COIN');
+  });
+
+  it('an unmanaged creator posts the classic 3-leg split untouched', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    await service.send('v1', 'r1', { ...dto, quantity: 10, idempotencyKey: 'k3' } as any);
+    const post = ledger.postTransaction.mock.calls[0][0];
+    expect(post.entries).toHaveLength(3);
+    expect(post.entries[1]).toMatchObject({ amountMinor: 60 }); // full creator share
+    expect(post.metadata.agencyId).toBeUndefined();
   });
 });

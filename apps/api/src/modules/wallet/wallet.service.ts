@@ -31,6 +31,13 @@ export class WalletService {
     }
   }
 
+  // Ensure-or-get a single account (agency pots are created on first use,
+  // not at registration like the standard user trio).
+  async ensureAccount(userId: string, accountType: WalletAccountType, currency: string) {
+    await this.prisma.walletAccount.createMany({ data: [{ userId, accountType, currency }], skipDuplicates: true });
+    return this.account(userId, accountType, currency);
+  }
+
   async account(userId: string, accountType: WalletAccountType, currency: string) {
     const account = await this.prisma.walletAccount.findFirst({ where: { userId, accountType, currency } });
     if (!account) throw new NotFoundException(`Missing ${accountType} wallet`);

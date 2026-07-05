@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { LedgerDirection, LedgerTransactionType, RoomStatus, UserStatus, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AggregationService } from '../aggregation/aggregation.service';
+import { AgenciesService } from '../agencies/agencies.service';
 import { ChatGateway } from '../chat/chat.gateway';
 import { FraudService } from '../fraud/fraud.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -20,7 +21,8 @@ export class GiftsService {
     private readonly chat: ChatGateway,
     private readonly notifications: NotificationsService,
     private readonly agg: AggregationService,
-    private readonly fraud: FraudService
+    private readonly fraud: FraudService,
+    private readonly agencies: AgenciesService
   ) {}
 
   // Catalog: evergreen gifts plus event gifts whose window is currently open.
@@ -117,6 +119,12 @@ export class GiftsService {
     const creatorShareBps = Number(process.env.CREATOR_SHARE_BPS || 6000);
     const creatorShare = Math.floor((total * creatorShareBps) / 10000);
     const platformFee = total - creatorShare;
+    // Agency commission (R4 §8): a managed creator's share is split with their
+    // agency as an explicit fourth ledger leg — on-book, integrity-checked.
+    // Suspended agencies and 0-bps configs return null (no leg).
+    const agency = await this.agencies.commissionFor(room.hostUserId);
+    const agencyCut = agency ? Math.floor((creatorShare * agency.commissionBps) / 10000) : 0;
+    const creatorNet = creatorShare - agencyCut;
 
     // Scope the idempotency key to the viewer so one user's client key can never
     // collide with another's (which would otherwise return the wrong transaction).
@@ -137,14 +145,28 @@ export class GiftsService {
     const viewerCoin = await this.wallet.account(viewerId, WalletAccountType.COIN, 'COIN');
     const creatorEarning = await this.wallet.account(room.hostUserId, WalletAccountType.EARNING, 'COIN');
     const platformRevenue = await this.wallet.ensureSystemAccount(WalletAccountType.PLATFORM_REVENUE, 'COIN');
+    const agencyEarning =
+      agency && agencyCut > 0
+        ? await this.wallet.ensureAccount(agency.ownerUserId, WalletAccountType.AGENCY_EARNING, 'COIN')
+        : null;
 
     const tx = await this.ledger.postTransaction({
       type: LedgerTransactionType.GIFT,
       idempotencyKey,
-      metadata: { roomId, viewerId, creatorId: room.hostUserId, giftId: gift.id, quantity: dto.quantity },
+      metadata: {
+        roomId,
+        viewerId,
+        creatorId: room.hostUserId,
+        giftId: gift.id,
+        quantity: dto.quantity,
+        ...(agencyEarning ? { agencyId: agency!.agencyId, agencyCommissionMinor: agencyCut } : {})
+      },
       entries: [
         { accountId: viewerCoin.id, direction: LedgerDirection.DEBIT, amountMinor: total, currency: 'COIN' },
-        { accountId: creatorEarning.id, direction: LedgerDirection.CREDIT, amountMinor: creatorShare, currency: 'COIN' },
+        { accountId: creatorEarning.id, direction: LedgerDirection.CREDIT, amountMinor: creatorNet, currency: 'COIN' },
+        ...(agencyEarning
+          ? [{ accountId: agencyEarning.id, direction: LedgerDirection.CREDIT, amountMinor: agencyCut, currency: 'COIN' }]
+          : []),
         { accountId: platformRevenue.id, direction: LedgerDirection.CREDIT, amountMinor: platformFee, currency: 'COIN' }
       ],
       // Atomically re-check the viewer's coin balance under a row lock so two
@@ -164,7 +186,7 @@ export class GiftsService {
         ledgerTransactionId: tx.id,
         quantity: dto.quantity,
         totalCoinAmount: total,
-        creatorEarningMinor: creatorShare,
+        creatorEarningMinor: creatorNet, // post-commission: what the creator actually received
         platformFeeMinor: platformFee
       }
     });
@@ -180,7 +202,7 @@ export class GiftsService {
       senderId: viewerId,
       quantity: dto.quantity,
       totalCoinAmount: total,
-      creatorEarningMinor: creatorShare,
+      creatorEarningMinor: creatorNet,
       platformFeeMinor: platformFee,
       createdAt: giftTx.createdAt
     });
