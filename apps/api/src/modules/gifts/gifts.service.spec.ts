@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { GiftsService } from './gifts.service';
 
 const dto = { giftId: 'g1', quantity: 1, idempotencyKey: 'k1' };
@@ -23,7 +24,7 @@ function build(overrides: any = {}) {
   prisma.liveRoom.findUnique.mockResolvedValue(overrides.room ?? { id: 'r1', status: 'LIVE', hostUserId: 'creator', title: 'Friday Jam' });
   prisma.user.findUnique.mockResolvedValue(overrides.viewer ?? { id: 'v1', status: 'ACTIVE' });
   prisma.gift.findUnique.mockResolvedValue(overrides.gift ?? { id: 'g1', isActive: true, coinPrice: 10, name: 'Rose' });
-  const service = new GiftsService(prisma, wallet, ledger, chat, notifications);
+  const service = new GiftsService(prisma, wallet, ledger, chat, notifications, new AggregationService(prisma));
   return { service, prisma, wallet, ledger, chat, notifications };
 }
 
@@ -180,9 +181,10 @@ describe('GiftsService.topGifters', () => {
       { rank: 1, viewerId: 'whale', displayName: 'Big Whale', totalCoins: 5000, giftCount: 12 },
       { rank: 2, viewerId: 'fan', displayName: 'fan_one', totalCoins: 800, giftCount: 3 } // falls back to username
     ]);
-    // ordering is delegated to the DB (orderBy _sum desc) + bounded take
+    // ordering is delegated to the DB via the aggregation engine (coins desc,
+    // key asc tie-break) + bounded take
     expect(prisma.giftTransaction.groupBy).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { roomId: 'r1' }, orderBy: { _sum: { totalCoinAmount: 'desc' } }, take: 10 })
+      expect.objectContaining({ where: { roomId: 'r1' }, orderBy: [{ _sum: { totalCoinAmount: 'desc' } }, { viewerId: 'asc' }], take: 10 })
     );
   });
 

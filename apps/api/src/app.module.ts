@@ -19,6 +19,7 @@ import { PayoutsModule } from './modules/payouts/payouts.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AggregationModule } from './modules/aggregation/aggregation.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BetaModule } from './modules/beta/beta.module';
 import { SupportModule } from './modules/support/support.module';
@@ -30,6 +31,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
+    AggregationModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // ponytail: in-memory throttling. Move to Redis storage (ThrottlerStorageRedisService)
     // when running more than one API instance, or limits are per-instance.

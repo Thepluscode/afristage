@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { CreatorApprovalStatus, PaymentStatus, PayoutStatus, ReportPriority, ReportStatus, RoomStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AggregationService, windowSince } from '../aggregation/aggregation.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly agg: AggregationService
+  ) {}
 
   // The beta control room: everything an operator must watch during closed beta.
   async betaOpsDashboard() {
@@ -180,40 +184,27 @@ export class AdminService {
   // chart traffic grows (see docs/reverse-engineering/R5 §6).
   async leaderboard(type = 'creator', window = 'week', limit = 20) {
     const scope: 'creator' | 'supporter' = type === 'supporter' ? 'supporter' : 'creator';
-    const field = scope === 'creator' ? 'creatorId' : 'viewerId';
-    const take = Math.min(Math.max(Math.trunc(limit) || 20, 1), 100); // bounded 1..100
-
-    let since: Date | undefined;
-    if (window === 'day') {
-      since = new Date();
-      since.setHours(0, 0, 0, 0);
-    } else if (window === 'week') {
-      since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    } // 'all' → no lower bound
-
-    const rows = await this.prisma.giftTransaction.groupBy({
-      by: [field],
-      where: since ? { createdAt: { gte: since } } : {},
-      _sum: { totalCoinAmount: true },
-      orderBy: { _sum: { totalCoinAmount: 'desc' } },
-      take
+    const rows = await this.agg.giftTotals({
+      by: scope === 'creator' ? 'creatorId' : 'viewerId',
+      since: windowSince(window),
+      limit
     });
 
-    const ids = rows.map((r: any) => r[field] as string);
+    // Admin charts label by stageName-first (creators) with email as a final
+    // fallback — richer than the public profilesFor policy, so it stays here.
     const users = await this.prisma.user.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: rows.map((r) => r.key) } },
       include: { profile: true, creatorProfile: true }
     });
     const byId = Object.fromEntries(users.map((u) => [u.id, u]));
 
-    return rows.map((r: any, i: number) => {
-      const id = r[field] as string;
-      const u = byId[id];
+    return rows.map((r, i) => {
+      const u = byId[r.key];
       const label =
         scope === 'creator'
-          ? u?.creatorProfile?.stageName || u?.profile?.displayName || u?.profile?.username || u?.email || id
-          : u?.profile?.displayName || u?.profile?.username || u?.email || id;
-      return { rank: i + 1, userId: id, label, totalCoins: r._sum.totalCoinAmount ?? 0 };
+          ? u?.creatorProfile?.stageName || u?.profile?.displayName || u?.profile?.username || u?.email || r.key
+          : u?.profile?.displayName || u?.profile?.username || u?.email || r.key;
+      return { rank: i + 1, userId: r.key, label, totalCoins: r.totalCoins };
     });
   }
 }

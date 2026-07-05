@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { CreateCircleDto } from './dto/create-circle.dto';
 
 const DAY_MS = 86_400_000;
@@ -7,7 +8,10 @@ const WEEK_MS = 7 * DAY_MS;
 
 @Injectable()
 export class CirclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly agg: AggregationService
+  ) {}
 
   // Circle points are pure AGGREGATION over members' existing activity:
   // coins gifted by members + mission rewards claimed by members. No circle
@@ -15,18 +19,10 @@ export class CirclesService {
   // points is exactly what the group fraud scorer detects — see assessment.)
   private async points(memberIds: string[], since?: Date) {
     if (!memberIds.length) return { giftPoints: 0, missionPoints: 0, total: 0 };
-    const [gifts, missions] = await Promise.all([
-      this.prisma.giftTransaction.aggregate({
-        where: { viewerId: { in: memberIds }, ...(since ? { createdAt: { gte: since } } : {}) },
-        _sum: { totalCoinAmount: true }
-      }),
-      this.prisma.missionClaim.aggregate({
-        where: { userId: { in: memberIds }, ...(since ? { createdAt: { gte: since } } : {}) },
-        _sum: { rewardCoins: true }
-      })
+    const [giftPoints, missionPoints] = await Promise.all([
+      this.agg.sumGiftCoins({ viewerId: { in: memberIds } }, since),
+      this.agg.sumMissionCoins(memberIds, since)
     ]);
-    const giftPoints = gifts._sum.totalCoinAmount ?? 0;
-    const missionPoints = missions._sum.rewardCoins ?? 0;
     return { giftPoints, missionPoints, total: giftPoints + missionPoints };
   }
 
@@ -99,15 +95,11 @@ export class CirclesService {
     const circle = await this.prisma.circle.findUnique({ where: { id: circleId }, include: { members: true } });
     if (!circle) throw new NotFoundException('Circle not found');
     const memberIds = circle.members.map((m) => m.userId);
-    const [profiles, allTime, week] = await Promise.all([
-      this.prisma.profile.findMany({
-        where: { userId: { in: memberIds } },
-        select: { userId: true, displayName: true, username: true }
-      }),
+    const [byId, allTime, week] = await Promise.all([
+      this.agg.profilesFor(memberIds),
       this.points(memberIds),
       this.points(memberIds, new Date(Date.now() - WEEK_MS))
     ]);
-    const byId = new Map(profiles.map((p) => [p.userId, p]));
     return {
       id: circle.id,
       name: circle.name,

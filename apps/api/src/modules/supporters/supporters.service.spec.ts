@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { SupportersService } from './supporters.service';
 
 function build() {
@@ -10,7 +11,7 @@ function build() {
     },
     profile: { findMany: jest.fn().mockResolvedValue([]) }
   };
-  return { service: new SupportersService(prisma), prisma };
+  return { service: new SupportersService(prisma, new AggregationService(prisma)), prisma };
 }
 
 describe('SupportersService.myStanding', () => {

@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { EventsService, PRIZE_SHARES_BPS } from './events.service';
 
 function build() {
@@ -18,7 +19,7 @@ function build() {
     account: jest.fn().mockImplementation((userId: string) => Promise.resolve({ id: `acc-${userId}` }))
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'ltx1' }) };
-  return { service: new EventsService(prisma, wallet, ledger), prisma, wallet, ledger };
+  return { service: new EventsService(prisma, wallet, ledger, new AggregationService(prisma)), prisma, wallet, ledger };
 }
 
 const event = { id: 'e1', name: 'Afrobeats Night', startsAt: new Date('2026-07-01T00:00:00Z'), endsAt: new Date('2026-07-10T00:00:00Z'), prizePoolCoins: 0, settledAt: null };

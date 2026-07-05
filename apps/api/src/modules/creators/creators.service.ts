@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { CreatorApprovalStatus, RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ApplyCreatorDto } from './dto/apply-creator.dto';
 
 @Injectable()
 export class CreatorsService {
-  constructor(private readonly prisma: PrismaService, private readonly wallet: WalletService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wallet: WalletService,
+    private readonly agg: AggregationService
+  ) {}
 
   // Beta: applying does NOT promote the user to CREATOR. It records a PENDING
   // application that an admin must approve before any live room can be created.
@@ -107,30 +112,14 @@ export class CreatorsService {
       // the chat gateway as viewers leave/disconnect).
       this.prisma.liveRoom.aggregate({ where: { hostUserId: userId }, _sum: { totalWatchSeconds: true } }),
       // Top supporters across all of this creator's rooms, by coins gifted.
-      this.prisma.giftTransaction.groupBy({
-        by: ['viewerId'],
-        where: { creatorId: userId },
-        _sum: { totalCoinAmount: true },
-        // Stable order: coins desc, then viewerId for a deterministic tie-break.
-        orderBy: [{ _sum: { totalCoinAmount: 'desc' } }, { viewerId: 'asc' }],
-        take: 3
-      })
+      this.agg.giftTotals({ by: 'viewerId', where: { creatorId: userId }, limit: 3 })
     ]);
-    // GiftTransaction has no relation to the supporter's profile — resolve names
-    // in a second query and expose only safe public fields.
-    const supporterIds = supporterAgg.map((s) => s.viewerId);
-    const profiles = supporterIds.length
-      ? await this.prisma.profile.findMany({
-          where: { userId: { in: supporterIds } },
-          select: { userId: true, displayName: true, avatarUrl: true }
-        })
-      : [];
-    const byId = new Map(profiles.map((p) => [p.userId, p]));
+    const byId = await this.agg.profilesFor(supporterAgg.map((s) => s.key));
     const topSupporters = supporterAgg.map((s) => ({
-      userId: s.viewerId,
-      displayName: byId.get(s.viewerId)?.displayName ?? 'Supporter',
-      avatarUrl: byId.get(s.viewerId)?.avatarUrl ?? null,
-      coins: s._sum.totalCoinAmount ?? 0
+      userId: s.key,
+      displayName: byId.get(s.key)?.displayName ?? 'Supporter',
+      avatarUrl: byId.get(s.key)?.avatarUrl ?? null,
+      coins: s.totalCoins
     }));
     return {
       creator,

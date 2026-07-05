@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { LedgerDirection, LedgerTransactionType, RoomStatus, UserStatus, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AggregationService } from '../aggregation/aggregation.service';
 import { ChatGateway } from '../chat/chat.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LedgerService } from '../wallet/ledger.service';
@@ -16,7 +17,8 @@ export class GiftsService {
     private readonly wallet: WalletService,
     private readonly ledger: LedgerService,
     private readonly chat: ChatGateway,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    private readonly agg: AggregationService
   ) {}
 
   // Catalog: evergreen gifts plus event gifts whose window is currently open.
@@ -43,28 +45,16 @@ export class GiftsService {
   // GiftTransaction — powers the room's "top supporters" panel / battle scoring.
   async topGifters(roomId: string, limit = 10) {
     const take = Math.min(Math.max(Math.trunc(limit) || 10, 1), 50); // bounded: 1..50
-    const rows = await this.prisma.giftTransaction.groupBy({
-      by: ['viewerId'],
-      where: { roomId },
-      _sum: { totalCoinAmount: true, quantity: true },
-      orderBy: { _sum: { totalCoinAmount: 'desc' } },
-      take
-    });
+    const rows = await this.agg.giftTotals({ by: 'viewerId', where: { roomId }, limit: take, sumQuantity: true });
     if (!rows.length) return [];
 
-    const viewerIds = rows.map((r) => r.viewerId);
-    const profiles = await this.prisma.profile.findMany({
-      where: { userId: { in: viewerIds } },
-      select: { userId: true, displayName: true, username: true }
-    });
-    const byId = new Map(profiles.map((p) => [p.userId, p]));
-
+    const byId = await this.agg.profilesFor(rows.map((r) => r.key));
     return rows.map((r, i) => ({
       rank: i + 1,
-      viewerId: r.viewerId,
-      displayName: byId.get(r.viewerId)?.displayName ?? byId.get(r.viewerId)?.username ?? 'Anonymous',
-      totalCoins: r._sum.totalCoinAmount ?? 0,
-      giftCount: r._sum.quantity ?? 0
+      viewerId: r.key,
+      displayName: byId.get(r.key)?.displayName ?? byId.get(r.key)?.username ?? 'Anonymous',
+      totalCoins: r.totalCoins,
+      giftCount: r.quantity
     }));
   }
 

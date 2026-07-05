@@ -1,3 +1,4 @@
+import { AggregationService } from '../aggregation/aggregation.service';
 import { AdminService } from './admin.service';
 
 function build(giftSum: number | null = null) {
@@ -14,7 +15,7 @@ function build(giftSum: number | null = null) {
     ledgerTransaction: { findMany: jest.fn().mockResolvedValue([]) },
     adminAuditLog: { findMany: jest.fn().mockResolvedValue([]) }
   };
-  return { service: new AdminService(prisma), prisma };
+  return { service: new AdminService(prisma, new AggregationService(prisma)), prisma };
 }
 
 describe('AdminService dashboards', () => {
@@ -94,7 +95,7 @@ describe('AdminService.leaderboard', () => {
       giftTransaction: { groupBy: jest.fn().mockResolvedValue(rows) },
       user: { findMany: jest.fn().mockResolvedValue(users) }
     };
-    return { service: new AdminService(prisma), prisma };
+    return { service: new AdminService(prisma, new AggregationService(prisma)), prisma };
   }
 
   it('ranks top creators (default), resolves labels through every fallback, and windows by week', async () => {
@@ -171,7 +172,7 @@ describe('AdminService.search', () => {
       gift: { findMany: jest.fn().mockResolvedValue(data.gifts ?? []) },
       supportTicket: { findMany: jest.fn().mockResolvedValue(data.tickets ?? []) }
     };
-    return { service: new AdminService(prisma), prisma };
+    return { service: new AdminService(prisma, new AggregationService(prisma)), prisma };
   }
 
   it('returns an empty list without querying when q is blank or missing', async () => {
