@@ -162,7 +162,7 @@ function build(user: any = { id: 'u1', role: 'VIEWER', status: 'ACTIVE', email: 
     user: { findUnique: jest.fn().mockResolvedValue(user), update: jest.fn().mockResolvedValue({}) },
     deviceSession: {
       create: jest.fn().mockResolvedValue({ id: 'sess1' }),
-      findUnique: jest.fn().mockResolvedValue({ id: 'sess1', userId: 'u1', revokedAt: null }),
+      findUnique: jest.fn().mockResolvedValue({ id: 'sess1', userId: 'u1', revokedAt: null, tokenGeneration: 0 }),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -373,7 +373,10 @@ describe('AuthService final branch arms', () => {
     h = build();
     h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0, sid: 'sess1' });
     await expect(h.service.refresh('t')).resolves.toMatchObject({ userId: 'u1' });
-    expect(h.prisma.deviceSession.update).toHaveBeenCalledWith({ where: { id: 'sess1' }, data: { lastSeenAt: expect.any(Date) } });
+    expect(h.prisma.deviceSession.update).toHaveBeenCalledWith({
+      where: { id: 'sess1' },
+      data: { lastSeenAt: expect.any(Date), tokenGeneration: 1 } // rotated
+    });
     expect(h.jwt.sign.mock.calls[0][0]).toMatchObject({ sid: 'sess1' });
     // legacy token without sid -> a session is opened for it
     h = build();
@@ -387,6 +390,24 @@ describe('AuthService final branch arms', () => {
     const h = build();
     h.service.issueTokens({ id: 'u1', role: 'VIEWER' } as any);
     expect(h.jwt.sign.mock.calls[0][0]).not.toHaveProperty('sid');
+  });
+
+  it('rotation: a superseded refresh token is rejected; the current generation rotates', async () => {
+    // stale generation (rotated away / possibly stolen) -> 401
+    let h = build();
+    h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0, sid: 'sess1', gen: 0 });
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 'sess1', userId: 'u1', revokedAt: null, tokenGeneration: 3 });
+    await expect(h.service.refresh('t')).rejects.toThrow('superseded');
+    // current generation refreshes and the NEW pair embeds gen+1
+    h = build();
+    h.jwt.verify.mockReturnValue({ sub: 'u1', tv: 0, sid: 'sess1', gen: 4 });
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 'sess1', userId: 'u1', revokedAt: null, tokenGeneration: 4 });
+    await expect(h.service.refresh('t')).resolves.toMatchObject({ userId: 'u1' });
+    expect(h.prisma.deviceSession.update).toHaveBeenCalledWith({
+      where: { id: 'sess1' },
+      data: { lastSeenAt: expect.any(Date), tokenGeneration: 5 }
+    });
+    expect(h.jwt.sign.mock.calls[0][0]).toMatchObject({ sid: 'sess1', gen: 5 });
   });
 
   it('logoutAll also revokes every open device session', async () => {

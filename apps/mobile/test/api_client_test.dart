@@ -81,6 +81,30 @@ void main() {
     expect(savedAccess, 'new-at');
   });
 
+  test('concurrent 401s share ONE refresh call (rotation-safe)', () async {
+    var refreshCalls = 0;
+    var dataCalls = 0;
+    final api = _client((req) async {
+      if (req.url.path.endsWith('/auth/refresh')) {
+        refreshCalls++;
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return _json({'accessToken': 'new-at', 'refreshToken': 'new-rt'});
+      }
+      dataCalls++;
+      // first hit of each endpoint is a 401; the post-refresh retry succeeds
+      return dataCalls <= 2
+          ? _json({'message': 'expired'}, 401)
+          : _json({'ok': true});
+    })..refreshToken = 'old-rt';
+
+    final results =
+        await Future.wait([api.get('/one'), api.get('/two')]);
+    expect(results, everyElement({'ok': true}));
+    // rotation makes a second refresh with the same token fatal — there
+    // must have been exactly one
+    expect(refreshCalls, 1);
+  });
+
   test('401 with a failing refresh clears auth and rethrows', () async {
     var cleared = false;
     final api = _client((req) async {

@@ -4,6 +4,9 @@ import { AggregationService } from '../aggregation/aggregation.service';
 import { CreateCircleDto } from './dto/create-circle.dto';
 
 const DAY_MS = 86_400_000;
+// Matches the group-fraud assessment bound (2..200): a circle that outgrew it
+// could never be assessed, breaking the R4 §7 collusion guardrail.
+const MAX_CIRCLE_MEMBERS = 200;
 const WEEK_MS = 7 * DAY_MS;
 
 @Injectable()
@@ -70,6 +73,8 @@ export class CirclesService {
       if (existing.circleId === circleId) return { ok: true, alreadyMember: true };
       throw new BadRequestException('You already belong to a circle — leave it first');
     }
+    const size = await this.prisma.circleMember.count({ where: { circleId } });
+    if (size >= MAX_CIRCLE_MEMBERS) throw new BadRequestException('This circle is full');
     await this.prisma.circleMember.create({ data: { circleId, userId } });
     return { ok: true, alreadyMember: false };
   }

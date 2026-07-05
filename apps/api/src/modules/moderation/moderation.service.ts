@@ -1,13 +1,17 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ReportPriority, ReportReason, ReportStatus, RoomStatus, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { LiveRoomsService } from '../live-rooms/live-rooms.service';
 import { CreateReportDto } from './dto/create-report.dto';
 
 const STAFF_ROLES: UserRole[] = [UserRole.MODERATOR, UserRole.PAYOUT_REVIEWER, UserRole.ADMIN, UserRole.SUPER_ADMIN];
 
 @Injectable()
 export class ModerationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly liveRooms: LiveRoomsService
+  ) {}
 
   // Only a SUPER_ADMIN may suspend/ban another staff member.
   private async guardStaffTarget(actorRole: UserRole | undefined, targetId: string) {
@@ -100,6 +104,8 @@ export class ModerationService {
 
   async suspendRoom(actorId: string, id: string, reason?: string) {
     const room = await this.prisma.liveRoom.update({ where: { id }, data: { status: RoomStatus.SUSPENDED, endedAt: new Date() } });
+    // A suspended room must vanish from the feed NOW, not after the cache TTL.
+    this.liveRooms.clearFeedCache();
     await this.prisma.moderationAction.create({ data: { moderatorId: actorId, roomId: id, action: 'ROOM_SUSPENDED', reason } });
     await this.audit(actorId, 'room.suspended', id, { reason });
     return room;

@@ -789,6 +789,10 @@ model DeviceSession {
   userAgent  String?   @map("user_agent")
   createdAt  DateTime  @default(now()) @map("created_at")
   lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  // Rotation counter: each refresh increments it and the new pair embeds the
+  // new value, so a superseded (possibly stolen) refresh token dies immediately
+  // instead of living out its 30d TTL.
+  tokenGeneration Int  @default(0) @map("token_generation")
   revokedAt  DateTime? @map("revoked_at")
 
   @@index([userId])

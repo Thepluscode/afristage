@@ -37,6 +37,12 @@ export class LiveRoomsService {
   private readonly logger = new Logger(LiveRoomsService.name);
   // key: `${country ?? '*'}:${category ?? '*'}` → cached feed slice
   private readonly feedCache = new Map<string, { at: number; slice: FeedSlice }>();
+
+  // For callers OUTSIDE this module that change room visibility (moderation
+  // suspending a room must never be served from a stale slice).
+  clearFeedCache() {
+    this.feedCache.clear();
+  }
   constructor(
     private readonly prisma: PrismaService,
     private readonly livekit: LiveKitService,

@@ -197,7 +197,7 @@ export class AuthService {
   // revoked device session. Legacy tokens without a sid pass the tv check only,
   // and are migrated onto a fresh session so their next pair is revocable.
   async refresh(refreshToken: string, meta: SessionMeta = {}) {
-    let payload: { sub: string; tv?: number; sid?: string };
+    let payload: { sub: string; tv?: number; sid?: string; gen?: number };
     try {
       payload = this.jwt.verify(refreshToken, { secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh' });
     } catch {
@@ -210,16 +210,28 @@ export class AuthService {
     if ((payload.tv ?? 0) !== (user.tokenVersion ?? 0)) throw new UnauthorizedException('Refresh token has been revoked');
 
     let sid = payload.sid;
+    let gen = 0;
     if (sid) {
       const session = await this.prisma.deviceSession.findUnique({ where: { id: sid } });
       if (!session || session.userId !== user.id || session.revokedAt) {
         throw new UnauthorizedException('This device has been signed out');
       }
-      await this.prisma.deviceSession.update({ where: { id: sid }, data: { lastSeenAt: new Date() } });
+      // Rotation: only the CURRENT generation may refresh. A superseded token
+      // (rotated away — possibly stolen) dies here instead of living out its
+      // 30d TTL. ponytail: reject-only; auto-revoking the session on reuse
+      // (theft response) risks locking out clients that double-fire refresh.
+      if ((payload.gen ?? 0) !== session.tokenGeneration) {
+        throw new UnauthorizedException('This refresh token has been superseded');
+      }
+      gen = session.tokenGeneration + 1;
+      await this.prisma.deviceSession.update({
+        where: { id: sid },
+        data: { lastSeenAt: new Date(), tokenGeneration: gen }
+      });
     } else {
-      sid = await this.openSession(user.id, undefined, meta); // migrate legacy token
+      sid = await this.openSession(user.id, undefined, meta); // migrate legacy token, generation 0
     }
-    return this.issueTokens(user, sid);
+    return this.issueTokens(user, sid, gen);
   }
 
   // Invalidate every existing refresh token for this user by bumping the version
@@ -231,8 +243,8 @@ export class AuthService {
     return { ok: true };
   }
 
-  issueTokens(user: { id: string; role: UserRole; email?: string | null; tokenVersion?: number }, sid?: string) {
-    const payload = { sub: user.id, role: user.role, email: user.email, tv: user.tokenVersion ?? 0, ...(sid ? { sid } : {}) };
+  issueTokens(user: { id: string; role: UserRole; email?: string | null; tokenVersion?: number }, sid?: string, gen = 0) {
+    const payload = { sub: user.id, role: user.role, email: user.email, tv: user.tokenVersion ?? 0, ...(sid ? { sid, gen } : {}) };
     return {
       userId: user.id,
       role: user.role,
