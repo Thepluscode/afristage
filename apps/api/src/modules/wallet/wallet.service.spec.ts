@@ -97,3 +97,16 @@ describe('WalletService.ledgerHistory', () => {
     expect(res).toEqual([{ id: 'e1' }]);
   });
 });
+
+describe('WalletService.ensureAccount', () => {
+  it('creates the single account idempotently then returns it', async () => {
+    const { service, prisma } = build();
+    prisma.walletAccount.findFirst.mockResolvedValue({ id: 'agacc', accountType: 'AGENCY_EARNING' });
+    const res = await service.ensureAccount('owner1', WalletAccountType.AGENCY_EARNING, 'COIN');
+    expect(prisma.walletAccount.createMany).toHaveBeenCalledWith({
+      data: [{ userId: 'owner1', accountType: 'AGENCY_EARNING', currency: 'COIN' }],
+      skipDuplicates: true
+    });
+    expect(res).toMatchObject({ id: 'agacc' });
+  });
+});

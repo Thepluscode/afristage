@@ -62,6 +62,9 @@ enum ChatMessageStatus {
 enum WalletAccountType {
   COIN
   EARNING
+  // Agency commission pot (R4 §8): credited by the fourth leg of a managed
+  // creator's gift post — never off-book.
+  AGENCY_EARNING
   PLATFORM_REVENUE
   PAYMENT_CLEARING
   PAYOUT_HOLD
@@ -804,4 +807,33 @@ model FraudAssessment {
   computedAt        DateTime @default(now()) @map("computed_at")
 
   @@map("fraud_assessments")
+}
+
+// R4 §8: vetted third-party managers who recruit/manage creators for a
+// commission. The commission is an explicit ledger split (see gifts.service),
+// so ledger-integrity and the payout audit see every kobo an agency earns.
+model Agency {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  ownerUserId   String   @map("owner_user_id")
+  country       String?
+  commissionBps Int      @default(1000) @map("commission_bps") // share of the CREATOR's cut, max 5000
+  status        String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  creators AgencyCreator[]
+
+  @@map("agencies")
+}
+
+model AgencyCreator {
+  id            String   @id @default(uuid())
+  agencyId      String   @map("agency_id")
+  creatorUserId String   @unique @map("creator_user_id") // one agency per creator
+  addedAt       DateTime @default(now()) @map("added_at")
+
+  agency Agency @relation(fields: [agencyId], references: [id])
+
+  @@index([agencyId])
+  @@map("agency_creators")
 }
