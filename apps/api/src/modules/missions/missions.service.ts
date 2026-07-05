@@ -77,7 +77,7 @@ export class MissionsService {
     }
 
     // Anti-farming gate: explainable fraud score; block at/above the threshold.
-    const assessment = await this.fraud.assessCreator(userId);
+    const assessment = await this.fraud.assessCreatorCached(userId);
     if (assessment.riskScore >= MISSION_FRAUD_BLOCK()) {
       throw new BadRequestException('Mission rewards are temporarily unavailable for this account (under review)');
     }

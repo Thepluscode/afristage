@@ -22,7 +22,7 @@ function build() {
     account: jest.fn().mockResolvedValue({ id: 'coin-acct' })
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
-  const fraud: any = { assessCreator: jest.fn().mockResolvedValue({ riskScore: 0 }) };
+  const fraud: any = { assessCreatorCached: jest.fn().mockResolvedValue({ riskScore: 0 }) };
   return { service: new MissionsService(prisma, wallet, ledger, fraud), prisma, wallet, ledger, fraud };
 }
 
@@ -90,7 +90,7 @@ describe('MissionsService.claim', () => {
   it('blocks a high-risk account at the fraud gate (no reward posted)', async () => {
     const { service, prisma, fraud, ledger } = build();
     prisma.giftTransaction.count.mockResolvedValue(1);
-    fraud.assessCreator.mockResolvedValue({ riskScore: 0.7 });
+    fraud.assessCreatorCached.mockResolvedValue({ riskScore: 0.7 });
     await expect(service.claim('u1', 'GIFT_1')).rejects.toThrow('under review');
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
@@ -127,7 +127,7 @@ describe('MissionsService.claim', () => {
     try {
       const { service, prisma, fraud } = build();
       prisma.giftTransaction.count.mockResolvedValue(1);
-      fraud.assessCreator.mockResolvedValue({ riskScore: 0.25 }); // below default, above configured
+      fraud.assessCreatorCached.mockResolvedValue({ riskScore: 0.25 }); // below default, above configured
       await expect(service.claim('u1', 'GIFT_1')).rejects.toThrow('under review');
     } finally {
       if (prev === undefined) delete process.env.MISSION_FRAUD_BLOCK;

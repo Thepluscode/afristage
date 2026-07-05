@@ -5,8 +5,17 @@ import { evaluateFraudSignals, evaluateGroupFraudSignals, FraudFeatures, GroupFr
 const DAY_MS = 86_400_000;
 const BASELINE_DAYS = 7;
 
+// How long a persisted assessment satisfies cached reads (mission claims).
+// Default 300s, clamp 0..3600; 0 = always recompute (escape hatch).
+const assessmentTtlMs = () => {
+  const s = Number(process.env.FRAUD_ASSESSMENT_TTL_SECONDS ?? 300);
+  return (Number.isFinite(s) ? Math.min(Math.max(s, 0), 3600) : 300) * 1000;
+};
+
 @Injectable()
 export class FraudService {
+  // Users with an async re-score already queued this tick (coalescing).
+  private readonly pendingReassess = new Set<string>();
   constructor(private readonly prisma: PrismaService) {}
 
   // Gather the data each fraud rule needs for a creator, then run the explainable
@@ -58,7 +67,54 @@ export class FraudService {
       dailyBaselineCoins
     };
 
-    return { userId, features, ...evaluateFraudSignals(features) };
+    const assessment = { userId, features, ...evaluateFraudSignals(features) };
+    // Persist so cached reads and the reviewer UI see the latest score.
+    await this.prisma.fraudAssessment.upsert({
+      where: { userId },
+      create: {
+        userId,
+        riskScore: assessment.riskScore,
+        recommendedAction: assessment.recommendedAction,
+        payload: { features: assessment.features, signals: assessment.signals } as any
+      },
+      update: {
+        riskScore: assessment.riskScore,
+        recommendedAction: assessment.recommendedAction,
+        payload: { features: assessment.features, signals: assessment.signals } as any,
+        computedAt: new Date()
+      }
+    });
+    return assessment;
+  }
+
+  // Hot-path read (R5 §9 #4): mission claims and other money gates read the
+  // persisted assessment when it's fresh enough — one indexed row instead of
+  // four aggregate queries per request. Stale/missing → recompute inline.
+  async assessCreatorCached(userId: string) {
+    const ttl = assessmentTtlMs();
+    if (ttl > 0) {
+      const row = await this.prisma.fraudAssessment.findUnique({ where: { userId } });
+      if (row && Date.now() - row.computedAt.getTime() < ttl) {
+        return { userId, riskScore: row.riskScore, recommendedAction: row.recommendedAction, cached: true as const };
+      }
+    }
+    const fresh = await this.assessCreator(userId);
+    return { userId, riskScore: fresh.riskScore, recommendedAction: fresh.recommendedAction, cached: false as const };
+  }
+
+  // The streaming half: money events (gift settled) queue a background
+  // re-score so assessments stay warm without blocking the gift itself.
+  // Coalesced per user per tick; failures are logged, never propagated.
+  // ponytail: in-process setImmediate queue — move to a Redis-backed worker
+  // (BullMQ) when instance count or scoring cost grows.
+  queueReassess(userId: string) {
+    if (this.pendingReassess.has(userId)) return;
+    this.pendingReassess.add(userId);
+    setImmediate(() => {
+      this.assessCreator(userId)
+        .catch((e) => console.warn(`fraud re-score failed for ${userId}: ${e.message}`))
+        .finally(() => this.pendingReassess.delete(userId));
+    });
   }
 
   // Group-aggregate assessment (R4 §7 gate): coordinated rings where every
