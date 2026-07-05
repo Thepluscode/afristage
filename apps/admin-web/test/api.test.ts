@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { adminGet, adminLogout, adminPatch, adminPost } from '../lib/api';
+import { adminDelete, adminGet, adminLogout, adminPatch, adminPost } from '../lib/api';
 
 function mockFetch(res: Partial<Response> & { jsonBody?: unknown; textBody?: string }) {
   return vi.fn().mockResolvedValue({
@@ -33,6 +33,13 @@ describe('lib/api', () => {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: 1 })
     }));
     expect(f).toHaveBeenNthCalledWith(2, '/api/admin-proxy/admin/y', expect.objectContaining({ method: 'PATCH' }));
+  });
+
+  it('adminDelete sends a bodyless DELETE', async () => {
+    const f = mockFetch({ jsonBody: { ok: true } });
+    vi.stubGlobal('fetch', f);
+    await adminDelete('/admin/agencies/a/creators/c');
+    expect(f).toHaveBeenCalledWith('/api/admin-proxy/admin/agencies/a/creators/c', expect.objectContaining({ method: 'DELETE', body: undefined }));
   });
 
   it('redirects to /login and throws on 401', async () => {
