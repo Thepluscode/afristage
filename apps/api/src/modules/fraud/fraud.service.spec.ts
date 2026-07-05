@@ -3,6 +3,7 @@ import { FraudService } from './fraud.service';
 
 function build() {
   const prisma: any = {
+    fraudAssessment: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue(null) },
     user: { findUnique: jest.fn() },
     giftTransaction: {
       groupBy: jest.fn().mockResolvedValue([]),
@@ -137,5 +138,85 @@ describe('FraudService.assessGroup', () => {
     const res = await service.assessGroup(['a', 'b']);
     expect(res.features).toMatchObject({ totalGiftCoins: 0, internalGiftCoins: 0, last24hInternalCoins: 0, dailyBaselineInternalCoins: 0 });
     expect(res.recommendedAction).toBe('NONE');
+  });
+});
+
+describe('FraudService cached + async scoring (R5 §9 #4)', () => {
+  afterEach(() => {
+    delete process.env.FRAUD_ASSESSMENT_TTL_SECONDS;
+    jest.restoreAllMocks();
+  });
+
+  const activeUser = { id: 'u1', createdAt: new Date(Date.now() - 30 * 86_400_000) };
+
+  it('assessCreator persists the assessment (upsert with score + payload)', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue(activeUser);
+    const res = await service.assessCreator('u1');
+    const upsert = prisma.fraudAssessment.upsert.mock.calls[0][0];
+    expect(upsert.where).toEqual({ userId: 'u1' });
+    expect(upsert.create.riskScore).toBe(res.riskScore);
+    expect(upsert.create.payload.signals).toBeDefined();
+    expect(upsert.update.computedAt).toBeInstanceOf(Date);
+  });
+
+  it('assessCreatorCached serves a fresh row without recomputing', async () => {
+    const { service, prisma } = build();
+    prisma.fraudAssessment.findUnique.mockResolvedValue({
+      userId: 'u1', riskScore: 0.4, recommendedAction: 'MANUAL_REVIEW', computedAt: new Date()
+    });
+    const res = await service.assessCreatorCached('u1');
+    expect(res).toEqual({ userId: 'u1', riskScore: 0.4, recommendedAction: 'MANUAL_REVIEW', cached: true });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled(); // no recompute
+  });
+
+  it('assessCreatorCached recomputes when the row is stale or missing', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue(activeUser);
+    prisma.fraudAssessment.findUnique.mockResolvedValue({
+      userId: 'u1', riskScore: 0.9, recommendedAction: 'PAYOUT_HOLD', computedAt: new Date(Date.now() - 3_600_000)
+    });
+    const stale = await service.assessCreatorCached('u1');
+    expect(stale.cached).toBe(false);
+    prisma.fraudAssessment.findUnique.mockResolvedValue(null);
+    const missing = await service.assessCreatorCached('u1');
+    expect(missing.cached).toBe(false);
+  });
+
+  it('TTL=0 disables the cache and a garbage TTL falls back to the default', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue(activeUser);
+    process.env.FRAUD_ASSESSMENT_TTL_SECONDS = '0';
+    await service.assessCreatorCached('u1');
+    expect(prisma.fraudAssessment.findUnique).not.toHaveBeenCalled(); // straight to recompute
+    process.env.FRAUD_ASSESSMENT_TTL_SECONDS = 'garbage';
+    prisma.fraudAssessment.findUnique.mockResolvedValue({
+      userId: 'u1', riskScore: 0.1, recommendedAction: 'NONE', computedAt: new Date()
+    });
+    const res = await service.assessCreatorCached('u1');
+    expect(res.cached).toBe(true); // default 300s TTL applied
+  });
+
+  it('queueReassess coalesces per user and swallows failures', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue(activeUser);
+    const spy = jest.spyOn(service, 'assessCreator');
+    service.queueReassess('u1');
+    service.queueReassess('u1'); // coalesced while pending
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
+    expect(spy).toHaveBeenCalledTimes(1);
+    // after settling, a new event re-queues
+    service.queueReassess('u1');
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
+    expect(spy).toHaveBeenCalledTimes(2);
+    // failure path: never throws out of the queue
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    spy.mockRejectedValue(new Error('db down'));
+    service.queueReassess('u2');
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('fraud re-score failed for u2'));
   });
 });

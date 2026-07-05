@@ -3,6 +3,7 @@ import { LedgerDirection, LedgerTransactionType, RoomStatus, UserStatus, WalletA
 import { PrismaService } from '../../database/prisma.service';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { ChatGateway } from '../chat/chat.gateway';
+import { FraudService } from '../fraud/fraud.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -18,7 +19,8 @@ export class GiftsService {
     private readonly ledger: LedgerService,
     private readonly chat: ChatGateway,
     private readonly notifications: NotificationsService,
-    private readonly agg: AggregationService
+    private readonly agg: AggregationService,
+    private readonly fraud: FraudService
   ) {}
 
   // Catalog: evergreen gifts plus event gifts whose window is currently open.
@@ -201,6 +203,9 @@ export class GiftsService {
     } catch {
       /* recognition is best-effort; the gift itself already succeeded */
     }
+    // R5 §9 #4: keep the creator's fraud assessment warm off the money event
+    // stream — async, coalesced, never blocks or fails the gift.
+    this.fraud.queueReassess(room.hostUserId);
     return giftTx;
   }
 }

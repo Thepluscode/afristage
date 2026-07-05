@@ -791,3 +791,17 @@ model DeviceSession {
   @@index([userId])
   @@map("device_sessions")
 }
+
+// R5 §9 #4: persisted fraud assessments. The hot path (mission claims) reads
+// the latest row instead of recomputing 4 aggregates per request; gift events
+// queue an async re-score so rows stay warm off the money stream.
+model FraudAssessment {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  riskScore         Float    @map("risk_score")
+  recommendedAction String   @map("recommended_action")
+  payload           Json // features + signals for the reviewer UI
+  computedAt        DateTime @default(now()) @map("computed_at")
+
+  @@map("fraud_assessments")
+}

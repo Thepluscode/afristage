@@ -24,8 +24,9 @@ function build(overrides: any = {}) {
   prisma.liveRoom.findUnique.mockResolvedValue(overrides.room ?? { id: 'r1', status: 'LIVE', hostUserId: 'creator', title: 'Friday Jam' });
   prisma.user.findUnique.mockResolvedValue(overrides.viewer ?? { id: 'v1', status: 'ACTIVE' });
   prisma.gift.findUnique.mockResolvedValue(overrides.gift ?? { id: 'g1', isActive: true, coinPrice: 10, name: 'Rose' });
-  const service = new GiftsService(prisma, wallet, ledger, chat, notifications, new AggregationService(prisma));
-  return { service, prisma, wallet, ledger, chat, notifications };
+  const fraud: any = { queueReassess: jest.fn() };
+  const service = new GiftsService(prisma, wallet, ledger, chat, notifications, new AggregationService(prisma), fraud);
+  return { service, prisma, wallet, ledger, chat, notifications, fraud };
 }
 
 describe('GiftsService.send', () => {
@@ -94,8 +95,8 @@ describe('GiftsService.send', () => {
     expect(chat.emitToRoom).not.toHaveBeenCalled(); // replay must not re-broadcast
   });
 
-  it('broadcasts gift.sent into the room on a fresh gift', async () => {
-    const { service, prisma, chat } = build();
+  it('broadcasts gift.sent into the room on a fresh gift and queues a fraud re-score', async () => {
+    const { service, prisma, chat, fraud } = build();
     prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
     await service.send('v1', 'r1', dto);
     expect(chat.emitToRoom).toHaveBeenCalledWith(
@@ -103,6 +104,8 @@ describe('GiftsService.send', () => {
       'gift.sent',
       expect.objectContaining({ giftTransactionId: 'gt1', giftName: 'Rose', senderId: 'v1', totalCoinAmount: 10 })
     );
+    // R5 §9 #4: the money event keeps the creator's assessment warm, async
+    expect(fraud.queueReassess).toHaveBeenCalledWith('creator');
   });
 
   it('sends GIFT_RECOGNITION when this gift makes the sender the top supporter', async () => {

@@ -4,10 +4,11 @@ import { GiftsController } from './gifts.controller';
 import { GiftsService } from './gifts.service';
 import { WalletModule } from '../wallet/wallet.module';
 import { ChatModule } from '../chat/chat.module';
+import { FraudModule } from '../fraud/fraud.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [JwtModule.register({}), WalletModule, ChatModule, NotificationsModule],
+  imports: [JwtModule.register({}), WalletModule, ChatModule, NotificationsModule, FraudModule],
   controllers: [GiftsController],
   providers: [GiftsService],
   exports: [GiftsService]
