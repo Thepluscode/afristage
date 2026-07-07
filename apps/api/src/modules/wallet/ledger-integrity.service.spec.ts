@@ -1,3 +1,4 @@
+import { MetricsService } from '../metrics/metrics.service';
 import { LedgerIntegrityService } from './ledger-integrity.service';
 
 function build(grouped: any[] = [], imbalancedRows: any[] = [], drift: any[] = []) {
@@ -8,7 +9,7 @@ function build(grouped: any[] = [], imbalancedRows: any[] = [], drift: any[] = [
     $queryRaw: jest.fn().mockImplementation((strings: TemplateStringsArray) =>
       Promise.resolve(strings.join('').includes('wallet_accounts') ? drift : imbalancedRows))
   };
-  return { service: new LedgerIntegrityService(prisma), prisma };
+  return { service: new LedgerIntegrityService(prisma, new MetricsService()), prisma };
 }
 
 describe('LedgerIntegrityService.check', () => {
@@ -92,3 +93,21 @@ describe('LedgerIntegrityService.getLast / scheduledCheck', () => {
     expect(service.getLast()).toMatchObject({ ok: true });
   });
 });
+describe('LedgerIntegrityService boot sweep', () => {
+  it('onModuleInit runs a sweep so gauges are truthful from the first scrape', async () => {
+    const { service } = build();
+    const spy = jest.spyOn(service, 'check').mockResolvedValue({ ok: true } as any);
+    await service.onModuleInit();
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('a failing boot sweep is logged, never thrown into startup', async () => {
+    const { service } = build();
+    jest.spyOn(service, 'check').mockRejectedValue(new Error('db not up yet'));
+    await expect(service.onModuleInit()).resolves.toBeUndefined();
+    // a non-Error rejection (no .message) is also swallowed
+    jest.spyOn(service, 'check').mockRejectedValue('exploded');
+    await expect(service.onModuleInit()).resolves.toBeUndefined();
+  });
+});
+

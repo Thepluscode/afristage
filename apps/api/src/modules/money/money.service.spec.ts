@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { MetricsService } from '../metrics/metrics.service';
 import { bpsShare, MoneyService } from './money.service';
 import { MoneyKey } from './money-keys';
 
@@ -17,7 +18,7 @@ function build() {
     ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'sys' }),
     ensureUserWallets: jest.fn().mockResolvedValue(undefined)
   };
-  return { money: new MoneyService(prisma, ledger, wallet), prisma, ledger, wallet };
+  return { money: new MoneyService(prisma, ledger, wallet, new MetricsService()), prisma, ledger, wallet };
 }
 
 describe('MoneyKey factories (the on-disk migration contract)', () => {

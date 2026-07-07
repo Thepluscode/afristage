@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { LedgerDirection, LedgerTransactionType, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LedgerKey, MoneyKey } from './money-keys';
@@ -43,7 +44,8 @@ export class MoneyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
-    private readonly wallet: WalletService
+    private readonly wallet: WalletService,
+    private readonly metrics: MetricsService
   ) {}
 
   // ---------- the hot path ----------
@@ -52,7 +54,19 @@ export class MoneyService {
   // it must short-circuit before the balance check would wrongly reject it),
   // then the friendly balance pre-check, then the guarded post. The row-locked
   // guard inside the ledger remains the actual overdraw protection.
-  async giftSplit(input: {
+  giftSplit(input: {
+    viewerId: string;
+    creatorId: string;
+    clientKey: string;
+    totalMinor: number;
+    creatorShareBps: number;
+    agency: { ownerUserId: string; agencyId: string; commissionBps: number } | null;
+    metadata: Record<string, any>;
+  }): Promise<GiftSplitResult> {
+    return this.metrics.trackMove('giftSplit', () => input.totalMinor, () => this.giftSplitImpl(input));
+  }
+
+  private async giftSplitImpl(input: {
     viewerId: string;
     creatorId: string;
     clientKey: string;
@@ -108,7 +122,11 @@ export class MoneyService {
 
   // PROMO -> user COIN. Unique per (user, mission, day); an unfunded promo pot
   // fails the claim, never mints.
-  async missionReward(input: { userId: string; missionKey: string; day: string; rewardCoins: number }): Promise<MoveResult> {
+  missionReward(input: { userId: string; missionKey: string; day: string; rewardCoins: number }): Promise<MoveResult> {
+    return this.metrics.trackMove('missionReward', () => input.rewardCoins, () => this.missionRewardImpl(input));
+  }
+
+  private async missionRewardImpl(input: { userId: string; missionKey: string; day: string; rewardCoins: number }): Promise<MoveResult> {
     await this.wallet.ensureUserWallets(input.userId, CURRENCY);
     const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, CURRENCY);
     const coin = await this.wallet.account(input.userId, WalletAccountType.COIN, CURRENCY);
@@ -123,7 +141,11 @@ export class MoneyService {
   }
 
   // PLATFORM_REVENUE -> PROMO. The promo budget is moved, never minted.
-  async promoFund(input: { adminUserId: string; coins: number; nonce: number }): Promise<MoveResult> {
+  promoFund(input: { adminUserId: string; coins: number; nonce: number }): Promise<MoveResult> {
+    return this.metrics.trackMove('promoFund', () => input.coins, () => this.promoFundImpl(input));
+  }
+
+  private async promoFundImpl(input: { adminUserId: string; coins: number; nonce: number }): Promise<MoveResult> {
     const revenue = await this.wallet.ensureSystemAccount(WalletAccountType.PLATFORM_REVENUE, CURRENCY);
     const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, CURRENCY);
     const transaction = await this.postMove({
@@ -138,7 +160,11 @@ export class MoneyService {
 
   // PROMO -> N winners' COIN, one balanced fan-out. An underfunded pool fails
   // the settle; the debit is the sum of the awards by construction.
-  async prizeSettle(input: { eventId: string; awards: { userId: string; rank: number; coins: number }[] }): Promise<MoveResult> {
+  prizeSettle(input: { eventId: string; awards: { userId: string; rank: number; coins: number }[] }): Promise<MoveResult> {
+    return this.metrics.trackMove('prizeSettle', () => input.awards.reduce((s, a) => s + a.coins, 0), () => this.prizeSettleImpl(input));
+  }
+
+  private async prizeSettleImpl(input: { eventId: string; awards: { userId: string; rank: number; coins: number }[] }): Promise<MoveResult> {
     const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, CURRENCY);
     const sinks: Sink[] = [];
     for (const award of input.awards) {
@@ -158,7 +184,16 @@ export class MoneyService {
 
   // EARNING -> PAYOUT_HOLD, guarded: two concurrent requests can't both reserve
   // the same earnings.
-  async payoutHold(input: {
+  payoutHold(input: {
+    creatorUserId: string;
+    requestKey: string;
+    coinAmount: number | bigint;
+    metadata: Record<string, any>;
+  }): Promise<MoveResult> {
+    return this.metrics.trackMove('payoutHold', () => Number(input.coinAmount), () => this.payoutHoldImpl(input));
+  }
+
+  private async payoutHoldImpl(input: {
     creatorUserId: string;
     requestKey: string;
     coinAmount: number | bigint;
@@ -178,7 +213,11 @@ export class MoneyService {
 
   // PAYOUT_HOLD -> EARNING. Draining a hold that already holds the funds —
   // structurally unguarded, so a reject can never be wrongly blocked.
-  async payoutReject(input: { payoutId: string; creatorUserId: string; coinAmount: number | bigint; reason?: string }): Promise<MoveResult> {
+  payoutReject(input: { payoutId: string; creatorUserId: string; coinAmount: number | bigint; reason?: string }): Promise<MoveResult> {
+    return this.metrics.trackMove('payoutReject', () => Number(input.coinAmount), () => this.payoutRejectImpl(input));
+  }
+
+  private async payoutRejectImpl(input: { payoutId: string; creatorUserId: string; coinAmount: number | bigint; reason?: string }): Promise<MoveResult> {
     const hold = await this.wallet.account(input.creatorUserId, WalletAccountType.PAYOUT_HOLD, CURRENCY);
     const earning = await this.wallet.account(input.creatorUserId, WalletAccountType.EARNING, CURRENCY);
     const transaction = await this.postMove({
@@ -192,7 +231,11 @@ export class MoneyService {
   }
 
   // PAYOUT_HOLD -> PAYOUT_CLEARING, recording the external transfer reference.
-  async payoutPaid(input: { payoutId: string; creatorUserId: string; coinAmount: number | bigint; providerReference?: string }): Promise<MoveResult> {
+  payoutPaid(input: { payoutId: string; creatorUserId: string; coinAmount: number | bigint; providerReference?: string }): Promise<MoveResult> {
+    return this.metrics.trackMove('payoutPaid', () => Number(input.coinAmount), () => this.payoutPaidImpl(input));
+  }
+
+  private async payoutPaidImpl(input: { payoutId: string; creatorUserId: string; coinAmount: number | bigint; providerReference?: string }): Promise<MoveResult> {
     const hold = await this.wallet.account(input.creatorUserId, WalletAccountType.PAYOUT_HOLD, CURRENCY);
     const clearing = await this.wallet.ensureSystemAccount(WalletAccountType.PAYOUT_CLEARING, CURRENCY);
     const transaction = await this.postMove({
@@ -207,7 +250,19 @@ export class MoneyService {
 
   // PAYMENT_CLEARING -> user COIN when a paid intent settles. Idempotent on the
   // intent, so a webhook replay is safe.
-  async coinPurchase(input: {
+  coinPurchase(input: {
+    userId: string;
+    intentId: string;
+    coinAmount: number | bigint;
+    provider: string;
+    amountMinor: string;
+    fiatCurrency: string;
+    externalReference: string;
+  }): Promise<MoveResult> {
+    return this.metrics.trackMove('coinPurchase', () => Number(input.coinAmount), () => this.coinPurchaseImpl(input));
+  }
+
+  private async coinPurchaseImpl(input: {
     userId: string;
     intentId: string;
     coinAmount: number | bigint;

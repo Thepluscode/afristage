@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LedgerDirection } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 export type IntegrityResult = {
   ok: boolean;
@@ -18,11 +19,14 @@ export type IntegrityResult = {
 // every single transaction must balance. If this ever fails, money is wrong —
 // surface it loudly (CRITICAL log) rather than letting it rot silently.
 @Injectable()
-export class LedgerIntegrityService {
+export class LedgerIntegrityService implements OnModuleInit {
   private readonly logger = new Logger(LedgerIntegrityService.name);
   private lastResult: IntegrityResult | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService
+  ) {}
 
   getLast(): IntegrityResult | null {
     return this.lastResult;
@@ -91,7 +95,20 @@ export class LedgerIntegrityService {
     } else {
       this.logger.error(`LEDGER INTEGRITY FAILURE: ${JSON.stringify(result)}`);
     }
+    // R5 §8: expose the verdict as gauges so an alert fires the moment the
+    // money system is unbalanced — instead of someone reading cron logs.
+    this.metrics.recordIntegrity(result);
     return result;
+  }
+
+  // Sweep once at boot so the integrity gauges are truthful from the first
+  // scrape instead of reading 0 ("failing") until the first cron tick.
+  async onModuleInit() {
+    try {
+      await this.check();
+    } catch (e: any) {
+      this.logger.warn(`Boot integrity sweep failed: ${e?.message ?? e}`);
+    }
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
