@@ -13,8 +13,8 @@ function build(target?: { role: string }) {
     moderationAction: { create: jest.fn().mockResolvedValue({}) },
     adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
   };
-  const liveRooms: any = { clearFeedCache: jest.fn() };
-  return { service: new ModerationService(prisma, liveRooms), prisma, liveRooms };
+  const feed: any = { invalidate: jest.fn() };
+  return { service: new ModerationService(prisma, feed), prisma, feed };
 }
 
 describe('ModerationService', () => {
@@ -87,7 +87,7 @@ describe('ModerationService', () => {
   });
 
   it('suspends a room (status SUSPENDED + endedAt + audit) and clears the feed cache', async () => {
-    const { service, prisma, liveRooms } = build();
+    const { service, prisma, feed } = build();
     prisma.liveRoom.update.mockResolvedValue({ id: 'r1', status: 'SUSPENDED' });
     await service.suspendRoom('admin', 'r1', 'tos');
     const call = prisma.liveRoom.update.mock.calls[0][0];
@@ -95,7 +95,7 @@ describe('ModerationService', () => {
     expect(call.data.endedAt).toBeInstanceOf(Date);
     expect(prisma.adminAuditLog.create).toHaveBeenCalled();
     // a suspended room must never be served from a stale feed slice
-    expect(liveRooms.clearFeedCache).toHaveBeenCalled();
+    expect(feed.invalidate).toHaveBeenCalled();
   });
 });
 
@@ -106,8 +106,8 @@ describe('ModerationService reports + action default', () => {
       moderationAction: { create: jest.fn().mockResolvedValue({}) },
       adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
     };
-    const liveRooms: any = { clearFeedCache: jest.fn() };
-  return { service: new ModerationService(prisma, liveRooms), prisma, liveRooms };
+    const feed: any = { invalidate: jest.fn() };
+  return { service: new ModerationService(prisma, feed), prisma, feed };
   }
 
   it('reports() applies status/priority/reason filters', async () => {
@@ -140,8 +140,8 @@ describe('ModerationService action/audit edge branches', () => {
       moderationAction: { create: jest.fn().mockResolvedValue({}) },
       adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
     };
-    const liveRooms: any = { clearFeedCache: jest.fn() };
-  return { service: new ModerationService(prisma, liveRooms), prisma, liveRooms };
+    const feed: any = { invalidate: jest.fn() };
+  return { service: new ModerationService(prisma, feed), prisma, feed };
   }
 
   it('REVIEWING action maps to REVIEWING status', async () => {
