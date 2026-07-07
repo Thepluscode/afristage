@@ -10,6 +10,13 @@ vi.mock('../lib/api', () => ({
 
 const nav = vi.hoisted(() => ({ search: '' }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...rest }: any) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  )
+}));
 
 import { adminGet, adminPost } from '../lib/api';
 import LiveRoomsPage from '../app/live-rooms/page';
@@ -41,6 +48,12 @@ describe('LiveRoomsPage', () => {
   it('renders the empty state', async () => {
     render(<LiveRoomsPage />);
     expect(await screen.findByText('No live rooms need operator attention.')).toBeInTheDocument();
+  });
+
+  it('links to the audit trail from the moderation header', async () => {
+    render(<LiveRoomsPage />);
+    const link = await screen.findByRole('link', { name: 'Audit Trail' });
+    expect(link).toHaveAttribute('href', '/audit-logs');
   });
 
   it('renders the error state', async () => {

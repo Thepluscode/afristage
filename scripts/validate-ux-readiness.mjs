@@ -25,15 +25,16 @@ function excludes(file, needles, label) {
 }
 
 console.log('\n=== VIEWER UX ===');
-contains('apps/mobile/lib/main.dart', ['Home', 'Create', 'Wallet', 'Support', 'Profile'], 'bottom navigation exposes core beta journeys');
-contains('apps/mobile/lib/screens/feed_screen.dart', ['Live now', 'No live rooms yet', 'Retry live feed', 'AfriLiveTile'], 'home feed identifies live rooms and recoverable empty state');
+contains('apps/mobile/lib/main.dart', ['Home', 'Live', 'Create', 'Wallet', 'Profile'], 'bottom navigation exposes core beta journeys');
+contains('apps/mobile/lib/screens/profile_screen.dart', ['Support', 'SupportScreen'], 'support is reachable from the profile screen');
+contains('apps/mobile/lib/screens/feed_screen.dart', ['Live now', 'No live rooms in', 'Retry live feed', 'AfriLiveCard'], 'home feed identifies live rooms and recoverable empty state');
 excludes('apps/mobile/lib/screens/feed_screen.dart', ['snapshot.error'], 'home feed does not expose raw technical errors');
-contains('apps/mobile/lib/screens/room_screen.dart', ['Connect Video', 'Chat is reconnecting', 'Insufficient coins', 'ReportScreen', 'room.ended'], 'viewer live room covers video, chat, gift, report, and ended states');
+contains('apps/mobile/lib/screens/room_screen.dart', ['LiveKitRoomView', 'Chat is reconnecting', 'Insufficient coins', 'ReportScreen', 'room.ended'], 'viewer live room covers video, chat, gift, report, and ended states');
 contains('apps/mobile/lib/widgets/afri_ui.dart', ['Send Gift', 'Buy coins', 'No gifts configured', 'Gift sent', 'Room ended'], 'gift drawer and live room feedback states are visible');
 
 console.log('\n=== CREATOR UX ===');
 contains('apps/mobile/lib/screens/creator_apply_screen.dart', ['Creator approval pending', 'You are approved', 'Creator access is suspended', 'Apply as Creator'], 'creator approval states are understandable');
-contains('apps/mobile/lib/screens/creator_screen.dart', ['Go Live', 'Request payout', 'Earnings (coins)', 'Payout'], 'creator dashboard exposes go-live, earnings, and payout actions');
+contains('apps/mobile/lib/screens/creator_screen.dart', ['Go Live', 'Request payout', 'Earnings', 'Payout'], 'creator dashboard exposes go-live, earnings, and payout actions');
 excludes('apps/mobile/lib/screens/creator_screen.dart', ['snapshot.error'], 'creator hub does not expose raw technical errors');
 contains('apps/mobile/lib/screens/go_live_setup_screen.dart', ['Start Live Room', 'Room title', 'Category', 'Language'], 'go-live setup has required room controls');
 contains('apps/mobile/lib/widgets/afri_ui.dart', ['Camera', 'Mic', 'Low data', 'End live room?', 'Confirm before ending'], 'host controls expose device status, low-data, and end confirmation');
@@ -46,7 +47,7 @@ contains('apps/mobile/lib/screens/report_screen.dart', ['Report ', 'Submit Repor
 
 console.log('\n=== ADMIN OPERATIONS UX ===');
 contains('apps/admin-web/app/chrome.tsx', ['Operations', 'People', 'Money', 'System', 'Ledger Integrity'], 'admin navigation is grouped by operational domain');
-contains('apps/admin-web/app/page.tsx', ['Live room health', 'Critical reports', 'Pending payouts', 'AuditTimeline'], 'admin dashboard surfaces health, risk, money, and audit context');
+contains('apps/admin-web/app/page.tsx', ['live room health', 'Critical reports', 'Pending payouts', 'AuditTimeline'], 'admin dashboard surfaces health, risk, money, and audit context');
 contains('apps/admin-web/app/live-rooms/page.tsx', ['ConfirmDialog', 'Suspend', 'End', 'Audit Trail'], 'live room moderation actions require confirmation and audit access');
 contains('apps/admin-web/app/reports/page.tsx', ['priority', 'reason', 'ESCALATE', 'SUSPEND_ROOM', 'SUSPEND_USER'], 'report queue supports filtering and critical moderation actions');
 contains('apps/admin-web/app/payouts/page.tsx', ['Ledger imbalance detected', 'Hold reason', 'Rejection reason', 'Mark payout paid', 'ConfirmDialog'], 'payout queue has ledger warning, reasons, and paid confirmation');
