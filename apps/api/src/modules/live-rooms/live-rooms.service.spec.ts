@@ -20,10 +20,10 @@ function build() {
     adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
   };
   const livekit: any = { createToken: jest.fn().mockResolvedValue('tok'), url: jest.fn().mockReturnValue('ws://lk') };
-  const chat: any = { emitToRoom: jest.fn(), countFor: jest.fn().mockReturnValue(0) };
+  const chat: any = { emit: jest.fn(), viewerCount: jest.fn().mockReturnValue(0) };
   const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
   const feed: any = { invalidate: jest.fn(), list: jest.fn().mockResolvedValue([]) };
-  return { service: new LiveRoomsService(prisma, livekit, chat, notifications, feed), prisma, livekit, chat, notifications, feed };
+  return { service: new LiveRoomsService(prisma, livekit, chat, chat, notifications, feed), prisma, livekit, chat, notifications, feed };
 }
 
 const dto = { title: 'Friday Live', category: 'MUSIC', country: 'NG', language: 'pidgin' } as any;
@@ -174,7 +174,7 @@ describe('LiveRoomsService.end (guards)', () => {
     prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', hostUserId: 'h1' });
     const res = await service.end('h1', 'r1');
     expect(res).toMatchObject({ status: 'ENDED' });
-    expect(chat.emitToRoom).toHaveBeenCalledWith('r1', 'room.ended', expect.objectContaining({ reason: 'HOST_ENDED' }));
+    expect(chat.emit).toHaveBeenCalledWith('r1', 'room.ended', expect.objectContaining({ reason: 'HOST_ENDED' }));
   });
 });
 
@@ -218,7 +218,7 @@ describe('LiveRoomsService.adminEnd', () => {
     expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'room.ended', actorId: 'admin' }) })
     );
-    expect(chat.emitToRoom).toHaveBeenCalledWith('r1', 'room.ended', expect.objectContaining({ reason: 'ADMIN_ENDED' }));
+    expect(chat.emit).toHaveBeenCalledWith('r1', 'room.ended', expect.objectContaining({ reason: 'ADMIN_ENDED' }));
   });
 });
 
@@ -233,10 +233,10 @@ function buildFeed() {
     chatMessage: { findFirst: jest.fn().mockResolvedValue(null) }
   };
   const livekit: any = { createToken: jest.fn(), url: jest.fn() };
-  const chat: any = { countFor: jest.fn().mockReturnValue(0), emitToRoom: jest.fn() };
+  const chat: any = { viewerCount: jest.fn().mockReturnValue(0), emit: jest.fn() };
   const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
   const feed: any = { invalidate: jest.fn(), list: jest.fn().mockResolvedValue([]) };
-  return { service: new LiveRoomsService(prisma, livekit, chat, notifications, feed), prisma, chat, feed };
+  return { service: new LiveRoomsService(prisma, livekit, chat, chat, notifications, feed), prisma, chat, feed };
 }
 
 const liveRoom = (over: any = {}) => ({
@@ -303,7 +303,7 @@ describe('LiveRoomsService.get', () => {
   it('returns the room with a live viewer count', async () => {
     const { service, prisma, chat } = buildFeed();
     prisma.liveRoom.findUnique = jest.fn().mockResolvedValue({ id: 'r1', peakViewers: 9 });
-    chat.countFor.mockReturnValue(0); // peakViewers fallback
+    chat.viewerCount.mockReturnValue(0); // peakViewers fallback
     expect(await service.get('r1')).toMatchObject({ id: 'r1', viewerCount: 9 });
   });
 

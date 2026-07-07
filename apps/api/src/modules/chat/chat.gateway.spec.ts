@@ -126,12 +126,13 @@ describe('ChatGateway messaging + auth + resilience', () => {
     await expect(gateway.leave(sock('s1'), { roomId: 'A' })).resolves.toMatchObject({ ok: true });
   });
 
-  it('countsFor maps several rooms and emitToRoom is a no-op without a server', () => {
+  it('countsFor maps several rooms; typed emit is a no-op without a server', () => {
     const { gateway } = rich();
     const counts = gateway.countsFor(['A', 'B']);
     expect(counts.get('A')).toBe(0);
+    expect(gateway.viewerCount('A')).toBe(0); // RoomPresence port delegates to countFor
     (gateway as any).server = undefined;
-    expect(() => gateway.emitToRoom('A', 'x', {})).not.toThrow();
+    expect(() => gateway.emit('A', 'chat.deleted', { roomId: 'A', messageId: 'm1' })).not.toThrow();
   });
 });
 

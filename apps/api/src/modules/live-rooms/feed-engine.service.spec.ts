@@ -8,7 +8,7 @@ function buildFeed() {
     report: { findMany: jest.fn().mockResolvedValue([]) },
     chatMessage: { findFirst: jest.fn().mockResolvedValue(null) }
   };
-    const chat: any = { countFor: jest.fn().mockReturnValue(0), emitToRoom: jest.fn() };
+    const chat: any = { viewerCount: jest.fn().mockReturnValue(0), emit: jest.fn() };
     return { service: new FeedEngine(prisma, chat), prisma, chat };
 }
 
@@ -27,7 +27,7 @@ describe('FeedEngine.list (ranked feed)', () => {
 
   it('takes the trivial path for a single room (text search + locale match)', async () => {
     const { service, prisma, chat } = buildFeed();
-    chat.countFor.mockReturnValue(0); // -> peakViewers fallback
+    chat.viewerCount.mockReturnValue(0); // -> peakViewers fallback
     prisma.liveRoom.findMany.mockResolvedValue([liveRoom()]);
     const res = await service.list({ q: 'afro', viewerLanguage: 'pidgin', viewerCountry: 'NG' });
     expect(res).toHaveLength(1);
@@ -37,7 +37,7 @@ describe('FeedEngine.list (ranked feed)', () => {
 
   it('ranks multiple rooms using participants, gifts, and report risk', async () => {
     const { service, prisma, chat } = buildFeed();
-    chat.countFor.mockImplementation((id: string) => (id === 'r1' ? 42 : 0)); // exercise both || arms
+    chat.viewerCount.mockImplementation((id: string) => (id === 'r1' ? 42 : 0)); // exercise both || arms
     prisma.liveRoom.findMany.mockResolvedValue([
       liveRoom({ id: 'r1', hostUserId: 'h1' }),
       liveRoom({ id: 'r2', hostUserId: 'h2', host: { creatorProfile: null } }) // creatorAge null arm
@@ -52,7 +52,7 @@ describe('FeedEngine.list (ranked feed)', () => {
       .mockResolvedValueOnce([{ targetUserId: 'h2', priority: 'CRITICAL' }]); // host reports
     const res = await service.list({ viewerLanguage: 'pidgin', viewerCountry: 'NG' });
     expect(res).toHaveLength(2);
-    expect(res[0].viewerCount).toBe(42); // chat.countFor left arm for r1
+    expect(res[0].viewerCount).toBe(42); // chat.viewerCount left arm for r1
     expect(res.every((r: any) => r.ranking?.score !== undefined)).toBe(true);
   });
 });

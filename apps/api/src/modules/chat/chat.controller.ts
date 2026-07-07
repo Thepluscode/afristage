@@ -23,7 +23,7 @@ export class ChatController {
     @Body('reason') reason?: string
   ) {
     const result = await this.chat.mute(user, roomId, userId, seconds, reason);
-    this.gateway.emitToRoom(roomId, 'user.muted', { roomId, userId, durationSeconds: result.durationSeconds });
+    this.gateway.emit(roomId, 'user.muted', { roomId, userId, durationSeconds: result.durationSeconds });
     return result;
   }
 
@@ -35,7 +35,7 @@ export class ChatController {
   @Delete(':id/messages/:messageId')
   async deleteMessage(@CurrentUser() user: any, @Param('id') roomId: string, @Param('messageId') messageId: string) {
     const result = await this.chat.deleteMessage(user, roomId, messageId);
-    this.gateway.emitToRoom(roomId, 'chat.deleted', { roomId, messageId });
+    this.gateway.emit(roomId, 'chat.deleted', { roomId, messageId });
     return result;
   }
 }
