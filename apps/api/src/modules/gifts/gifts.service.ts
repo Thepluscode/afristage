@@ -3,7 +3,7 @@ import { RoomStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { AgenciesService } from '../agencies/agencies.service';
-import { ChatGateway } from '../chat/chat.gateway';
+import { RoomBroadcast } from '../chat/room-events';
 import { FraudService } from '../fraud/fraud.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GiftSplitResult, MoneyService } from '../money/money.service';
@@ -16,7 +16,7 @@ export class GiftsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly money: MoneyService,
-    private readonly chat: ChatGateway,
+    private readonly broadcast: RoomBroadcast,
     private readonly notifications: NotificationsService,
     private readonly agg: AggregationService,
     private readonly fraud: FraudService,
@@ -190,7 +190,7 @@ export class GiftsService {
     move: GiftSplitResult,
     row: { id: string; createdAt: Date }
   ) {
-    this.chat.emitToRoom(roomId, 'gift.sent', {
+    this.broadcast.emit(roomId, 'gift.sent', {
       giftTransactionId: row.id,
       roomId,
       giftId: ctx.gift.id,

@@ -22,7 +22,7 @@ function build(overrides: any = {}) {
     ensureAccount: jest.fn().mockResolvedValue({ id: 'agency-acc' })
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
-  const chat: any = { emitToRoom: jest.fn() };
+  const chat: any = { emit: jest.fn() };
   const notifications: any = { notifyUser: jest.fn().mockResolvedValue(null) };
   prisma.liveRoom.findUnique.mockResolvedValue(overrides.room ?? { id: 'r1', status: 'LIVE', hostUserId: 'creator', title: 'Friday Jam' });
   prisma.user.findUnique.mockResolvedValue(overrides.viewer ?? { id: 'v1', status: 'ACTIVE' });
@@ -84,7 +84,7 @@ describe('GiftsService.send', () => {
     const result = await service.send('v1', 'r1', dto);
     expect(result).toBe(existing);
     expect(prisma.giftTransaction.create).not.toHaveBeenCalled();
-    expect(chat.emitToRoom).not.toHaveBeenCalled(); // idempotent replay must not re-broadcast
+    expect(chat.emit).not.toHaveBeenCalled(); // idempotent replay must not re-broadcast
   });
 
   it('idempotent replay returns the prior gift BEFORE the balance check (retry after coins spent)', async () => {
@@ -96,14 +96,14 @@ describe('GiftsService.send', () => {
     const result = await service.send('v1', 'r1', dto);
     expect(result).toEqual({ id: 'gt-prior' });
     expect(wallet.balance).not.toHaveBeenCalled(); // short-circuited before the balance guard
-    expect(chat.emitToRoom).not.toHaveBeenCalled(); // replay must not re-broadcast
+    expect(chat.emit).not.toHaveBeenCalled(); // replay must not re-broadcast
   });
 
   it('broadcasts gift.sent into the room on a fresh gift and queues a fraud re-score', async () => {
     const { service, prisma, chat, fraud } = build();
     prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
     await service.send('v1', 'r1', dto);
-    expect(chat.emitToRoom).toHaveBeenCalledWith(
+    expect(chat.emit).toHaveBeenCalledWith(
       'r1',
       'gift.sent',
       expect.objectContaining({ giftTransactionId: 'gt1', giftName: 'Rose', senderId: 'v1', totalCoinAmount: 10 })
@@ -301,7 +301,7 @@ describe('GiftsService limit + share defaults', () => {
   it('a side effect throwing a non-Error is still swallowed and logged', async () => {
     const { service, prisma, chat } = build();
     prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
-    chat.emitToRoom.mockImplementation(() => { throw 'socket exploded'; }); // no .message
+    chat.emit.mockImplementation(() => { throw 'socket exploded'; }); // no .message
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     await expect(service.send('v1', 'r1', { ...dto, idempotencyKey: 'k-nonerr' } as any)).resolves.toMatchObject({ id: 'gt1' });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('socket exploded'));

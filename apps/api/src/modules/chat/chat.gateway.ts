@@ -7,9 +7,12 @@ import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../database/prisma.service';
 import { ChatService } from './chat.service';
+import { RoomBroadcast, RoomEvents, RoomPresence } from './room-events';
 
 @WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
+export class ChatGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy, RoomBroadcast, RoomPresence
+{
   @WebSocketServer()
   server!: Server;
 
@@ -124,8 +127,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   // Lets HTTP services/controllers (gifts, room-end, mute/delete) push events
   // into a live room. Realtime is an optional layer: if the socket server isn't
   // up yet (e.g. unit tests, boot race) this must NOT break the core action.
-  emitToRoom(roomId: string, event: string, payload: unknown) {
+  // RoomBroadcast: the ONLY way non-chat modules put events on the wire —
+  // event names and payloads are typed by the RoomEvents map.
+  emit<K extends keyof RoomEvents>(roomId: string, event: K, payload: RoomEvents[K]) {
     this.server?.to(roomId).emit(event, payload);
+  }
+
+  // RoomPresence
+  viewerCount(roomId: string): number {
+    return this.countFor(roomId);
   }
 
   handleConnection(client: Socket) {

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ReportPriority, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { ChatGateway } from '../chat/chat.gateway';
+import { RoomPresence } from '../chat/room-events';
 import { PUBLIC_HOST_INCLUDE } from './public-host';
 import { REPORT_SEVERITY, RoomFeatures, scoreRoom } from './ranking';
 
@@ -57,7 +57,7 @@ export class FeedEngine {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly chat: ChatGateway
+    private readonly presence: RoomPresence
   ) {}
 
   // Room visibility changed (start/end/suspend/stale-sweep): never serve a
@@ -188,7 +188,7 @@ export class FeedEngine {
           countryMatch: !!query.viewerCountry && room.country === query.viewerCountry,
           followsHost: false // ponytail: public feed has no identity; add when an authed feed variant is justified
         };
-        return { ...room, viewerCount: this.chat.countFor(room.id) || room.peakViewers, ranking: scoreRoom(features) };
+        return { ...room, viewerCount: this.presence.viewerCount(room.id) || room.peakViewers, ranking: scoreRoom(features) };
       })
       .sort((a, b) => b.ranking.score - a.ranking.score)
       .slice(0, RANK_RETURN);

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { ChatGateway } from '../chat/chat.gateway';
+import { RoomBroadcast, RoomPresence } from '../chat/room-events';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateLiveRoomDto } from './dto/create-live-room.dto';
 import { FeedEngine, FeedQuery } from './feed-engine.service';
@@ -14,7 +14,8 @@ export class LiveRoomsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly livekit: LiveKitService,
-    private readonly chat: ChatGateway,
+    private readonly broadcast: RoomBroadcast,
+    private readonly presence: RoomPresence,
     private readonly notifications: NotificationsService,
     private readonly feed: FeedEngine
   ) {}
@@ -104,7 +105,7 @@ export class LiveRoomsService {
     if (room.hostUserId !== hostUserId) throw new ForbiddenException('Not room host');
     const updated = await this.prisma.liveRoom.update({ where: { id: roomId }, data: { status: RoomStatus.ENDED, endedAt: new Date() } });
     this.feed.invalidate();
-    this.chat.emitToRoom(roomId, 'room.ended', { roomId, reason: 'HOST_ENDED' });
+    this.broadcast.emit(roomId, 'room.ended', { roomId, reason: 'HOST_ENDED' });
     return updated;
   }
 
@@ -116,7 +117,7 @@ export class LiveRoomsService {
 
   async get(id: string) {
     const room = await this.prisma.liveRoom.findUnique({ where: { id }, include: PUBLIC_HOST_INCLUDE });
-    return room && { ...room, viewerCount: this.chat.countFor(id) || room.peakViewers };
+    return room && { ...room, viewerCount: this.presence.viewerCount(id) || room.peakViewers };
   }
 
   async joinToken(userId: string, roomId: string) {
@@ -146,7 +147,7 @@ export class LiveRoomsService {
     const updated = await this.prisma.liveRoom.update({ where: { id: roomId }, data: { status: RoomStatus.ENDED, endedAt: new Date() } });
     this.feed.invalidate();
     await this.prisma.adminAuditLog.create({ data: { actorId, action: 'room.ended', target: roomId, metadata: {} } });
-    this.chat.emitToRoom(roomId, 'room.ended', { roomId, reason: 'ADMIN_ENDED' });
+    this.broadcast.emit(roomId, 'room.ended', { roomId, reason: 'ADMIN_ENDED' });
     return updated;
   }
 
