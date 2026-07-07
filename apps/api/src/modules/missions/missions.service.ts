@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LedgerDirection, LedgerTransactionType, WalletAccountType } from '@prisma/client';
+import { WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { FraudService } from '../fraud/fraud.service';
-import { LedgerService } from '../wallet/ledger.service';
+import { MoneyService } from '../money/money.service';
 import { WalletService } from '../wallet/wallet.service';
 import { findMission, MISSION_CATALOG, MissionAction, utcDay, utcDayStart } from './mission-catalog';
 
@@ -15,7 +15,7 @@ export class MissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
-    private readonly ledger: LedgerService,
+    private readonly money: MoneyService,
     private readonly fraud: FraudService
   ) {}
 
@@ -82,21 +82,13 @@ export class MissionsService {
       throw new BadRequestException('Mission rewards are temporarily unavailable for this account (under review)');
     }
 
-    await this.wallet.ensureUserWallets(userId, 'COIN');
-    const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, 'COIN');
-    const coin = await this.wallet.account(userId, WalletAccountType.COIN, 'COIN');
-
-    // Idempotent per (user, mission, day); guardNonNegative on PROMO enforces
-    // the funded budget — an empty promo pot fails the claim, never mints.
-    const tx = await this.ledger.postTransaction({
-      type: LedgerTransactionType.MISSION_REWARD,
-      idempotencyKey: `mission:${userId}:${missionKey}:${day}`,
-      metadata: { userId, missionKey, day, rewardCoins: mission.rewardCoins },
-      entries: [
-        { accountId: promo.id, direction: LedgerDirection.DEBIT, amountMinor: mission.rewardCoins, currency: 'COIN' },
-        { accountId: coin.id, direction: LedgerDirection.CREDIT, amountMinor: mission.rewardCoins, currency: 'COIN' }
-      ],
-      guardNonNegative: [promo.id]
+    // Idempotent per (user, mission, day); the money catalog guards PROMO so an
+    // empty promo pot fails the claim, never mints.
+    const { transaction: tx } = await this.money.missionReward({
+      userId,
+      missionKey,
+      day,
+      rewardCoins: mission.rewardCoins
     });
 
     try {
@@ -132,18 +124,7 @@ export class MissionsService {
   // the platform cannot promise rewards it hasn't earned.
   async fund(adminUserId: string, coins: number) {
     if (!Number.isInteger(coins) || coins <= 0) throw new BadRequestException('coins must be a positive integer');
-    const revenue = await this.wallet.ensureSystemAccount(WalletAccountType.PLATFORM_REVENUE, 'COIN');
-    const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, 'COIN');
-    const tx = await this.ledger.postTransaction({
-      type: LedgerTransactionType.PROMO_FUNDING,
-      idempotencyKey: `promo-fund:${adminUserId}:${Date.now()}`,
-      metadata: { adminUserId, coins },
-      entries: [
-        { accountId: revenue.id, direction: LedgerDirection.DEBIT, amountMinor: coins, currency: 'COIN' },
-        { accountId: promo.id, direction: LedgerDirection.CREDIT, amountMinor: coins, currency: 'COIN' }
-      ],
-      guardNonNegative: [revenue.id]
-    });
+    const { transaction: tx } = await this.money.promoFund({ adminUserId, coins, nonce: Date.now() });
     return { ok: true, funded: coins, ledgerTransactionId: tx.id };
   }
 }
