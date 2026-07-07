@@ -145,6 +145,45 @@ export class AuthService {
     return { ok: true };
   }
 
+  // ---- Admin session controls (security ops counterpart of the user's own
+  // device list): view any account's active devices, force one out, or force
+  // them all out. Every action lands in the admin audit log.
+
+  async adminListSessions(userId: string) {
+    const rows = await this.prisma.deviceSession.findMany({
+      where: { userId, revokedAt: null },
+      orderBy: { lastSeenAt: 'desc' }
+    });
+    return rows.map((s) => ({
+      id: s.id,
+      device: s.device,
+      ip: s.ip,
+      userAgent: s.userAgent,
+      createdAt: s.createdAt,
+      lastSeenAt: s.lastSeenAt
+    }));
+  }
+
+  async adminRevokeSession(actorId: string, userId: string, sessionId: string) {
+    const session = await this.prisma.deviceSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.userId !== userId) throw new BadRequestException('Unknown session for this user');
+    if (!session.revokedAt) {
+      await this.prisma.deviceSession.update({ where: { id: sessionId }, data: { revokedAt: new Date() } });
+    }
+    await this.prisma.adminAuditLog.create({
+      data: { actorId, action: 'user.session_revoked', target: userId, metadata: { sessionId, device: session.device } }
+    });
+    return { ok: true };
+  }
+
+  async adminRevokeAllSessions(actorId: string, userId: string) {
+    await this.logoutAll(userId); // tokenVersion bump + sweep every session row
+    await this.prisma.adminAuditLog.create({
+      data: { actorId, action: 'user.sessions_revoked_all', target: userId, metadata: {} }
+    });
+    return { ok: true };
+  }
+
   // Sign out THIS device (no-op for legacy tokens that carry no sid).
   async logout(userId: string, sid?: string) {
     if (sid) {
