@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
 import { MissionsService } from './missions.service';
 import { MISSION_CATALOG, findMission, utcDay, utcDayStart } from './mission-catalog';
@@ -24,7 +25,7 @@ function build() {
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
   const fraud: any = { assessCreatorCached: jest.fn().mockResolvedValue({ riskScore: 0 }) };
-  return { service: new MissionsService(prisma, wallet, new MoneyService(prisma, ledger, wallet), fraud), prisma, wallet, ledger, fraud };
+  return { service: new MissionsService(prisma, wallet, new MoneyService(prisma, ledger, wallet, new MetricsService()), fraud), prisma, wallet, ledger, fraud };
 }
 
 describe('mission catalog helpers', () => {

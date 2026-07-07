@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { GiftsService } from './gifts.service';
@@ -28,7 +29,7 @@ function build(overrides: any = {}) {
   prisma.gift.findUnique.mockResolvedValue(overrides.gift ?? { id: 'g1', isActive: true, coinPrice: 10, name: 'Rose' });
   const fraud: any = { queueReassess: jest.fn() };
   const agencies: any = { commissionFor: jest.fn().mockResolvedValue(null) }; // unmanaged by default
-  const service = new GiftsService(prisma, new MoneyService(prisma, ledger, wallet), chat, notifications, new AggregationService(prisma), fraud, agencies);
+  const service = new GiftsService(prisma, new MoneyService(prisma, ledger, wallet, new MetricsService()), chat, notifications, new AggregationService(prisma), fraud, agencies);
   return { service, prisma, wallet, ledger, chat, notifications, fraud, agencies };
 }
 

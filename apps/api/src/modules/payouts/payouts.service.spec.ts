@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
 import { PayoutsService } from './payouts.service';
 
@@ -16,7 +17,7 @@ function build() {
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
   const notifications: any = { notifyUser: jest.fn().mockResolvedValue({}) };
-  const service = new PayoutsService(prisma, wallet, new MoneyService(prisma, ledger, wallet), notifications);
+  const service = new PayoutsService(prisma, wallet, new MoneyService(prisma, ledger, wallet, new MetricsService()), notifications);
   return { service, prisma, wallet, ledger, notifications };
 }
 
@@ -190,7 +191,7 @@ function buildFull() {
   };
   const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx1' }) };
   const notifications: any = { notifyUser: jest.fn().mockResolvedValue({}) };
-  const service = new PayoutsService(prisma, wallet, new MoneyService(prisma, ledger, wallet), notifications);
+  const service = new PayoutsService(prisma, wallet, new MoneyService(prisma, ledger, wallet, new MetricsService()), notifications);
   return { service, prisma, wallet, ledger, notifications };
 }
 
