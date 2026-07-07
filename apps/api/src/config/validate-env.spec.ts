@@ -56,3 +56,42 @@ describe('validateEnv', () => {
     expect(() => validateEnv()).not.toThrow();
   });
 });
+describe('validateEnv — season additions', () => {
+  const base = {
+    NODE_ENV: 'production',
+    JWT_ACCESS_SECRET: 'x'.repeat(32),
+    JWT_REFRESH_SECRET: 'y'.repeat(32),
+    LIVEKIT_API_KEY: 'real-key',
+    LIVEKIT_API_SECRET: 'real-secret',
+    DATABASE_URL: 'postgres://real',
+    REDIS_URL: 'redis://real',
+    PAYSTACK_SECRET_KEY: 'sk_live_real',
+    REQUIRE_ADMIN_MFA: 'true'
+  };
+  const withEnv = (over: Record<string, string | undefined>, fn: () => void) => {
+    const prev = { ...process.env };
+    Object.assign(process.env, base, over);
+    try {
+      fn();
+    } finally {
+      process.env = prev;
+    }
+  };
+
+  it("rejects the LiveKit 'devkey' placeholder in production", () => {
+    withEnv({ LIVEKIT_API_KEY: 'devkey' }, () => {
+      expect(() => validateEnv()).toThrow(/unsafe placeholder .*LIVEKIT_API_KEY/);
+    });
+  });
+
+  it('refuses to start production with ALLOW_SEEDED_PROD_LOGIN=true', () => {
+    withEnv({ ALLOW_SEEDED_PROD_LOGIN: 'true' }, () => {
+      expect(() => validateEnv()).toThrow(/ALLOW_SEEDED_PROD_LOGIN/);
+    });
+    withEnv({ ALLOW_SEEDED_PROD_LOGIN: undefined }, () => {
+      delete process.env.ALLOW_SEEDED_PROD_LOGIN;
+      expect(() => validateEnv()).not.toThrow();
+    });
+  });
+});
+
