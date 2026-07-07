@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PriorityBadge, StatusBadge, TicketThread, UserCell } from "../admin-ui";
 import { RowHighlightNotice, useRowHighlight } from "../highlight";
+import { useAdminResource } from "../../lib/use-admin-resource";
 
 type Ticket = {
   id: string;
@@ -16,30 +17,21 @@ type Ticket = {
 };
 
 function SupportPageInner() {
-  const [rows, setRows] = useState<Ticket[]>([]);
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const { data: rows, error, reload } = useAdminResource<Ticket[]>(
+    () => adminGet<Ticket[]>("/admin/support/tickets"),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load() {
-    try {
-      setRows(await adminGet<Ticket[]>("/admin/support/tickets"));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   async function assign(id: string) {
     await adminPost(`/admin/support/tickets/${id}/assign`);
-    await load();
+    await reload();
   }
   async function resolve(id: string) {
     await adminPost(`/admin/support/tickets/${id}/resolve`);
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;

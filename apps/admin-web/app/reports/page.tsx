@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PriorityBadge, PromptDialog, RoomCell, StatusBadge, UserCell } from '../admin-ui';
 import { RowHighlightNotice, useRowHighlight } from '../highlight';
+import { useAdminResource } from '../../lib/use-admin-resource';
 
 type Report = {
   id: string;
@@ -18,27 +19,18 @@ type Report = {
 };
 
 function ReportsPageInner() {
-  const [rows, setRows] = useState<Report[]>([]);
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { data: rows, error, reload } = useAdminResource<Report[]>(
+    () => adminGet<Report[]>('/admin/reports'),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load() {
-    try {
-      setRows(await adminGet<Report[]>('/admin/reports'));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   async function act(id: string, action: string, reason: string) {
     await adminPost(`/admin/reports/${id}/action`, { action, reason: reason || action });
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;

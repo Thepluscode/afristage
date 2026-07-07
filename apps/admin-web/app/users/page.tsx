@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, UserCell } from "../admin-ui";
 import { RowHighlightNotice, useRowHighlight } from "../highlight";
+import { useAdminResource } from "../../lib/use-admin-resource";
 
 type User = {
   id: string;
@@ -16,39 +17,28 @@ type User = {
 };
 
 function UsersPageInner() {
-  const [rows, setRows] = useState<User[]>([]);
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // The loader closes over q; useAdminResource reads it through a ref, so a
+  // submit-triggered reload always searches the latest committed query.
+  const { data: rows, error, reload } = useAdminResource<User[]>(
+    () => adminGet<User[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load(query = "") {
-    try {
-      setRows(
-        await adminGet<User[]>(
-          `/admin/users${query ? `?q=${encodeURIComponent(query)}` : ""}`,
-        ),
-      );
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   async function suspend(id: string) {
     await adminPost(`/admin/users/${id}/suspend`, { reason: "admin action" });
-    await load(q);
+    await reload();
   }
   async function ban(id: string) {
     await adminPost(`/admin/users/${id}/ban`, { reason: "admin action" });
-    await load(q);
+    await reload();
   }
   async function reactivate(id: string) {
     await adminPost(`/admin/users/${id}/reactivate`);
-    await load(q);
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;
@@ -60,7 +50,7 @@ function UsersPageInner() {
       <FilterBar
         onSubmit={(e) => {
           e.preventDefault();
-          load(q);
+          reload();
         }}
       >
         <input

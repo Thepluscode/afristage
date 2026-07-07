@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
 import { RowHighlightNotice, useRowHighlight } from '../highlight';
+import { useAdminResource } from '../../lib/use-admin-resource';
 
 type Payout = {
   id: string;
@@ -29,20 +30,15 @@ type Integrity = { ok: boolean; unbalancedTransactions: number };
 type Risk = { riskScore: number; recommendedAction: 'NONE' | 'SOFT_FLAG' | 'MANUAL_REVIEW' | 'PAYOUT_HOLD' };
 
 function PayoutsPageInner() {
-  const [rows, setRows] = useState<Payout[]>([]);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
-  const [risk, setRisk] = useState<Record<string, Risk>>({});
-  const [error, setError] = useState<string | null>(null);
-  const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load() {
-    try {
-      const data = await adminGet<Payout[]>('/admin/payouts');
-      setRows(data);
-      // Fraud assessment per creator with an actionable payout — surfaces risk
-      // right where the money decision is made. ponytail: one fetch per distinct
-      // pending creator; fine at beta volume, batch server-side if it grows.
-      const ids = [...new Set(data.filter((p) => ['UNDER_REVIEW', 'HELD'].includes(p.status)).map((p) => p.creatorUserId))];
+  // One compound load: the queue plus a fraud assessment per creator with an
+  // actionable payout — risk surfaces right where the money decision is made.
+  // ponytail: one fetch per distinct pending creator; fine at beta volume,
+  // batch server-side if it grows.
+  const { data, error, reload } = useAdminResource(
+    async () => {
+      const rows = await adminGet<Payout[]>('/admin/payouts');
+      const ids = [...new Set(rows.filter((p) => ['UNDER_REVIEW', 'HELD'].includes(p.status)).map((p) => p.creatorUserId))];
       const entries = await Promise.all(
         ids.map(async (id) => {
           try {
@@ -52,19 +48,20 @@ function PayoutsPageInner() {
           }
         })
       );
-      setRisk(Object.fromEntries(entries.filter(Boolean) as (readonly [string, Risk])[]));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
+      return { rows, risk: Object.fromEntries(entries.filter(Boolean) as (readonly [string, Risk])[]) };
+    },
+    { rows: [] as Payout[], risk: {} as Record<string, Risk> }
+  );
+  const { rows, risk } = data;
+  const { id: highlightId, missing } = useRowHighlight(rows);
+
   useEffect(() => {
-    load();
     adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => {});
   }, []);
 
   async function action(id: string, verb: string, body?: unknown) {
     await adminPost(`/admin/payouts/${id}/${verb}`, body);
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
+import { useAdminResource } from "../../lib/use-admin-resource";
 import { ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, SuccessBanner } from "../admin-ui";
 
 type BetaRequest = {
@@ -15,28 +16,21 @@ type BetaRequest = {
 };
 
 export default function BetaRequestsPage() {
-  const [rows, setRows] = useState<BetaRequest[]>([]);
   const [status, setStatus] = useState("");
   const [lastCode, setLastCode] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load() {
-    try {
-      const q = status ? `?status=${status}` : "";
-      setRows(await adminGet<BetaRequest[]>(`/admin/beta-requests${q}`));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
+  const { data: rows, error, reload } = useAdminResource<BetaRequest[]>(
+    () => adminGet<BetaRequest[]>(`/admin/beta-requests${status ? `?status=${status}` : ""}`),
+    [],
+  );
+  // The status filter changes the loader's query — refetch when it moves.
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+    reload();
+  }, [status, reload]);
 
   async function issueInvite(id: string) {
     const res = await adminPost<{ code: string }>(`/admin/beta-requests/${id}/invite`, { type: "CREATOR" });
     setLastCode(res.code); // shown once
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;
