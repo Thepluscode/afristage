@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_live.dart';
+import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 import 'room_screen.dart';
 
@@ -16,14 +17,6 @@ class LiveScreen extends StatefulWidget {
 }
 
 class _LiveScreenState extends State<LiveScreen> {
-  late Future<List<LiveRoom>> _rooms;
-
-  @override
-  void initState() {
-    super.initState();
-    _rooms = _load();
-  }
-
   Future<List<LiveRoom>> _load() async {
     final data = await context.read<AppState>().api.getList('/live-rooms');
     return data
@@ -33,14 +26,6 @@ class _LiveScreenState extends State<LiveScreen> {
         .toList();
   }
 
-  Future<void> _refresh() async {
-    final f = _load();
-    setState(() {
-      _rooms = f;
-    });
-    await f;
-  }
-
   void _open(LiveRoom r) => Navigator.push(
       context, MaterialPageRoute(builder: (_) => RoomScreen(room: r)));
 
@@ -48,61 +33,42 @@ class _LiveScreenState extends State<LiveScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Live now')),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<LiveRoom>>(
-          future: _rooms,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
-              // Distinguish a load failure from a genuinely empty stage — the
-              // null-coalesce below would otherwise show "nobody is live" on error.
-              return ListView(padding: const EdgeInsets.all(16), children: [
-                const SizedBox(height: 80),
-                AfriErrorState(
-                  title: 'Could not load live rooms',
-                  body: 'Check your connection and try again.',
-                  onRetry: _refresh,
-                ),
-              ]);
-            }
-            final rooms = snap.data ?? const <LiveRoom>[];
-            if (rooms.isEmpty) {
-              return ListView(padding: const EdgeInsets.all(16), children: [
-                const SizedBox(height: 80),
-                AfriEmptyState(
-                  icon: Icons.live_tv,
-                  title: 'No rooms live right now',
-                  body: 'Check back soon when creators are on stage.',
-                  action: FilledButton(
-                      onPressed: _refresh, child: const Text('Refresh')),
-                ),
-              ]);
-            }
-            return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 0.76,
-              ),
-              itemCount: rooms.length,
-              itemBuilder: (_, i) => AfriLiveCard(
-                title: rooms[i].title,
-                category: rooms[i].category,
-                creator: rooms[i].hostName,
-                country: rooms[i].country,
-                imageUrl: rooms[i].hostAvatarUrl,
-                viewerCount: rooms[i].viewerCount,
-                width: double.infinity,
-                onTap: () => _open(rooms[i]),
-              ),
-            );
-          },
+      body: AfriLoader<List<LiveRoom>>(
+        load: _load,
+        errorTitle: 'Could not load live rooms',
+        isEmpty: (rooms) => rooms.isEmpty,
+        emptyBuilder: (_, refresh) => Padding(
+          padding: const EdgeInsets.only(top: 80),
+          child: AfriEmptyState(
+            icon: Icons.live_tv,
+            title: 'No rooms live right now',
+            body: 'Check back soon when creators are on stage.',
+            action:
+                FilledButton(onPressed: refresh, child: const Text('Refresh')),
+          ),
         ),
+        builder: (context, rooms, refresh) {
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              childAspectRatio: 0.76,
+            ),
+            itemCount: rooms.length,
+            itemBuilder: (_, i) => AfriLiveCard(
+              title: rooms[i].title,
+              category: rooms[i].category,
+              creator: rooms[i].hostName,
+              country: rooms[i].country,
+              imageUrl: rooms[i].hostAvatarUrl,
+              viewerCount: rooms[i].viewerCount,
+              width: double.infinity,
+              onTap: () => _open(rooms[i]),
+            ),
+          );
+        },
       ),
     );
   }

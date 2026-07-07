@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 
 /// Live + upcoming events (R4 §6): limited-time gifts, prize pools and the
@@ -16,26 +17,14 @@ class EventsScreen extends StatefulWidget {
 }
 
 class _EventsScreenState extends State<EventsScreen> {
-  late Future<List<dynamic>> _events;
   String? _expandedId;
   Future<Map<String, dynamic>>? _leaderboard;
 
-  @override
-  void initState() {
-    super.initState();
-    _events = _load();
-  }
-
-  Future<List<dynamic>> _load() => context.read<AppState>().api.getList('/events');
-
-  Future<void> _refresh() async {
-    final f = _load();
-    setState(() {
-      _events = f;
-      _expandedId = null;
-      _leaderboard = null;
-    });
-    await f;
+  // Pull-to-refresh must also collapse any expanded leaderboard.
+  Future<List<dynamic>> _load() {
+    _expandedId = null;
+    _leaderboard = null;
+    return context.read<AppState>().api.getList('/events');
   }
 
   void _toggle(String id) {
@@ -58,50 +47,26 @@ class _EventsScreenState extends State<EventsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Events')),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<dynamic>>(
-          future: _events,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  AfriErrorState(
-                    title: 'Could not load events',
-                    body: 'Check your connection and try again.',
-                    onRetry: () => setState(() {
-                      _events = _load();
-                    }),
-                  ),
-                ],
-              );
-            }
-            final events = (snapshot.data ?? const [])
-                .cast<Map<String, dynamic>>();
-            if (events.isEmpty) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: const [
-                  SizedBox(height: 60),
-                  AfriEmptyState(
-                    icon: Icons.emoji_events,
-                    title: 'No events right now',
-                    body: 'Limited-time events with special gifts and prize '
-                        'pools will appear here.',
-                  ),
-                ],
-              );
-            }
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              children: events.map(_tile).toList(),
-            );
-          },
+      body: AfriLoader<List<dynamic>>(
+        load: _load,
+        errorTitle: 'Could not load events',
+        isEmpty: (items) => items.isEmpty,
+        emptyBuilder: (_, __) => const Padding(
+          padding: EdgeInsets.only(top: 60),
+          child: AfriEmptyState(
+            icon: Icons.emoji_events,
+            title: 'No events right now',
+            body: 'Limited-time events with special gifts and prize '
+                'pools will appear here.',
+          ),
         ),
+        builder: (context, items, refresh) {
+          final events = items.cast<Map<String, dynamic>>();
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: events.map(_tile).toList(),
+          );
+        },
       ),
     );
   }
@@ -126,7 +91,8 @@ class _EventsScreenState extends State<EventsScreen> {
                       style: const TextStyle(
                           fontWeight: FontWeight.w800, fontSize: 15)),
                 ),
-                if (pool > 0) AfriChip(label: '$pool coin pool', selected: true),
+                if (pool > 0)
+                  AfriChip(label: '$pool coin pool', selected: true),
               ],
             ),
             if (e['description'] != null) ...[
@@ -185,9 +151,9 @@ class _EventsScreenState extends State<EventsScreen> {
                     TextStyle(color: AfriColors.secondaryText, fontSize: 13)),
           );
         }
-        final supporters = (snapshot.data?['supporters'] as List<dynamic>? ??
-                const [])
-            .cast<Map<String, dynamic>>();
+        final supporters =
+            (snapshot.data?['supporters'] as List<dynamic>? ?? const [])
+                .cast<Map<String, dynamic>>();
         if (supporters.isEmpty) {
           return const Padding(
             padding: EdgeInsets.only(top: 10),
@@ -214,10 +180,10 @@ class _EventsScreenState extends State<EventsScreen> {
                             child: Text(
                                 s['displayName'] as String? ?? 'Anonymous',
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14)),
+                                    fontWeight: FontWeight.w700, fontSize: 14)),
                           ),
-                          Text('${(s['totalCoins'] as num?)?.toInt() ?? 0} coins',
+                          Text(
+                              '${(s['totalCoins'] as num?)?.toInt() ?? 0} coins',
                               style: const TextStyle(
                                   color: AfriColors.secondaryText,
                                   fontSize: 13,

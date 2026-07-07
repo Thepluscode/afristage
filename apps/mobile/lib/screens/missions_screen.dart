@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 
 /// Daily missions board (R4 §4): progress toward each mission and a Claim
@@ -15,27 +16,10 @@ class MissionsScreen extends StatefulWidget {
 }
 
 class _MissionsScreenState extends State<MissionsScreen> {
-  late Future<Map<String, dynamic>> _board;
   String? _claiming; // mission key mid-claim, to disable its button
 
-  @override
-  void initState() {
-    super.initState();
-    _board = _load();
-  }
-
-  Future<Map<String, dynamic>> _load() =>
-      context.read<AppState>().api.get('/missions/me');
-
-  Future<void> _refresh() async {
-    final f = _load();
-    setState(() {
-      _board = f;
-    });
-    await f;
-  }
-
-  Future<void> _claim(String key, int rewardCoins) async {
+  Future<void> _claim(
+      String key, int rewardCoins, Future<void> Function() refresh) async {
     final state = context.read<AppState>();
     setState(() => _claiming = key);
     try {
@@ -47,7 +31,7 @@ class _MissionsScreenState extends State<MissionsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('+$rewardCoins coins earned!')));
-      await _refresh();
+      await refresh();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -61,62 +45,38 @@ class _MissionsScreenState extends State<MissionsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Daily missions')),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _board,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  AfriErrorState(
-                    title: 'Could not load missions',
-                    body: 'Check your connection and try again.',
-                    onRetry: () => setState(() {
-                      _board = _load();
-                    }),
-                  ),
-                ],
-              );
-            }
-            final data = snapshot.data ?? const <String, dynamic>{};
-            final missions = (data['missions'] as List<dynamic>? ?? const [])
-                .cast<Map<String, dynamic>>();
-            if (missions.isEmpty) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: const [
-                  SizedBox(height: 60),
-                  AfriEmptyState(
-                    icon: Icons.task_alt,
-                    title: 'No missions today',
-                    body: 'Check back tomorrow for new missions.',
-                  ),
-                ],
-              );
-            }
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              children: [
-                const Text(
-                    'Complete missions to earn free coins. Resets daily.',
-                    style: TextStyle(
-                        color: AfriColors.secondaryText, fontSize: 13)),
-                const SizedBox(height: 14),
-                ...missions.map(_tile),
-              ],
-            );
-          },
+      body: AfriLoader<Map<String, dynamic>>(
+        load: () => context.read<AppState>().api.get('/missions/me'),
+        errorTitle: 'Could not load missions',
+        isEmpty: (data) =>
+            (data['missions'] as List<dynamic>? ?? const []).isEmpty,
+        emptyBuilder: (_, __) => const Padding(
+          padding: EdgeInsets.only(top: 60),
+          child: AfriEmptyState(
+            icon: Icons.task_alt,
+            title: 'No missions today',
+            body: 'Check back tomorrow for new missions.',
+          ),
         ),
+        builder: (context, data, refresh) {
+          final missions = (data['missions'] as List<dynamic>? ?? const [])
+              .cast<Map<String, dynamic>>();
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              const Text('Complete missions to earn free coins. Resets daily.',
+                  style:
+                      TextStyle(color: AfriColors.secondaryText, fontSize: 13)),
+              const SizedBox(height: 14),
+              ...missions.map((m) => _tile(m, refresh)),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _tile(Map<String, dynamic> m) {
+  Widget _tile(Map<String, dynamic> m, Future<void> Function() refresh) {
     final key = m['key'] as String;
     final target = (m['target'] as num?)?.toInt() ?? 1;
     final progress = (m['progress'] as num?)?.toInt() ?? 0;
@@ -171,7 +131,7 @@ class _MissionsScreenState extends State<MissionsScreen> {
                 else
                   FilledButton(
                     onPressed: claimable && _claiming != key
-                        ? () => _claim(key, reward)
+                        ? () => _claim(key, reward, refresh)
                         : null,
                     child: Text(_claiming == key ? 'Claiming…' : 'Claim'),
                   ),

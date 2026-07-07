@@ -6,6 +6,7 @@ import '../core/api_client.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_live.dart';
+import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 
 class SupportTicketScreen extends StatefulWidget {
@@ -18,22 +19,13 @@ class SupportTicketScreen extends StatefulWidget {
 }
 
 class _SupportTicketScreenState extends State<SupportTicketScreen> {
-  late Future<Map<String, dynamic>> _ticket;
+  // The reply composer lives outside the loader's builder; sending a message
+  // reaches the reload through the loader's public state.
+  final _loader = GlobalKey<AfriLoaderState<Map<String, dynamic>>>();
   final _reply = TextEditingController();
   bool _sending = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _ticket = _load();
-  }
-
-  Future<Map<String, dynamic>> _load() =>
-      context.read<AppState>().api.get('/support/tickets/${widget.ticketId}');
-
-  void _reload() => setState(() {
-        _ticket = _load();
-      });
+  void _reload() => _loader.currentState?.reload();
 
   @override
   void dispose() {
@@ -65,23 +57,15 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
       body: Column(
         children: [
           Expanded(
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _ticket,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: AfriErrorState(
-                      title: 'Could not load ticket',
-                      body: 'Check your connection and try again.',
-                      onRetry: _reload,
-                    ),
-                  );
-                }
-                final ticket = snapshot.data ?? const {};
+            child: AfriLoader<Map<String, dynamic>>(
+              key: _loader,
+              refreshable: false,
+              load: () => context
+                  .read<AppState>()
+                  .api
+                  .get('/support/tickets/${widget.ticketId}'),
+              errorTitle: 'Could not load ticket',
+              builder: (context, ticket, refresh) {
                 final messages = (ticket['messages'] as List?)
                         ?.cast<Map<String, dynamic>>() ??
                     const [];
