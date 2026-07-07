@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { LedgerDirection, LedgerTransactionType, PayoutRequest, PayoutStatus, Prisma, WalletAccountType } from '@prisma/client';
+import { PayoutRequest, PayoutStatus, Prisma, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { MoneyService } from '../money/money.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { CreatePayoutMethodDto } from './dto/create-payout-method.dto';
 import { RequestPayoutDto } from './dto/request-payout.dto';
@@ -27,7 +27,7 @@ export class PayoutsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
-    private readonly ledger: LedgerService,
+    private readonly money: MoneyService,
     private readonly notifications: NotificationsService
   ) {}
 
@@ -168,19 +168,13 @@ export class PayoutsService {
     }
 
     // 2. Move funds EARNING -> PAYOUT_HOLD (idempotent on the request key).
-    const earning = await this.wallet.account(creatorUserId, WalletAccountType.EARNING, 'COIN');
-    const hold = await this.wallet.account(creatorUserId, WalletAccountType.PAYOUT_HOLD, 'COIN');
-    const holdTx = await this.ledger.postTransaction({
-      type: LedgerTransactionType.PAYOUT,
-      idempotencyKey: `payout_request:${dto.idempotencyKey}`,
-      metadata: { creatorUserId, payoutMethodId: dto.payoutMethodId, fiatCurrency, fiatMinor: fiatMinor.toString(), rate },
-      entries: [
-        { accountId: earning.id, direction: LedgerDirection.DEBIT, amountMinor: dto.coinAmount, currency: 'COIN' },
-        { accountId: hold.id, direction: LedgerDirection.CREDIT, amountMinor: dto.coinAmount, currency: 'COIN' }
-      ],
-      // Atomically re-check earnings under a row lock so two concurrent payout
-      // requests can't both reserve the same earnings into withdrawable holds.
-      guardNonNegative: [earning.id]
+    // The money catalog guards EARNING under a row lock so two concurrent payout
+    // requests can't both reserve the same earnings into withdrawable holds.
+    const { transaction: holdTx } = await this.money.payoutHold({
+      creatorUserId,
+      requestKey: dto.idempotencyKey,
+      coinAmount: dto.coinAmount,
+      metadata: { creatorUserId, payoutMethodId: dto.payoutMethodId, fiatCurrency, fiatMinor: fiatMinor.toString(), rate }
     });
 
     // 3. Advance to UNDER_REVIEW (or HELD), recording the hold transaction.
@@ -246,17 +240,7 @@ export class PayoutsService {
     if (!payout) throw new NotFoundException('Payout not found');
     this.assertTransition(payout, PayoutStatus.REJECTED);
 
-    const hold = await this.wallet.account(payout.creatorUserId, WalletAccountType.PAYOUT_HOLD, 'COIN');
-    const earning = await this.wallet.account(payout.creatorUserId, WalletAccountType.EARNING, 'COIN');
-    await this.ledger.postTransaction({
-      type: LedgerTransactionType.PAYOUT,
-      idempotencyKey: `payout_reject:${id}`,
-      metadata: { reason },
-      entries: [
-        { accountId: hold.id, direction: LedgerDirection.DEBIT, amountMinor: payout.coinAmount, currency: 'COIN' },
-        { accountId: earning.id, direction: LedgerDirection.CREDIT, amountMinor: payout.coinAmount, currency: 'COIN' }
-      ]
-    });
+    await this.money.payoutReject({ payoutId: id, creatorUserId: payout.creatorUserId, coinAmount: payout.coinAmount, reason });
     const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.REJECTED, reviewedBy, reviewedAt: new Date(), rejectionReason: reason } });
     await this.audit(reviewedBy, 'payout.rejected', id, { coinAmount: payout.coinAmount.toString(), reason });
     await this.notify(payout.creatorUserId, 'Payout rejected', `Your payout of ${payout.coinAmount} coins was rejected: ${reason}. The coins are back in your earnings.`);
@@ -270,17 +254,7 @@ export class PayoutsService {
     if (!payout) throw new NotFoundException('Payout not found');
     this.assertTransition(payout, PayoutStatus.PAID); // blocks double-pay and REQUESTED/REJECTED -> PAID
 
-    const hold = await this.wallet.account(payout.creatorUserId, WalletAccountType.PAYOUT_HOLD, 'COIN');
-    const clearing = await this.wallet.ensureSystemAccount(WalletAccountType.PAYOUT_CLEARING, 'COIN');
-    await this.ledger.postTransaction({
-      type: LedgerTransactionType.PAYOUT,
-      idempotencyKey: `payout_paid:${id}`,
-      metadata: { payoutId: id, providerReference },
-      entries: [
-        { accountId: hold.id, direction: LedgerDirection.DEBIT, amountMinor: payout.coinAmount, currency: 'COIN' },
-        { accountId: clearing.id, direction: LedgerDirection.CREDIT, amountMinor: payout.coinAmount, currency: 'COIN' }
-      ]
-    });
+    await this.money.payoutPaid({ payoutId: id, creatorUserId: payout.creatorUserId, coinAmount: payout.coinAmount, providerReference });
     const updated = await this.prisma.payoutRequest.update({
       where: { id },
       data: { status: PayoutStatus.PAID, reviewedBy, paidAt: new Date(), providerReference: providerReference?.trim() || null }

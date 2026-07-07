@@ -1,8 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { LedgerDirection, LedgerTransactionType, PaymentStatus, WalletAccountType, PaymentIntent } from '@prisma/client';
+import { PaymentStatus, PaymentIntent } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { LedgerService } from '../wallet/ledger.service';
-import { WalletService } from '../wallet/wallet.service';
+import { MoneyService } from '../money/money.service';
 import { COIN_PACKAGES, CoinPackage, findCoinPackage } from './coin-packages';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PaystackProvider } from './providers/paystack.provider';
@@ -13,8 +12,7 @@ export class PaymentsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly wallet: WalletService,
-    private readonly ledger: LedgerService,
+    private readonly money: MoneyService,
     private readonly paystack: PaystackProvider
   ) {}
 
@@ -84,19 +82,14 @@ export class PaymentsService {
     if (intent.status === PaymentStatus.SUCCEEDED) return intent;
     if (intent.status !== PaymentStatus.PENDING) throw new BadRequestException('Payment intent is not pending');
 
-    await this.wallet.ensureUserWallets(intent.userId, 'COIN');
-    const clearing = await this.wallet.ensureSystemAccount(WalletAccountType.PAYMENT_CLEARING, 'COIN');
-    const coinAccount = await this.wallet.account(intent.userId, WalletAccountType.COIN, 'COIN');
-
-    await this.ledger.postTransaction({
-      type: LedgerTransactionType.COIN_PURCHASE,
-      idempotencyKey: `coin_purchase:${intent.id}`,
-      externalReference: intent.providerReference || intent.id,
-      metadata: { provider: intent.provider, amountMinor: intent.amountMinor.toString(), fiatCurrency: intent.currency },
-      entries: [
-        { accountId: clearing.id, direction: LedgerDirection.DEBIT, amountMinor: intent.coinAmount, currency: 'COIN' },
-        { accountId: coinAccount.id, direction: LedgerDirection.CREDIT, amountMinor: intent.coinAmount, currency: 'COIN' }
-      ]
+    await this.money.coinPurchase({
+      userId: intent.userId,
+      intentId: intent.id,
+      coinAmount: intent.coinAmount,
+      provider: intent.provider,
+      amountMinor: intent.amountMinor.toString(),
+      fiatCurrency: intent.currency,
+      externalReference: intent.providerReference || intent.id
     });
 
     this.logger.log(`Credited ${intent.coinAmount} coins to user ${intent.userId} (intent ${intent.id}, provider ${intent.provider})`);

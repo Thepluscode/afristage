@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { MoneyService } from '../money/money.service';
 import { PaymentsService } from './payments.service';
 import { PaystackProvider } from './providers/paystack.provider';
 
@@ -22,7 +23,7 @@ function build(opts: { configured?: boolean; intent?: any } = {}) {
     account: jest.fn().mockResolvedValue({ id: 'coin' })
   };
   const ledger: any = { postTransaction: jest.fn() };
-  const service = new PaymentsService(prisma, wallet, ledger, paystack);
+  const service = new PaymentsService(prisma, new MoneyService(prisma, ledger, wallet), paystack);
   return { service, prisma, paystack, wallet, ledger };
 }
 

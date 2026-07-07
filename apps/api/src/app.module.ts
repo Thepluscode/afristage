@@ -20,6 +20,7 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AgenciesModule } from './modules/agencies/agencies.module';
+import { MoneyModule } from './modules/money/money.module';
 import { AggregationModule } from './modules/aggregation/aggregation.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BetaModule } from './modules/beta/beta.module';
@@ -33,6 +34,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 @Module({
   imports: [
     AggregationModule,
+    MoneyModule,
     AgenciesModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // ponytail: in-memory throttling. Move to Redis storage (ThrottlerStorageRedisService)

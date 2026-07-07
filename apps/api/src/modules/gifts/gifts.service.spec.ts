@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { MoneyService } from '../money/money.service';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { GiftsService } from './gifts.service';
 
@@ -27,7 +28,7 @@ function build(overrides: any = {}) {
   prisma.gift.findUnique.mockResolvedValue(overrides.gift ?? { id: 'g1', isActive: true, coinPrice: 10, name: 'Rose' });
   const fraud: any = { queueReassess: jest.fn() };
   const agencies: any = { commissionFor: jest.fn().mockResolvedValue(null) }; // unmanaged by default
-  const service = new GiftsService(prisma, wallet, ledger, chat, notifications, new AggregationService(prisma), fraud, agencies);
+  const service = new GiftsService(prisma, new MoneyService(prisma, ledger, wallet), chat, notifications, new AggregationService(prisma), fraud, agencies);
   return { service, prisma, wallet, ledger, chat, notifications, fraud, agencies };
 }
 
@@ -295,6 +296,16 @@ describe('GiftsService limit + share defaults', () => {
     }
   });
 });
+
+  it('a side effect throwing a non-Error is still swallowed and logged', async () => {
+    const { service, prisma, chat } = build();
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    chat.emitToRoom.mockImplementation(() => { throw 'socket exploded'; }); // no .message
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(service.send('v1', 'r1', { ...dto, idempotencyKey: 'k-nonerr' } as any)).resolves.toMatchObject({ id: 'gt1' });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('socket exploded'));
+    warn.mockRestore();
+  });
 
 describe('GiftsService.send agency commission (R4 §8)', () => {
   it("splits a managed creator's share into a fourth AGENCY_EARNING leg", async () => {

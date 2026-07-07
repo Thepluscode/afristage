@@ -1,9 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LedgerDirection, LedgerTransactionType, WalletAccountType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AggregationService } from '../aggregation/aggregation.service';
-import { LedgerService } from '../wallet/ledger.service';
-import { WalletService } from '../wallet/wallet.service';
+import { MoneyService } from '../money/money.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 
@@ -15,8 +13,7 @@ export const PRIZE_SHARES_BPS = [5000, 3000, 2000];
 export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly wallet: WalletService,
-    private readonly ledger: LedgerService,
+    private readonly money: MoneyService,
     private readonly agg: AggregationService
   ) {}
 
@@ -119,22 +116,10 @@ export class EventsService {
       return { ok: true, winners: [], paidCoins: 0 };
     }
 
-    const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, 'COIN');
-    const entries: { accountId: string; direction: LedgerDirection; amountMinor: number; currency: string }[] = [];
-    for (const award of awards) {
-      await this.wallet.ensureUserWallets(award.userId, 'COIN');
-      const coin = await this.wallet.account(award.userId, WalletAccountType.COIN, 'COIN');
-      entries.push({ accountId: coin.id, direction: LedgerDirection.CREDIT, amountMinor: award.coins, currency: 'COIN' });
-    }
     const paidCoins = awards.reduce((sum, a) => sum + a.coins, 0);
-
-    const tx = await this.ledger.postTransaction({
-      type: LedgerTransactionType.EVENT_PRIZE,
-      idempotencyKey: `event-prize:${eventId}`,
-      metadata: { eventId, awards },
-      entries: [{ accountId: promo.id, direction: LedgerDirection.DEBIT, amountMinor: paidCoins, currency: 'COIN' }, ...entries],
-      guardNonNegative: [promo.id]
-    });
+    // PROMO -> winners in one balanced fan-out; the catalog guards PROMO so an
+    // unfunded pool fails the settle instead of minting coins.
+    const { transaction: tx } = await this.money.prizeSettle({ eventId, awards });
 
     await this.prisma.event.update({ where: { id: eventId }, data: { settledAt: new Date() } });
     return { ok: true, winners: awards, paidCoins, ledgerTransactionId: tx.id };
