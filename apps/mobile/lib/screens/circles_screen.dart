@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 
 /// Creator Circles (R4 §7): my circle (members + pooled points), the weekly
@@ -15,15 +16,11 @@ class CirclesScreen extends StatefulWidget {
 }
 
 class _CirclesScreenState extends State<CirclesScreen> {
-  late Future<_CirclesData> _data;
+  // Actions (create/join/leave) are State methods; they reach the loader's
+  // reload through its public state.
+  final _loader = GlobalKey<AfriLoaderState<_CirclesData>>();
   bool _busy = false;
   final _nameCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _data = _load();
-  }
 
   @override
   void dispose() {
@@ -49,20 +46,12 @@ class _CirclesScreenState extends State<CirclesScreen> {
     );
   }
 
-  Future<void> _refresh() async {
-    final f = _load();
-    setState(() {
-      _data = f;
-    });
-    await f;
-  }
-
   Future<void> _act(Future<void> Function() action, String failure) async {
     setState(() => _busy = true);
     try {
       await action();
       if (!mounted) return;
-      await _refresh();
+      await _loader.currentState?.refresh();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -108,49 +97,30 @@ class _CirclesScreenState extends State<CirclesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Circles')),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<_CirclesData>(
-          future: _data,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  AfriErrorState(
-                    title: 'Could not load circles',
-                    body: 'Check your connection and try again.',
-                    onRetry: () => setState(() {
-                      _data = _load();
-                    }),
-                  ),
-                ],
-              );
-            }
-            final data = snapshot.data!;
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              children: [
-                if (data.detail != null)
-                  ..._myCircle(data)
-                else
-                  ..._joinOrCreate(data),
-                const SizedBox(height: 18),
-                const AfriSectionHeader(title: 'This week\'s top circles'),
-                const SizedBox(height: 8),
-                if (data.leaderboard.isEmpty)
-                  const Text('No circle activity yet this week.',
-                      style: TextStyle(
-                          color: AfriColors.secondaryText, fontSize: 13))
-                else
-                  ...data.leaderboard.map(_rankTile),
-              ],
-            );
-          },
-        ),
+      body: AfriLoader<_CirclesData>(
+        key: _loader,
+        load: _load,
+        errorTitle: 'Could not load circles',
+        builder: (context, data, refresh) {
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              if (data.detail != null)
+                ..._myCircle(data)
+              else
+                ..._joinOrCreate(data),
+              const SizedBox(height: 18),
+              const AfriSectionHeader(title: 'This week\'s top circles'),
+              const SizedBox(height: 8),
+              if (data.leaderboard.isEmpty)
+                const Text('No circle activity yet this week.',
+                    style: TextStyle(
+                        color: AfriColors.secondaryText, fontSize: 13))
+              else
+                ...data.leaderboard.map(_rankTile),
+            ],
+          );
+        },
       ),
     );
   }
@@ -160,8 +130,8 @@ class _CirclesScreenState extends State<CirclesScreen> {
     final points = d['points'] as Map<String, dynamic>? ?? const {};
     final week = points['week'] as Map<String, dynamic>? ?? const {};
     final allTime = points['allTime'] as Map<String, dynamic>? ?? const {};
-    final members =
-        (d['members'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final members = (d['members'] as List<dynamic>? ?? const [])
+        .cast<Map<String, dynamic>>();
     return [
       AfriCard(
         child: Column(
@@ -190,7 +160,8 @@ class _CirclesScreenState extends State<CirclesScreen> {
               children: [
                 _pointsBox('This week', (week['total'] as num?)?.toInt() ?? 0),
                 const SizedBox(width: 10),
-                _pointsBox('All time', (allTime['total'] as num?)?.toInt() ?? 0),
+                _pointsBox(
+                    'All time', (allTime['total'] as num?)?.toInt() ?? 0),
               ],
             ),
             const SizedBox(height: 12),
@@ -314,8 +285,7 @@ class _CirclesScreenState extends State<CirclesScreen> {
                       ),
                     ),
                     FilledButton.tonal(
-                      onPressed:
-                          _busy ? null : () => _join(c['id'] as String),
+                      onPressed: _busy ? null : () => _join(c['id'] as String),
                       child: const Text('Join'),
                     ),
                   ],

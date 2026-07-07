@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/afri_theme.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
+import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 
 /// Client-side guard for the add-payout-method form. Returns the first problem
@@ -30,28 +31,11 @@ class PayoutMethodsScreen extends StatefulWidget {
 }
 
 class _PayoutMethodsScreenState extends State<PayoutMethodsScreen> {
-  late Future<List<dynamic>> _items;
+  // The FAB and the add-sheet live outside the loader's builder; they reach
+  // the reload through the loader's public state.
+  final _loader = GlobalKey<AfriLoaderState<List<dynamic>>>();
 
-  @override
-  void initState() {
-    super.initState();
-    _items = _load();
-  }
-
-  Future<List<dynamic>> _load() =>
-      context.read<AppState>().api.getList('/payouts/methods');
-
-  void _reload() => setState(() {
-        _items = _load();
-      });
-
-  Future<void> _refresh() async {
-    final f = _load();
-    setState(() {
-      _items = f;
-    });
-    await f;
-  }
+  void _reload() => _loader.currentState?.reload();
 
   Future<void> _delete(Map<String, dynamic> m) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -85,102 +69,77 @@ class _PayoutMethodsScreenState extends State<PayoutMethodsScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Add method'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<List<dynamic>>(
-          future: _items,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  AfriErrorState(
-                    title: 'Could not load payout methods',
-                    body: 'Check your connection and try again.',
-                    onRetry: _reload,
-                  ),
-                ],
-              );
-            }
-            final rows =
-                (snapshot.data ?? const []).cast<Map<String, dynamic>>();
-            if (rows.isEmpty) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  AfriEmptyState(
-                    icon: Icons.account_balance_outlined,
-                    title: 'No payout methods yet',
-                    body:
-                        'Add a bank account or mobile-money number so approved earnings have somewhere to settle.',
-                    action: FilledButton(
-                        onPressed: _add,
-                        child: const Text('Add payout method')),
-                  ),
-                ],
-              );
-            }
-            return ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              itemCount: rows.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, i) {
-                final m = rows[i];
-                final isBank = m['provider'] == 'BANK';
-                return AfriCard(
-                  child: Row(
-                    children: [
-                      AfriIconBadge(
-                          icon:
-                              isBank ? Icons.account_balance : Icons.smartphone,
-                          accent: AfriColors.teal),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text('${m['label'] ?? 'Method'}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium),
-                                ),
-                                if (m['isDefault'] == true) ...[
-                                  const SizedBox(width: 8),
-                                  const AfriChip(
-                                      label: 'Default', selected: true),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${isBank ? 'Bank' : 'Mobile money'} · ${_mask('${m['destinationReference'] ?? ''}')} · ${m['currency'] ?? ''}',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Remove',
-                        icon: const Icon(Icons.delete_outline,
-                            color: AfriColors.danger),
-                        onPressed: () => _delete(m),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+      body: AfriLoader<List<dynamic>>(
+        key: _loader,
+        load: () => context.read<AppState>().api.getList('/payouts/methods'),
+        errorTitle: 'Could not load payout methods',
+        isEmpty: (items) => items.isEmpty,
+        emptyBuilder: (_, __) => AfriEmptyState(
+          icon: Icons.account_balance_outlined,
+          title: 'No payout methods yet',
+          body:
+              'Add a bank account or mobile-money number so approved earnings have somewhere to settle.',
+          action: FilledButton(
+              onPressed: _add, child: const Text('Add payout method')),
         ),
+        builder: (context, items, refresh) {
+          final rows = items.cast<Map<String, dynamic>>();
+          return ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            itemCount: rows.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, i) {
+              final m = rows[i];
+              final isBank = m['provider'] == 'BANK';
+              return AfriCard(
+                child: Row(
+                  children: [
+                    AfriIconBadge(
+                        icon: isBank ? Icons.account_balance : Icons.smartphone,
+                        accent: AfriColors.teal),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text('${m['label'] ?? 'Method'}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium),
+                              ),
+                              if (m['isDefault'] == true) ...[
+                                const SizedBox(width: 8),
+                                const AfriChip(
+                                    label: 'Default', selected: true),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${isBank ? 'Bank' : 'Mobile money'} · ${_mask('${m['destinationReference'] ?? ''}')} · ${m['currency'] ?? ''}',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Remove',
+                      icon: const Icon(Icons.delete_outline,
+                          color: AfriColors.danger),
+                      onPressed: () => _delete(m),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
