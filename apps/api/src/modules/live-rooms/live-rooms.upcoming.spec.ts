@@ -11,7 +11,7 @@ function build() {
   };
   const livekit: any = { createToken: jest.fn().mockResolvedValue('tok'), url: jest.fn().mockReturnValue('ws://lk') };
   const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
-  const service = new LiveRoomsService(prisma, livekit, {} as any, notifications);
+  const service = new LiveRoomsService(prisma, livekit, {} as any, notifications, { invalidate: jest.fn() } as any);
   return { service, prisma, notifications };
 }
 

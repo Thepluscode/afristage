@@ -22,7 +22,8 @@ function build() {
   const livekit: any = { createToken: jest.fn().mockResolvedValue('tok'), url: jest.fn().mockReturnValue('ws://lk') };
   const chat: any = { emitToRoom: jest.fn(), countFor: jest.fn().mockReturnValue(0) };
   const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
-  return { service: new LiveRoomsService(prisma, livekit, chat, notifications), prisma, livekit, chat, notifications };
+  const feed: any = { invalidate: jest.fn(), list: jest.fn().mockResolvedValue([]) };
+  return { service: new LiveRoomsService(prisma, livekit, chat, notifications, feed), prisma, livekit, chat, notifications, feed };
 }
 
 const dto = { title: 'Friday Live', category: 'MUSIC', country: 'NG', language: 'pidgin' } as any;
@@ -221,9 +222,11 @@ describe('LiveRoomsService.adminEnd', () => {
   });
 });
 
+// Local harness for the read/lifecycle describes below (the feed pipeline has
+// its own spec — feed-engine.service.spec.ts).
 function buildFeed() {
   const prisma: any = {
-    liveRoom: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+    liveRoom: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue(null) },
     roomParticipant: { findMany: jest.fn().mockResolvedValue([]) },
     giftTransaction: { groupBy: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     report: { findMany: jest.fn().mockResolvedValue([]) },
@@ -232,7 +235,8 @@ function buildFeed() {
   const livekit: any = { createToken: jest.fn(), url: jest.fn() };
   const chat: any = { countFor: jest.fn().mockReturnValue(0), emitToRoom: jest.fn() };
   const notifications: any = { notifyRoomLive: jest.fn().mockResolvedValue({ created: 0 }) };
-  return { service: new LiveRoomsService(prisma, livekit, chat, notifications), prisma, chat };
+  const feed: any = { invalidate: jest.fn(), list: jest.fn().mockResolvedValue([]) };
+  return { service: new LiveRoomsService(prisma, livekit, chat, notifications, feed), prisma, chat, feed };
 }
 
 const liveRoom = (over: any = {}) => ({
@@ -241,138 +245,26 @@ const liveRoom = (over: any = {}) => ({
   host: { creatorProfile: { createdAt: new Date() } }, ...over
 });
 
-describe('LiveRoomsService.list (ranked feed)', () => {
-  it('returns [] when nothing is live', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    expect(await service.list({})).toEqual([]);
+describe('LiveRoomsService.list delegation', () => {
+  it('hands the feed read straight to the FeedEngine', async () => {
+    const { service, feed } = buildFeed();
+    feed.list.mockResolvedValue([{ id: 'r1' }]);
+    await expect(service.list({ country: 'NG' })).resolves.toEqual([{ id: 'r1' }]);
+    expect(feed.list).toHaveBeenCalledWith({ country: 'NG' });
   });
 
-  it('takes the trivial path for a single room (text search + locale match)', async () => {
-    const { service, prisma, chat } = buildFeed();
-    chat.countFor.mockReturnValue(0); // -> peakViewers fallback
-    prisma.liveRoom.findMany.mockResolvedValue([liveRoom()]);
-    const res = await service.list({ q: 'afro', viewerLanguage: 'pidgin', viewerCountry: 'NG' });
-    expect(res).toHaveLength(1);
-    expect(res[0].viewerCount).toBe(5); // peakViewers fallback
-    expect(res[0].ranking).toBeDefined();
-  });
-
-  it('ranks multiple rooms using participants, gifts, and report risk', async () => {
-    const { service, prisma, chat } = buildFeed();
-    chat.countFor.mockImplementation((id: string) => (id === 'r1' ? 42 : 0)); // exercise both || arms
-    prisma.liveRoom.findMany.mockResolvedValue([
-      liveRoom({ id: 'r1', hostUserId: 'h1' }),
-      liveRoom({ id: 'r2', hostUserId: 'h2', host: { creatorProfile: null } }) // creatorAge null arm
-    ]);
-    prisma.roomParticipant.findMany.mockResolvedValue([
-      { roomId: 'r1', joinedAt: new Date(Date.now() - 120_000) },
-      { roomId: 'r1', joinedAt: new Date(Date.now() - 60_000) }
-    ]);
-    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: 300 } }]);
-    prisma.report.findMany
-      .mockResolvedValueOnce([{ roomId: 'r1', priority: 'HIGH' }]) // room reports
-      .mockResolvedValueOnce([{ targetUserId: 'h2', priority: 'CRITICAL' }]); // host reports
-    const res = await service.list({ viewerLanguage: 'pidgin', viewerCountry: 'NG' });
-    expect(res).toHaveLength(2);
-    expect(res[0].viewerCount).toBe(42); // chat.countFor left arm for r1
-    expect(res.every((r: any) => r.ranking?.score !== undefined)).toBe(true);
-  });
-});
-
-describe('LiveRoomsService.list feed cache (R5 §9 #3)', () => {
-  afterEach(() => {
-    delete process.env.FEED_CACHE_TTL_SECONDS;
-    jest.restoreAllMocks();
-  });
-
-  it('serves the second request from cache but still personalizes per viewer', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([
-      liveRoom({ id: 'r1', country: 'NG' }),
-      liveRoom({ id: 'r2', country: 'GH', hostUserId: 'h2' })
-    ]);
-    const first = await service.list({ viewerCountry: 'NG' });
-    const second = await service.list({ viewerCountry: 'GH' });
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1); // slice cached
-    // personalization applied per request over the SAME cached slice
-    const ngBoost = first.find((r: any) => r.id === 'r1')!.ranking.components.countryMatch;
-    const ghBoost = second.find((r: any) => r.id === 'r2')!.ranking.components.countryMatch;
-    expect(ngBoost).toBeGreaterThan(0);
-    expect(ghBoost).toBeGreaterThan(0);
-    expect(second.find((r: any) => r.id === 'r1')!.ranking.components.countryMatch).toBe(0);
-  });
-
-  it('caches per (country,category) key and re-queries after the TTL lapses', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    await service.list({ country: 'NG' });
-    await service.list({ country: 'GH' }); // different key -> own query
-    await service.list({ country: 'NG' }); // hit
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
-    const realNow = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(realNow + 11_000); // past the 10s default TTL
-    await service.list({ country: 'NG' });
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(3);
-  });
-
-  it('text search bypasses the cache and TTL=0 disables it', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    await service.list({ q: 'afro' });
-    await service.list({ q: 'afro' });
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
-    process.env.FEED_CACHE_TTL_SECONDS = '0';
-    await service.list({});
-    await service.list({});
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(4);
-  });
-
-  it('a garbage TTL env falls back to the 10s default', async () => {
-    process.env.FEED_CACHE_TTL_SECONDS = 'not-a-number';
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    await service.list({});
-    await service.list({});
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1); // still cached
-  });
-
-  it('evicts the oldest key once the key space is full', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    for (let i = 0; i < 65; i++) await service.list({ country: `C${i}` }); // 64-key bound
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(65);
-    await service.list({ country: 'C0' }); // was evicted as oldest -> fresh query
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(66);
-    await service.list({ country: 'C64' }); // still cached
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(66);
-  });
-
-  it('rankSlice falls back to zero features for a room missing from the slice map', () => {
-    const { service } = buildFeed();
-    const ranked = (service as any).rankSlice({ rooms: [liveRoom()], features: new Map() }, {});
-    expect(ranked[0].ranking.score).toBeDefined();
-  });
-
-  it('clearFeedCache (the moderation hook) empties the cache directly', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    await service.list({});
-    service.clearFeedCache();
-    await service.list({});
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
-  });
-
-  it('starting and ending a room invalidates the cached slice', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    await service.list({});
-    // simulate an end() (host + room stubs for the guard path)
+  it('start/end and the stale sweep invalidate the feed', async () => {
+    const { service, prisma, feed } = buildFeed();
     prisma.liveRoom.findUnique = jest.fn().mockResolvedValue({ id: 'r1', hostUserId: 'h1' });
     prisma.liveRoom.update.mockResolvedValue({ id: 'r1' });
     await service.end('h1', 'r1');
-    await service.list({});
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2); // cache was cleared
+    expect(feed.invalidate).toHaveBeenCalledTimes(1);
+    // stale sweep: one LIVE room with ancient activity gets ended -> invalidate
+    prisma.liveRoom.findMany.mockResolvedValue([
+      { id: 'r9', status: 'LIVE', startedAt: new Date(0), createdAt: new Date(0) }
+    ]);
+    await service.endStaleRooms(1);
+    expect(feed.invalidate).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -422,16 +314,7 @@ describe('LiveRoomsService.get', () => {
   });
 });
 
-describe('LiveRoomsService.list single-room creatorAge null arm', () => {
-  it('handles a single room whose host has no creator profile', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ host: { creatorProfile: null } })]);
-    const res = await service.list({});
-    expect(res).toHaveLength(1);
-  });
-});
-
-describe('LiveRoomsService.upcoming + null gift sum', () => {
+describe('LiveRoomsService.upcoming page size', () => {
   it('upcoming falls back to the default page size for a zero limit', async () => {
     const { service, prisma } = buildFeed();
     await service.upcoming(0); // Math.trunc(0) || 50 -> 50
@@ -440,16 +323,6 @@ describe('LiveRoomsService.upcoming + null gift sum', () => {
     expect(prisma.liveRoom.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ take: 10 }));
   });
 
-  it('coerces a null gift sum to zero in the ranking aggregation', async () => {
-    const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([
-      liveRoom({ id: 'r1' }),
-      liveRoom({ id: 'r2', hostUserId: 'h2' })
-    ]);
-    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: null } }]);
-    const res = await service.list({});
-    expect(res).toHaveLength(2);
-  });
 });
 
 describe('LiveRoomsService.upcoming limit clamps', () => {
