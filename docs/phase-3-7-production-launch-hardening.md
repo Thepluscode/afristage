@@ -58,12 +58,62 @@ NEXT_PUBLIC_TERMS_URL or TERMS_URL
 NEXT_PUBLIC_PRIVACY_URL or PRIVACY_URL
 ```
 
-Must not be true:
+Must not be true (both are now **boot-fatal** — `validateEnv` refuses to start):
 
 ```text
 ENABLE_MOCK_PAYMENTS=true
 ALLOW_SEEDED_PROD_LOGIN=true
 ```
+
+Optional, safe-defaulted (the season-2 knobs — set only to deviate from the default):
+
+```text
+METRICS_TOKEN                  # unset = /metrics open (private networks); set = requires Authorization: Bearer
+CREATOR_SHARE_BPS=6000         # creator share of every gift
+FEED_CACHE_TTL_SECONDS=10      # ranked-feed slice cache; 0 disables; clamp 0..300
+FRAUD_ASSESSMENT_TTL_SECONDS=300  # cached fraud reads at money gates; 0 = always recompute; clamp 0..3600
+MISSION_FRAUD_BLOCK=0.6        # risk score at/above which mission claims are blocked
+CHAT_REDIS_ADAPTER=on          # 'off' disables cross-instance chat fan-out (single-instance escape hatch)
+JWT_ACCESS_TTL=15m / JWT_REFRESH_TTL=30d
+MIN_PAYOUT_COIN=500
+```
+
+## Monitoring (scrape + alert)
+
+`GET /api/metrics` serves Prometheus exposition (guard with `METRICS_TOKEN` and
+`scrape_configs.authorization` when the scraper crosses a network boundary).
+Minimum alert rules for launch:
+
+```yaml
+# The money system is unbalanced — page immediately.
+- alert: LedgerIntegrityFailure
+  expr: afristage_ledger_integrity_ok == 0
+  for: 1m
+# The integrity cron is dead (sweeps run at boot + every 5 minutes).
+- alert: LedgerIntegritySweepStale
+  expr: time() - afristage_ledger_integrity_last_check_timestamp_seconds > 900
+# A money move errored for a non-business reason (5xx-class) — investigate.
+- alert: MoneyMoveFailures
+  expr: increase(afristage_money_moves_total{outcome="failed"}[10m]) > 0
+```
+
+`outcome="rejected"` (insufficient balance, business guards) is normal traffic —
+alert on rate anomalies only, never on presence.
+
+## Deploy & Rollback
+
+Deploy (any Docker host):
+
+1. Build + push the `apps/api` image (repo `Dockerfile`), tag with the git SHA.
+2. Run DB migrations BEFORE switching traffic: `npx prisma migrate deploy` (idempotent, `No pending migrations` on a no-op).
+3. Start the new image; `validateEnv` crashes it pre-listen on any missing/unsafe production config — a misconfigured deploy never takes traffic.
+4. Verify: `GET /api/health` → ok; `GET /api/metrics` shows `afristage_ledger_integrity_ok 1` with a fresh `last_check` (the boot sweep); post-deploy smoke via `npm run launch:beta:live`.
+
+Rollback (target: < 5 minutes):
+
+1. Restart the previous image tag. **No database rollback is required**: every migration in the current line is additive (new tables/columns/enum values only), so the previous app version runs cleanly against the newer schema.
+2. Never `migrate reset`/down in production. If a future migration is ever destructive, it must ship expand-contract (additive first, destructive in a later release once no deployed version reads the old shape).
+3. After rollback, re-check `afristage_ledger_integrity_ok` and `GET /api/admin/ledger/integrity` — the money spine is the invariant that decides whether a rollback is *done*.
 
 ## Remaining Non-Code Launch Tasks
 

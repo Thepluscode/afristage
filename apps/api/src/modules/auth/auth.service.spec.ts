@@ -311,6 +311,32 @@ describe('AuthService final branch arms', () => {
     expect(res.otpauthUrl).toContain('u1');
   });
 
+  it('seeded demo accounts cannot log in when NODE_ENV=production (unless explicitly allowed)', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'u1', role: 'VIEWER', status: 'ACTIVE', passwordHash: await bcrypt.hash('pw', 4),
+      mfaEnabled: false, mfaRecoveryCodes: [], tokenVersion: 0
+    });
+    const prev = { NODE_ENV: process.env.NODE_ENV, ALLOW: process.env.ALLOW_SEEDED_PROD_LOGIN };
+    process.env.NODE_ENV = 'production';
+    delete process.env.ALLOW_SEEDED_PROD_LOGIN;
+    try {
+      await expect(service.login({ identifier: 'viewer@afristage.local', password: 'pw' } as any))
+        .rejects.toThrow('Seeded test accounts are disabled in production');
+      // identifier matching is case-insensitive on the guard
+      await expect(service.login({ identifier: 'ADMIN@AFRISTAGE.LOCAL', password: 'pw' } as any))
+        .rejects.toThrow('disabled in production');
+      // the staging escape hatch works when explicitly set
+      process.env.ALLOW_SEEDED_PROD_LOGIN = 'true';
+      await expect(service.login({ identifier: 'viewer@afristage.local', password: 'pw' } as any))
+        .resolves.toMatchObject({ userId: 'u1' });
+    } finally {
+      process.env.NODE_ENV = prev.NODE_ENV;
+      if (prev.ALLOW === undefined) delete process.env.ALLOW_SEEDED_PROD_LOGIN;
+      else process.env.ALLOW_SEEDED_PROD_LOGIN = prev.ALLOW;
+    }
+  });
+
   it('device sessions: login opens a session, prunes dead rows, and embeds the sid', async () => {
     const { service, prisma, jwt } = buildAuth();
     prisma.user.findFirst.mockResolvedValue({

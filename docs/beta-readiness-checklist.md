@@ -11,7 +11,7 @@ Phase 3.7 production launch hardening protocol: [`docs/phase-3-7-production-laun
 ## Product gate
 - [x] Invite-only access (beta invites: create/list/revoke/accept, hashed codes) — `validate:beta`
 - [x] Creator approval required before live room creation — `validate:beta` (unapproved → 403)
-- [ ] Seeded demo users removed from production (seed is dev-only; gate at deploy)
+- [x] Seeded demo users blocked in production (login guard + boot-fatal `ALLOW_SEEDED_PROD_LOGIN` check; unit-tested)
 - [ ] Terms/privacy links visible (frontend)
 - [x] Report room/user available from live room (`POST /api/reports`)
 
@@ -45,7 +45,9 @@ Phase 3.7 production launch hardening protocol: [`docs/phase-3-7-production-laun
 - [x] DB migration succeeds (`prisma migrate`)
 - [x] Seed script is idempotent (unique constraints + upsert)
 - [x] API build passes (`nest build`)
-- [x] API tests pass (38 unit + 7 suites)
+- [x] API tests pass (601 unit across 72 suites; `npm run test:concurrency` for the real-Postgres money int-specs)
+- [x] Money-path metrics + integrity gauges scrapeable (`GET /api/metrics`, Prometheus; see phase-3-7 alert rules)
+- [x] Boot-fatal production config (`validateEnv`: missing/placeholder secrets, mock payments, seeded-login escape hatch)
 - [x] E2E money-loop script passes (`npm run demo` 27/27)
 
 ## Ledger integrity SQL

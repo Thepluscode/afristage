@@ -15,6 +15,7 @@ const UNSAFE_VALUES: Record<string, string[]> = {
   JWT_ACCESS_SECRET: ['dev', 'replace_with_long_random_access_secret'],
   JWT_REFRESH_SECRET: ['dev-refresh', 'replace_with_long_random_refresh_secret'],
   PAYSTACK_SECRET_KEY: ['replace_me'],
+  LIVEKIT_API_KEY: ['devkey'],
   LIVEKIT_API_SECRET: ['secret']
 };
 
@@ -41,5 +42,12 @@ export function validateEnv(): void {
 
   if (process.env.ENABLE_MOCK_PAYMENTS === 'true') {
     throw new Error('Refusing to start: ENABLE_MOCK_PAYMENTS must not be true in production');
+  }
+
+  // The seeded demo accounts are blocked from production login by default; the
+  // escape hatch exists for staging environments only. Enforce at boot, not
+  // just at the login guard, so a copy-pasted staging env can't weaken prod.
+  if (process.env.ALLOW_SEEDED_PROD_LOGIN === 'true') {
+    throw new Error('Refusing to start: ALLOW_SEEDED_PROD_LOGIN must not be true in production');
   }
 }
