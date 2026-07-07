@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { adminDelete, adminGet, adminPatch, adminPost } from "../../lib/api";
 import { ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge } from "../admin-ui";
 import { RowHighlightNotice, useRowHighlight } from "../highlight";
+import { useAdminResource } from "../../lib/use-admin-resource";
 
 type AgencyRow = {
   id: string;
@@ -23,26 +24,20 @@ type AgencyDetail = AgencyRow & {
 type Creator = { userId: string; stageName: string };
 
 function AgenciesPageInner() {
-  const [rows, setRows] = useState<AgencyRow[]>([]);
+  const { data: rows, error, setError, reload } = useAdminResource<AgencyRow[]>(
+    () => adminGet<AgencyRow[]>("/admin/agencies"),
+    [],
+  );
   const [creators, setCreators] = useState<Creator[]>([]);
   const [name, setName] = useState("");
   const [ownerUserId, setOwnerUserId] = useState("");
   const [country, setCountry] = useState("");
   const [bps, setBps] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<AgencyDetail | null>(null);
   const [assignId, setAssignId] = useState("");
   const { id: highlightId, missing } = useRowHighlight(rows);
 
-  async function load() {
-    try {
-      setRows(await adminGet<AgencyRow[]>("/admin/agencies"));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
   useEffect(() => {
-    load();
     adminGet<Creator[]>("/admin/creators").then(setCreators).catch(() => {});
   }, []);
 
@@ -56,7 +51,7 @@ function AgenciesPageInner() {
   }
 
   async function refreshDetail(id: string) {
-    await load();
+    await reload();
     await openDetail(id);
   }
 
@@ -75,7 +70,7 @@ function AgenciesPageInner() {
       setOwnerUserId("");
       setCountry("");
       setBps("");
-      await load();
+      await reload();
     } catch (err: any) {
       setError(err.message);
     }
@@ -83,12 +78,12 @@ function AgenciesPageInner() {
 
   async function editCommission(a: AgencyRow, value: string) {
     await adminPatch(`/admin/agencies/${a.id}`, { commissionBps: Number(value) });
-    await load();
+    await reload();
   }
 
   async function setStatus(a: AgencyRow, status: "ACTIVE" | "SUSPENDED") {
     await adminPatch(`/admin/agencies/${a.id}`, { status });
-    await load();
+    await reload();
   }
 
   // Reachable only with a selection — the Assign button is disabled otherwise.

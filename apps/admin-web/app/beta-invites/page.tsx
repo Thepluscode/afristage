@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
+import { useAdminResource } from "../../lib/use-admin-resource";
 import { ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, StatusBadge, SuccessBanner } from "../admin-ui";
 
 type Invite = {
@@ -13,22 +14,13 @@ type Invite = {
 };
 
 export default function BetaInvitesPage() {
-  const [rows, setRows] = useState<Invite[]>([]);
   const [email, setEmail] = useState("");
   const [type, setType] = useState("VIEWER");
   const [lastCode, setLastCode] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load() {
-    try {
-      setRows(await adminGet<Invite[]>("/admin/beta-invites"));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
+  const { data: rows, error, reload } = useAdminResource<Invite[]>(
+    () => adminGet<Invite[]>("/admin/beta-invites"),
+    [],
+  );
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -38,12 +30,12 @@ export default function BetaInvitesPage() {
     });
     setLastCode(res.code); // shown once
     setEmail("");
-    await load();
+    await reload();
   }
 
   async function revoke(id: string) {
     await adminPost(`/admin/beta-invites/${id}/revoke`);
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;

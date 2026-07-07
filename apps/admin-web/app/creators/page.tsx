@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { adminGet, adminPost } from "../../lib/api";
 import { ActionMenu, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge, UserCell } from "../admin-ui";
 import { RowHighlightNotice, useRowHighlight } from "../highlight";
+import { useAdminResource } from "../../lib/use-admin-resource";
 
 type Creator = {
   id: string;
@@ -21,33 +22,24 @@ type Creator = {
 };
 
 function CreatorsPageInner() {
-  const [rows, setRows] = useState<Creator[]>([]);
   const [status, setStatus] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const { data: rows, error, reload } = useAdminResource<Creator[]>(
+    () => adminGet<Creator[]>("/admin/creators"),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load() {
-    try {
-      setRows(await adminGet<Creator[]>("/admin/creators"));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   async function approve(userId: string) {
     await adminPost(`/admin/creators/${userId}/approve`);
-    await load();
+    await reload();
   }
   async function reject(userId: string, reason: string) {
     await adminPost(`/admin/creators/${userId}/reject`, { reason: reason || "Rejected by admin" });
-    await load();
+    await reload();
   }
   async function suspend(userId: string, reason: string) {
     await adminPost(`/admin/creators/${userId}/suspend`, { reason: reason || "Suspended by admin" });
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;

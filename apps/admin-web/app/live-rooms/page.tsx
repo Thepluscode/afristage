@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, PageHeader, RoomCell, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
 import { RowHighlightNotice, useRowHighlight } from '../highlight';
+import { useAdminResource } from '../../lib/use-admin-resource';
 
 type Room = {
   id: string;
@@ -19,28 +20,19 @@ type Room = {
 };
 
 function LiveRoomsPageInner() {
-  const [rows, setRows] = useState<Room[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const { data: rows, error, reload } = useAdminResource<Room[]>(
+    () => adminGet<Room[]>('/admin/live-rooms'),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load() {
-    try {
-      setRows(await adminGet<Room[]>('/admin/live-rooms'));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   async function suspend(id: string) {
     await adminPost(`/admin/live-rooms/${id}/suspend`, { reason: 'admin takedown' });
-    await load();
+    await reload();
   }
   async function end(id: string) {
     await adminPost(`/admin/live-rooms/${id}/end`);
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;

@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { adminGet, adminPatch, adminPost } from "../../lib/api";
 import { ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge } from "../admin-ui";
 import { RowHighlightNotice, useRowHighlight } from "../highlight";
+import { useAdminResource } from "../../lib/use-admin-resource";
 
 type EventRow = {
   id: string;
@@ -31,25 +32,16 @@ function eventStatus(e: EventRow): "SETTLED" | "ENDED" | "LIVE" | "UPCOMING" {
 }
 
 function EventsPageInner() {
-  const [rows, setRows] = useState<EventRow[]>([]);
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [pool, setPool] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [settled, setSettled] = useState<{ name: string; result: SettleResult } | null>(null);
+  const { data: rows, error, setError, reload } = useAdminResource<EventRow[]>(
+    () => adminGet<EventRow[]>("/admin/events"),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
-
-  async function load() {
-    try {
-      setRows(await adminGet<EventRow[]>("/admin/events"));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -66,7 +58,7 @@ function EventsPageInner() {
       setStartsAt("");
       setEndsAt("");
       setPool("");
-      await load();
+      await reload();
     } catch (err: any) {
       setError(err.message);
     }
@@ -74,7 +66,7 @@ function EventsPageInner() {
 
   async function editPool(ev: EventRow, value: string) {
     await adminPatch(`/admin/events/${ev.id}`, { prizePoolCoins: Number(value) });
-    await load();
+    await reload();
   }
 
   async function settle(ev: EventRow) {
@@ -82,7 +74,7 @@ function EventsPageInner() {
     try {
       const result = await adminPost<SettleResult>(`/admin/events/${ev.id}/settle`);
       setSettled({ name: ev.name, result });
-      await load();
+      await reload();
     } catch (err: any) {
       setError(err.message);
     }

@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import { FormEvent, Suspense, useRef, useState } from "react";
 import { adminGet, adminPost, adminPatch } from "../../lib/api";
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, FilterBar, PageHeader, PromptDialog, StatusBadge } from "../admin-ui";
 import { RowHighlightNotice, useRowHighlight } from "../highlight";
+import { useAdminResource } from "../../lib/use-admin-resource";
 
 type Gift = {
   id: string;
@@ -14,25 +15,16 @@ type Gift = {
 };
 
 function GiftsPageInner() {
-  const [rows, setRows] = useState<Gift[]>([]);
   const [name, setName] = useState("");
   const [coinPrice, setCoinPrice] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const { data: rows, error, setError, reload } = useAdminResource<Gift[]>(
+    () => adminGet<Gift[]>("/gifts"),
+    [],
+  );
   const { id: highlightId, missing } = useRowHighlight(rows);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingGift = useRef<string | null>(null);
-
-  async function load() {
-    try {
-      setRows(await adminGet<Gift[]>("/gifts"));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-  useEffect(() => {
-    load();
-  }, []);
 
   function pickAnimation(g: Gift) {
     pendingGift.current = g.id;
@@ -55,7 +47,7 @@ function GiftsPageInner() {
       const put = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
       if (!put.ok) throw new Error(`Upload failed (${put.status})`);
       await adminPatch(`/admin/gifts/${giftId}`, { animationUrl: fileUrl });
-      await load();
+      await reload();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -70,17 +62,17 @@ function GiftsPageInner() {
     await adminPost("/admin/gifts", { name, coinPrice: Number(coinPrice) });
     setName("");
     setCoinPrice("");
-    await load();
+    await reload();
   }
 
   async function editPrice(g: Gift, value: string) {
     await adminPatch(`/admin/gifts/${g.id}`, { coinPrice: Number(value) });
-    await load();
+    await reload();
   }
 
   async function toggle(g: Gift) {
     await adminPatch(`/admin/gifts/${g.id}`, { isActive: !g.isActive });
-    await load();
+    await reload();
   }
 
   if (error) return <ErrorState error={error} />;
