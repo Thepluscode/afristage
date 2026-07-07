@@ -17,6 +17,7 @@ import 'package:afristage_mobile/screens/login_screen.dart';
 import 'package:afristage_mobile/screens/notifications_screen.dart';
 import 'package:afristage_mobile/screens/circles_screen.dart';
 import 'package:afristage_mobile/screens/events_screen.dart';
+import 'package:afristage_mobile/screens/devices_screen.dart';
 import 'package:afristage_mobile/screens/missions_screen.dart';
 import 'package:afristage_mobile/screens/onboarding_screen.dart';
 import 'package:afristage_mobile/screens/payout_history_screen.dart';
@@ -2553,6 +2554,109 @@ void main() {
     expect(find.text('Start your own circle'), findsOneWidget);
   });
 
+  // ---------- DevicesScreen ----------
+
+  List<dynamic> sessionList() => [
+        {
+          'id': 's1',
+          'device': 'Pixel 8',
+          'ip': '10.0.0.5',
+          'userAgent': 'okhttp',
+          'lastSeenAt': DateTime.now().toIso8601String(),
+          'current': true,
+        },
+        {
+          'id': 's2',
+          'device': null,
+          'ip': null,
+          'userAgent': 'Safari on Mac',
+          'lastSeenAt':
+              DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
+          'current': false,
+        },
+        {
+          'id': 's3',
+          'device': '',
+          'ip': '1.2.3.4',
+          'userAgent': '',
+          'lastSeenAt':
+              DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+          'current': false,
+        },
+      ];
+
+  testWidgets('DevicesScreen lists devices with current badge and fallbacks',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {'/auth/sessions': sessionList()});
+    await tester.pumpWidget(_wrap(api, const DevicesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Pixel 8'), findsOneWidget);
+    expect(find.text('This device'), findsOneWidget);
+    expect(find.text('Safari on Mac'), findsOneWidget); // ua fallback
+    expect(find.text('Unknown device'), findsOneWidget); // empty label+ua
+    expect(find.textContaining('3h ago'), findsOneWidget);
+    expect(find.textContaining('2d ago'), findsOneWidget);
+    expect(find.textContaining('just now'), findsOneWidget);
+    // the current device has no Sign out button; the other two do
+    expect(find.widgetWithText(TextButton, 'Sign out'), findsNWidgets(2));
+  });
+
+  testWidgets('DevicesScreen revoke asks first: cancel keeps, confirm posts',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(lists: {'/auth/sessions': sessionList()});
+    await tester.pumpWidget(_wrap(api, const DevicesScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(api.posts, isEmpty);
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+    expect(api.posts, contains('/auth/sessions/s2/revoke'));
+  });
+
+  testWidgets('DevicesScreen revoke failure shows a snackbar', (tester) async {
+    _tall(tester);
+    final api = _FakeApi(
+        lists: {'/auth/sessions': sessionList()},
+        postErrors: {'/auth/sessions/s2/revoke'});
+    await tester.pumpWidget(_wrap(api, const DevicesScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not sign out that device.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('DevicesScreen shows the empty state', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(
+        _wrap(_FakeApi(lists: {'/auth/sessions': []}), const DevicesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('No active devices'), findsOneWidget);
+  });
+
+  testWidgets('DevicesScreen error state retries into the loaded view',
+      (tester) async {
+    _tall(tester);
+    final errs = <String>{'/auth/sessions'};
+    final api = _FakeApi(lists: {'/auth/sessions': sessionList()}, errors: errs);
+    await tester.pumpWidget(_wrap(api, const DevicesScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load your devices'), findsOneWidget);
+    errs.remove('/auth/sessions');
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pixel 8'), findsOneWidget);
+  });
+
   // ---------- CirclesScreen ----------
 
   Map<String, dynamic> circleDetail() => {
@@ -2747,6 +2851,7 @@ void main() {
     expect(FeedScreen(), isA<FeedScreen>());
     expect(EventsScreen(), isA<EventsScreen>());
     expect(CirclesScreen(), isA<CirclesScreen>());
+    expect(DevicesScreen(), isA<DevicesScreen>());
     expect(SearchScreen(), isA<SearchScreen>());
     expect(LoginScreen(), isA<LoginScreen>());
     expect(LiveScreen(), isA<LiveScreen>());

@@ -9,6 +9,7 @@ import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'beta_accept_screen.dart';
 import 'blocked_users_screen.dart';
+import 'devices_screen.dart';
 import 'creator_apply_screen.dart';
 import 'history_screen.dart';
 import 'support_screen.dart';
@@ -215,13 +216,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 10),
         AfriActionRow(
           icon: Icons.security,
-          title: 'Security and session',
-          body: 'Review login state and end this device session.',
+          title: 'Signed-in devices',
+          body:
+              'See every device on your account and sign out any you don\'t recognise.',
           accent: AfriColors.teal,
-          onTap: () =>
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('You are signed in on this device.'),
-          )),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DevicesScreen()),
+          ),
         ),
         const SizedBox(height: 16),
         FilledButton.tonalIcon(
