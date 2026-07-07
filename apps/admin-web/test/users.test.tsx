@@ -186,3 +186,70 @@ describe('UsersPage', () => {
     await screen.findByText('No users match this search.');
   });
 });
+describe('UsersPage sessions panel', () => {
+  const session = (over: Partial<any> = {}) => ({
+    id: 's1', device: 'Pixel 8', ip: '1.2.3.4', userAgent: 'okhttp',
+    createdAt: new Date('2026-07-01T00:00:00Z').toISOString(),
+    lastSeenAt: new Date('2026-07-07T00:00:00Z').toISOString(), ...over
+  });
+  const userRow = { id: 'u1', email: 'v@a.live', role: 'VIEWER', status: 'ACTIVE', profile: { displayName: 'Demo Viewer' } };
+
+  function stub(map: Record<string, unknown>) {
+    vi.mocked(adminGet).mockImplementation((path: string) =>
+      path in map ? Promise.resolve(map[path] as any) : Promise.reject(new Error(`unexpected GET ${path}`)));
+  }
+
+  it('opens the panel, shows devices with fallbacks, revokes one, revokes all, closes', async () => {
+    stub({
+      '/admin/users': [userRow],
+      '/admin/users/u1/sessions': [session(), session({ id: 's2', device: null, userAgent: null, ip: null })]
+    });
+    vi.mocked(adminPost).mockResolvedValue({});
+    render(<UsersPage />);
+    await screen.findByText('Demo Viewer');
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(await screen.findByText(/Signed-in devices for/)).toBeInTheDocument();
+    expect(screen.getByText('Pixel 8')).toBeInTheDocument();
+    expect(screen.getByText('Unknown device')).toBeInTheDocument(); // null label+ua
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0); // null ip (user row also renders dashes)
+
+    // revoke one (confirm-first)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[0]);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/users/u1/sessions/s1/revoke'));
+
+    // revoke all
+    fireEvent.click(screen.getByRole('button', { name: 'Sign Out Everywhere' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sign Out Everywhere' }));
+    await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/users/u1/sessions/revoke-all'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText(/Signed-in devices for/)).not.toBeInTheDocument();
+  });
+
+  it('an empty session list explains itself (email header fallback)', async () => {
+    stub({ '/admin/users': [{ ...userRow, profile: null }], '/admin/users/u1/sessions': [] });
+    render(<UsersPage />);
+    await screen.findByText('v@a.live');
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(await screen.findByText('No active sessions.')).toBeInTheDocument();
+    expect(screen.getByText(/Signed-in devices for/).textContent).toContain('v@a.live');
+  });
+
+  it('falls back to the user id in the header when there is no name or email', async () => {
+    stub({ '/admin/users': [{ ...userRow, profile: null, email: null }], '/admin/users/u1/sessions': [] });
+    render(<UsersPage />);
+    await screen.findByRole('button', { name: 'Sessions' });
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect((await screen.findByText(/Signed-in devices for/)).textContent).toContain('u1');
+  });
+
+  it('a failing sessions fetch surfaces the error state', async () => {
+    stub({ '/admin/users': [userRow] }); // sessions path rejects
+    render(<UsersPage />);
+    await screen.findByText('Demo Viewer');
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }));
+    expect(await screen.findByText(/unexpected GET \/admin\/users\/u1\/sessions/)).toBeInTheDocument();
+  });
+});
+

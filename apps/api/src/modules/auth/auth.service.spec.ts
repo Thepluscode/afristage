@@ -412,6 +412,43 @@ describe('AuthService final branch arms', () => {
     expect(h.jwt.sign.mock.calls[0][0]).toMatchObject({ sid: 'sess1' });
   });
 
+  it('admin session ops: list active devices, revoke one (audited, ownership-checked), revoke all', async () => {
+    const h = build();
+    // adminAuditLog stub for the audit writes
+    (h.prisma as any).adminAuditLog = { create: jest.fn().mockResolvedValue({}) };
+    h.prisma.deviceSession.findMany.mockResolvedValue([
+      { id: 's1', device: 'Pixel', ip: '1.1.1.1', userAgent: 'ua', createdAt: new Date(0), lastSeenAt: new Date(0) }
+    ]);
+    const rows = await h.service.adminListSessions('u1');
+    expect(rows).toEqual([expect.objectContaining({ id: 's1', device: 'Pixel' })]);
+    expect(rows[0]).not.toHaveProperty('current'); // admin view has no current flag
+
+    // unknown / foreign sessions rejected
+    h.prisma.deviceSession.findUnique.mockResolvedValue(null);
+    await expect(h.service.adminRevokeSession('admin1', 'u1', 'ghost')).rejects.toThrow('Unknown session');
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 's1', userId: 'other', revokedAt: null });
+    await expect(h.service.adminRevokeSession('admin1', 'u1', 's1')).rejects.toThrow('Unknown session');
+
+    // live session revoked + audited; already-revoked is idempotent but still audited
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', revokedAt: null, device: 'Pixel' });
+    await expect(h.service.adminRevokeSession('admin1', 'u1', 's1')).resolves.toEqual({ ok: true });
+    expect(h.prisma.deviceSession.update).toHaveBeenCalledWith({ where: { id: 's1' }, data: { revokedAt: expect.any(Date) } });
+    expect((h.prisma as any).adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'user.session_revoked', target: 'u1' }) })
+    );
+    h.prisma.deviceSession.update.mockClear();
+    h.prisma.deviceSession.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', revokedAt: new Date(), device: 'Pixel' });
+    await expect(h.service.adminRevokeSession('admin1', 'u1', 's1')).resolves.toEqual({ ok: true });
+    expect(h.prisma.deviceSession.update).not.toHaveBeenCalled();
+
+    // revoke-all = logoutAll (tokenVersion bump + sweep) + audit
+    await expect(h.service.adminRevokeAllSessions('admin1', 'u1')).resolves.toEqual({ ok: true });
+    expect(h.prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { tokenVersion: { increment: 1 } } });
+    expect((h.prisma as any).adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'user.sessions_revoked_all' }) })
+    );
+  });
+
   it('issueTokens without a sid omits it from the payload', () => {
     const h = build();
     h.service.issueTokens({ id: 'u1', role: 'VIEWER' } as any);
