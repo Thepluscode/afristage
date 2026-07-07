@@ -23,10 +23,23 @@ function contains(file, needles, label) {
   ok(missing.length === 0, `${label}${missing.length ? ` (missing: ${missing.join(', ')})` : ''}`);
 }
 
+// For a security property that legitimately spans more than one file (e.g. the
+// login route wires secure-awareness while the shared cookie helper enforces
+// httpOnly). Each needle must appear in at least one of the files.
+function containsAcross(files, needles, label) {
+  const text = files.map(read).join('\n');
+  const missing = needles.filter((needle) => !text.includes(needle));
+  ok(missing.length === 0, `${label}${missing.length ? ` (missing: ${missing.join(', ')})` : ''}`);
+}
+
 console.log('\n=== PRODUCTION STATIC GATES ===');
 contains('apps/api/src/config/validate-env.ts', ['REQUIRE_ADMIN_MFA', 'ENABLE_MOCK_PAYMENTS', 'PAYSTACK_SECRET_KEY', 'LIVEKIT_API_SECRET'], 'API production env validator blocks unsafe launch config');
 contains('apps/api/src/modules/auth/auth.service.ts', ['SEEDED_PRODUCTION_IDENTIFIERS', 'ALLOW_SEEDED_PROD_LOGIN', 'Seeded test accounts are disabled in production'], 'seeded test accounts are blocked in production auth');
-contains('apps/admin-web/app/api/auth/login/route.ts', ['ADMIN_COOKIE_SECURE', "req.nextUrl.protocol === 'https:'", 'httpOnly'], 'admin session cookie is httpOnly and secure-aware');
+containsAcross(
+  ['apps/admin-web/app/api/auth/login/route.ts', 'apps/admin-web/lib/session.ts'],
+  ['ADMIN_COOKIE_SECURE', "req.nextUrl.protocol === 'https:'", 'httpOnly: true'],
+  'admin session cookie is httpOnly and secure-aware'
+);
 contains('apps/admin-web/app/login/page.tsx', ['NEXT_PUBLIC_TERMS_URL', 'NEXT_PUBLIC_PRIVACY_URL', 'Terms', 'Privacy'], 'admin login exposes Terms and Privacy links');
 contains('apps/mobile/lib/widgets/afri_ui.dart', ['TERMS_URL', 'PRIVACY_URL', 'AfriLegalLinks', 'launchUrl'], 'mobile has configurable Terms and Privacy links');
 contains('apps/mobile/lib/screens/login_screen.dart', ['AfriLegalLinks'], 'mobile login exposes Terms and Privacy');
@@ -46,10 +59,14 @@ if (checkEnv) {
     'REDIS_URL',
     'PAYSTACK_SECRET_KEY'
   ];
+  // Must stay in lockstep with the API boot validator
+  // (apps/api/src/config/validate-env.ts) — the pre-deploy gate should reject
+  // anything that would crash the API on startup, so a bad config never ships.
   const unsafe = {
     JWT_ACCESS_SECRET: ['dev', 'replace_with_long_random_access_secret'],
     JWT_REFRESH_SECRET: ['dev-refresh', 'replace_with_long_random_refresh_secret'],
     PAYSTACK_SECRET_KEY: ['replace_me'],
+    LIVEKIT_API_KEY: ['devkey'],
     LIVEKIT_API_SECRET: ['secret']
   };
 

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
 import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, PageHeader, RoomCell, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
@@ -40,7 +41,15 @@ function LiveRoomsPageInner() {
 
   return (
     <>
-      <PageHeader title="Live Rooms" kicker="Monitor active rooms first, then take bounded moderation actions with confirmation." />
+      <PageHeader
+        title="Live Rooms"
+        kicker="Monitor active rooms first, then take bounded moderation actions with confirmation."
+        action={
+          <Link className="button secondary" href="/audit-logs">
+            Audit Trail
+          </Link>
+        }
+      />
       {ordered.some((r) => (r.reportsCount ?? 0) > 0) ? (
         <WarningBanner>Reported live rooms are prioritised at the top of the queue.</WarningBanner>
       ) : null}
