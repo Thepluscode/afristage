@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Secret guard — the last-20% finish. Blocks staged secrets BEFORE they reach a
+# commit (and, worse, a public remote). Runs with no CI: this is the local pass.
+#   1. Hard-block any real .env file (not *.example) from being staged.
+#   2. gitleaks scan of the staged diff if installed; otherwise a built-in
+#      regex fallback so the guard still fires on machines without gitleaks.
+# Bypass (only when you are certain): git commit --no-verify
+set -euo pipefail
+
+fail() { echo "🚫 pre-commit: $1" >&2; echo "   Fix it, or bypass deliberately with --no-verify." >&2; exit 1; }
+
+# 1. Never commit a real dotenv file. Templates (.env.example / .env.sample) are fine.
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  base=$(basename "$f")
+  case "$base" in
+    .env|.env.*)
+      case "$base" in
+        *.example|*.sample|*.template) ;;
+        *) fail "refusing to commit dotenv file '$f' — secrets belong in the environment, not git." ;;
+      esac ;;
+  esac
+done <<< "$staged"
+
+# 2a. Preferred: gitleaks on the staged changes only.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --redact --no-banner >/dev/null 2>&1; then
+    echo "── gitleaks findings (redacted) ──" >&2
+    gitleaks protect --staged --redact --no-banner >&2 || true
+    fail "gitleaks found a secret in the staged diff."
+  fi
+  exit 0
+fi
+
+# 2b. Fallback: scan the added lines of the staged diff for high-signal live secrets.
+# Test/placeholder tokens (sk_test_, whsec_test, replace_me, dummy) are allowed.
+added=$(git diff --cached -U0 --diff-filter=ACM | grep -E '^\+' | grep -v '^\+\+\+' || true)
+patterns='(sk|rk|pk)_live_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{24,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,}|ghp_[A-Za-z0-9]{36}'
+if echo "$added" | grep -EnI "$patterns" | grep -viE 'sk_test_|whsec_test|replace_me|dummy|example' >/dev/null; then
+  echo "── suspected secret in staged additions ──" >&2
+  echo "$added" | grep -EnI "$patterns" | grep -viE 'sk_test_|whsec_test|replace_me|dummy|example' | sed -E 's/(_live_|whsec_)[A-Za-z0-9]+/\1<REDACTED>/g' >&2
+  fail "a live-looking secret is staged (regex fallback; install gitleaks for full coverage)."
+fi
+exit 0

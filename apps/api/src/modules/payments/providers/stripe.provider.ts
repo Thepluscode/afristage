@@ -10,6 +10,9 @@ const BASE_BACKOFF_MS = Number(process.env.STRIPE_BACKOFF_BASE_MS ?? 200);
 // driven, so these are just where the browser lands afterwards.
 const SUCCESS_URL = process.env.STRIPE_SUCCESS_URL || 'https://afristage.live/wallet?paid=1';
 const CANCEL_URL = process.env.STRIPE_CANCEL_URL || 'https://afristage.live/wallet?canceled=1';
+// Webhook replay window: reject signatures whose timestamp is older/newer than
+// this many seconds (Stripe's own default is 300). Configurable for clock skew.
+const WEBHOOK_TOLERANCE_SEC = Number(process.env.STRIPE_WEBHOOK_TOLERANCE_SEC ?? 300);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -123,7 +126,11 @@ export class StripeProvider extends PaymentProvider {
   }
 
   // Stripe signs webhooks as `t=<unix>,v1=<hmacSHA256(`${t}.${rawBody}`)>` using
-  // the endpoint's signing secret. Verify against the raw bytes, constant-time.
+  // the endpoint's signing secret. Verify against the raw bytes, constant-time,
+  // AND reject a timestamp outside the tolerance window — without the freshness
+  // check a captured (payload, signature) pair replays forever. The ledger
+  // idempotency key already blocks double-credit; this is defence in depth, the
+  // same ~5-minute default Stripe's own libraries enforce.
   verifySignature(rawBody: Buffer | undefined, signature?: string): boolean {
     if (!this.webhookSecret || !rawBody || !signature) return false;
     const parts = Object.fromEntries(signature.split(',').map((kv) => kv.split('=')));
@@ -133,7 +140,12 @@ export class StripeProvider extends PaymentProvider {
     const expected = crypto.createHmac('sha256', this.webhookSecret).update(`${t}.${rawBody.toString('utf8')}`).digest('hex');
     const a = Buffer.from(expected);
     const b = Buffer.from(v1);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    const hmacOk = a.length === b.length && crypto.timingSafeEqual(a, b);
+    // Reject stale or skewed timestamps (replay protection). Compute alongside the
+    // HMAC so a bad timestamp doesn't short-circuit before the constant-time compare.
+    const ts = Number(t);
+    const fresh = Number.isFinite(ts) && Math.abs(Date.now() / 1000 - ts) <= WEBHOOK_TOLERANCE_SEC;
+    return hmacOk && fresh;
   }
 
   parseWebhook(rawBody: Buffer): WebhookCharge | null {
