@@ -359,7 +359,7 @@ describe('PaymentsService.verifyCheckout not-found', () => {
 // Stripe signs webhooks as t=<unix>,v1=<hmacSHA256(`${t}.${rawBody}`)>.
 function stripeSigned(body: object, secret = 'whsec_test') {
   const raw = Buffer.from(JSON.stringify(body), 'utf8');
-  const t = '1700000000';
+  const t = String(Math.floor(Date.now() / 1000)); // fresh — within the replay window
   const v1 = crypto.createHmac('sha256', secret).update(`${t}.${raw.toString('utf8')}`).digest('hex');
   return { raw, signature: `t=${t},v1=${v1}` };
 }

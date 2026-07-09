@@ -165,9 +165,28 @@ describe('StripeProvider config + signature', () => {
     expect(p.verifySignature(body, undefined)).toBe(false);
     expect(p.verifySignature(body, 'garbage')).toBe(false); // no t/v1
     expect(p.verifySignature(body, 't=1,v1=deadbeef')).toBe(false); // length mismatch
-    const t = '1700000000';
+    const t = String(Math.floor(Date.now() / 1000)); // fresh timestamp
     const good = sign(body, t, 'whsec_dummy');
     expect(p.verifySignature(body, `t=${t},v1=${good}`)).toBe(true);
+  });
+
+  it('verifySignature rejects a replayed (stale) timestamp even with a valid HMAC', () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
+    const p = new StripeProvider();
+    const body = Buffer.from('{"type":"checkout.session.completed"}');
+    const stale = String(Math.floor(Date.now() / 1000) - 3600); // 1h old, HMAC still valid
+    const sig = sign(body, stale, 'whsec_dummy');
+    expect(p.verifySignature(body, `t=${stale},v1=${sig}`)).toBe(false);
+  });
+
+  it('verifySignature rejects a non-numeric timestamp', () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
+    const p = new StripeProvider();
+    const body = Buffer.from('{"type":"checkout.session.completed"}');
+    const sig = sign(body, 'abc', 'whsec_dummy'); // HMAC over "abc.body" matches, but t is NaN
+    expect(p.verifySignature(body, `t=abc,v1=${sig}`)).toBe(false);
   });
 
   it('verifySignature returns false when the webhook secret is unset', () => {
