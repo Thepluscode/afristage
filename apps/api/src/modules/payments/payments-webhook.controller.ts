@@ -2,7 +2,8 @@ import { Controller, Headers, HttpCode, Post, RawBodyRequest, Req } from '@nestj
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
 
-// Public (no JWT): Paystack calls this directly. Auth is the HMAC signature, not a token.
+// Public (no JWT): the processors call these directly. Auth is the per-provider
+// HMAC signature over the raw body, verified in the service — not a token.
 @Controller('payments/webhooks')
 export class PaymentsWebhookController {
   constructor(private readonly payments: PaymentsService) {}
@@ -10,6 +11,12 @@ export class PaymentsWebhookController {
   @Post('paystack')
   @HttpCode(200)
   paystack(@Req() req: RawBodyRequest<Request>, @Headers('x-paystack-signature') signature?: string) {
-    return this.payments.handlePaystackWebhook(req.rawBody, signature);
+    return this.payments.handleWebhook('paystack', req.rawBody, signature);
+  }
+
+  @Post('stripe')
+  @HttpCode(200)
+  stripe(@Req() req: RawBodyRequest<Request>, @Headers('stripe-signature') signature?: string) {
+    return this.payments.handleWebhook('stripe', req.rawBody, signature);
   }
 }

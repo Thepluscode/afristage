@@ -25,9 +25,10 @@ export class PaymentsController {
     return this.payments.completeMock(user.sub, intentId);
   }
 
-  @Post('paystack/:intentId/verify')
-  verifyPaystack(@CurrentUser() user: any, @Param('intentId') intentId: string) {
-    return this.payments.verifyPaystack(user.sub, intentId);
+  // Provider-agnostic pull-verify: the intent knows which processor it used.
+  @Post('coin-purchase-intents/:intentId/verify')
+  verify(@CurrentUser() user: any, @Param('intentId') intentId: string) {
+    return this.payments.verifyCheckout(user.sub, intentId);
   }
 
   @Get('me')

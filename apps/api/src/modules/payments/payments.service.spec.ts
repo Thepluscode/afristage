@@ -4,6 +4,7 @@ import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
 import { PaymentsService } from './payments.service';
 import { PaystackProvider } from './providers/paystack.provider';
+import { StripeProvider } from './providers/stripe.provider';
 
 function build(opts: { configured?: boolean; intent?: any } = {}) {
   const prisma: any = {
@@ -16,7 +17,10 @@ function build(opts: { configured?: boolean; intent?: any } = {}) {
     }
   };
   process.env.PAYSTACK_SECRET_KEY = opts.configured === false ? '' : 'sk_test_xyz';
+  process.env.STRIPE_SECRET_KEY = opts.configured === false ? '' : 'sk_test_stripe';
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
   const paystack = new PaystackProvider();
+  const stripe = new StripeProvider();
   // creditCoins touches wallet + ledger; stub both so verify tests stay unit-scoped.
   const wallet: any = {
     ensureUserWallets: jest.fn(),
@@ -24,8 +28,8 @@ function build(opts: { configured?: boolean; intent?: any } = {}) {
     account: jest.fn().mockResolvedValue({ id: 'coin' })
   };
   const ledger: any = { postTransaction: jest.fn() };
-  const service = new PaymentsService(prisma, new MoneyService(prisma, ledger, wallet, new MetricsService()), paystack);
-  return { service, prisma, paystack, wallet, ledger };
+  const service = new PaymentsService(prisma, new MoneyService(prisma, ledger, wallet, new MetricsService()), paystack, stripe);
+  return { service, prisma, paystack, stripe, wallet, ledger };
 }
 
 const paystackIntent = {
@@ -48,7 +52,8 @@ function okVerify(amount = 500000, currency = 'NGN', status = 'success') {
 }
 
 // 'popular' package = 500000 minor NGN -> 550 coins (server-authoritative).
-const dto = { packageId: 'popular', provider: 'paystack' as const };
+// provider:'card' → routed to Paystack by currency (NGN).
+const dto = { packageId: 'popular', provider: 'card' as const };
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -68,17 +73,19 @@ describe('PaymentsService.createIntent (package pricing)', () => {
 });
 
 describe('PaymentsService.createIntent (paystack)', () => {
-  it('records a PENDING intent and returns the authorization URL on success', async () => {
+  it('records a PENDING intent and returns the checkout URL on success', async () => {
     const { service, prisma } = build();
+    // Paystack echoes our reference (no `reference` override), so the intent's
+    // providerReference is unchanged and no update fires.
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ status: true, data: { authorization_url: 'https://checkout.paystack.com/abc', reference: 'psk_ref' } })
+      json: async () => ({ status: true, data: { authorization_url: 'https://checkout.paystack.com/abc' } })
     } as any);
 
     const res: any = await service.createIntent('user-1234-5678', dto);
 
-    expect(res.authorizationUrl).toBe('https://checkout.paystack.com/abc');
+    expect(res.checkoutUrl).toBe('https://checkout.paystack.com/abc');
     expect(res.status).toBe('PENDING');
     expect(prisma.paymentIntent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ provider: 'paystack', status: 'PENDING' }) })
@@ -113,11 +120,11 @@ describe('PaymentsService.createIntent (paystack)', () => {
   });
 });
 
-describe('PaymentsService.verifyPaystack', () => {
+describe('PaymentsService.verifyCheckout (Paystack)', () => {
   it('credits coins once when Paystack reports success', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     okVerify();
-    const res = await service.verifyPaystack('owner-1', 'pi1');
+    const res = await service.verifyCheckout('owner-1', 'pi1');
     expect(res).toEqual({ credited: true, status: 'succeeded' });
     expect(ledger.postTransaction).toHaveBeenCalledTimes(1);
   });
@@ -125,7 +132,7 @@ describe('PaymentsService.verifyPaystack', () => {
   it('does not credit when the charge is still pending', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     okVerify(500000, 'NGN', 'ongoing');
-    const res = await service.verifyPaystack('owner-1', 'pi1');
+    const res = await service.verifyCheckout('owner-1', 'pi1');
     expect(res.credited).toBe(false);
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
@@ -133,7 +140,7 @@ describe('PaymentsService.verifyPaystack', () => {
   it('is idempotent: an already-succeeded intent never re-credits', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent, status: 'SUCCEEDED' } });
     const fetchSpy = jest.spyOn(global, 'fetch');
-    const res = await service.verifyPaystack('owner-1', 'pi1');
+    const res = await service.verifyCheckout('owner-1', 'pi1');
     expect(res).toEqual({ credited: false, status: 'already_credited' });
     expect(ledger.postTransaction).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled(); // short-circuits before calling Paystack
@@ -142,13 +149,13 @@ describe('PaymentsService.verifyPaystack', () => {
   it('rejects an amount mismatch even if Paystack says success', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     okVerify(100, 'NGN', 'success');
-    await expect(service.verifyPaystack('owner-1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.verifyCheckout('owner-1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 
   it('forbids verifying another user intent', async () => {
     const { service } = build({ intent: { ...paystackIntent } });
-    await expect(service.verifyPaystack('someone-else', 'pi1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.verifyCheckout('someone-else', 'pi1')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 
@@ -164,11 +171,11 @@ const chargeSuccess = (over: any = {}) => ({
   data: { reference: 'psk_ref', amount: 500000, currency: 'NGN', ...over }
 });
 
-describe('PaymentsService.handlePaystackWebhook (boundary)', () => {
+describe('PaymentsService.handleWebhook (Paystack boundary)', () => {
   it('credits coins once for a valid signature with matching amount + currency', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     const { raw, signature } = signed(chargeSuccess());
-    const res = await service.handlePaystackWebhook(raw, signature);
+    const res = await service.handleWebhook('paystack',raw, signature);
     expect(res).toEqual({ received: true, matched: true });
     expect(ledger.postTransaction).toHaveBeenCalledTimes(1);
   });
@@ -176,7 +183,7 @@ describe('PaymentsService.handlePaystackWebhook (boundary)', () => {
   it('rejects an invalid signature before doing anything', async () => {
     const { service, ledger, prisma } = build({ intent: { ...paystackIntent } });
     const { raw } = signed(chargeSuccess());
-    await expect(service.handlePaystackWebhook(raw, 'deadbeef')).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.handleWebhook('paystack',raw, 'deadbeef')).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.paymentIntent.findFirst).not.toHaveBeenCalled();
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
@@ -184,7 +191,7 @@ describe('PaymentsService.handlePaystackWebhook (boundary)', () => {
   it('ignores non charge.success events', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     const { raw, signature } = signed({ event: 'charge.failed', data: { reference: 'psk_ref' } });
-    const res = await service.handlePaystackWebhook(raw, signature);
+    const res = await service.handleWebhook('paystack',raw, signature);
     expect(res.received).toBe(true);
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
@@ -193,7 +200,7 @@ describe('PaymentsService.handlePaystackWebhook (boundary)', () => {
     const { service, ledger, prisma } = build({ intent: { ...paystackIntent } });
     prisma.paymentIntent.findFirst.mockResolvedValue(null);
     const { raw, signature } = signed(chargeSuccess());
-    const res = await service.handlePaystackWebhook(raw, signature);
+    const res = await service.handleWebhook('paystack',raw, signature);
     expect(res).toEqual({ received: true, matched: false });
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
@@ -201,21 +208,21 @@ describe('PaymentsService.handlePaystackWebhook (boundary)', () => {
   it('rejects an amount mismatch before crediting', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     const { raw, signature } = signed(chargeSuccess({ amount: 999 }));
-    await expect(service.handlePaystackWebhook(raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.handleWebhook('paystack',raw, signature)).rejects.toBeInstanceOf(BadRequestException);
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 
   it('rejects a currency mismatch before crediting', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent } });
     const { raw, signature } = signed(chargeSuccess({ currency: 'GHS' }));
-    await expect(service.handlePaystackWebhook(raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.handleWebhook('paystack',raw, signature)).rejects.toBeInstanceOf(BadRequestException);
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 
   it('a replayed webhook for an already-credited intent does not double-credit', async () => {
     const { service, ledger } = build({ intent: { ...paystackIntent, status: 'SUCCEEDED' } });
     const { raw, signature } = signed(chargeSuccess());
-    const res = await service.handlePaystackWebhook(raw, signature);
+    const res = await service.handleWebhook('paystack',raw, signature);
     expect(res).toEqual({ received: true, matched: true });
     expect(ledger.postTransaction).not.toHaveBeenCalled(); // creditCoins short-circuits on SUCCEEDED
   });
@@ -277,10 +284,10 @@ describe('PaymentsService.completeMock (guards)', () => {
   });
 });
 
-describe('PaymentsService.verifyPaystack (intent-type guard)', () => {
+describe('PaymentsService.verifyCheckout (intent-type guard)', () => {
   it('rejects verifying a non-Paystack (mock) intent', async () => {
     const { service } = build({ intent: mockIntent({ provider: 'mock' }) });
-    await expect(service.verifyPaystack('u1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.verifyCheckout('u1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
@@ -309,40 +316,157 @@ describe('PaymentsService remaining branches', () => {
   it('webhook rejects a charge.success event with no reference', async () => {
     const { service } = build();
     const { raw, signature } = signed({ event: 'charge.success', data: {} });
-    await expect(service.handlePaystackWebhook(raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.handleWebhook('paystack',raw, signature)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('webhook treats a missing amount as -1 and rejects the mismatch', async () => {
     const { service } = build({ intent: { ...paystackIntent } });
     const { raw, signature } = signed({ event: 'charge.success', data: { reference: 'psk_ref', currency: 'NGN' } });
-    await expect(service.handlePaystackWebhook(raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.handleWebhook('paystack',raw, signature)).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
 describe('PaymentsService final branch arms', () => {
-  it('verifyPaystack uses the intent id when providerReference is null', async () => {
+  it('verifyCheckout uses the intent id when providerReference is null', async () => {
     const { service } = build({ intent: { ...paystackIntent, providerReference: null } });
     okVerify();
-    const res = await service.verifyPaystack('owner-1', 'pi1');
+    const res = await service.verifyCheckout('owner-1', 'pi1');
     expect(res).toEqual({ credited: true, status: 'succeeded' });
   });
 
-  it('verifyPaystack rejects a currency mismatch even when the amount matches', async () => {
+  it('verifyCheckout rejects a currency mismatch even when the amount matches', async () => {
     const { service } = build({ intent: { ...paystackIntent } });
     okVerify(500000, 'GHS', 'success'); // right amount, wrong currency
-    await expect(service.verifyPaystack('owner-1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.verifyCheckout('owner-1', 'pi1')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('webhook labels an event with no event field as unknown', async () => {
     const { service } = build();
     const { raw, signature } = signed({ data: {} }); // no `event` field
-    expect(await service.handlePaystackWebhook(raw, signature)).toEqual({ received: true, ignored: 'unknown' });
+    expect(await service.handleWebhook('paystack',raw, signature)).toEqual({ received: true, ignored: true });
   });
 });
 
-describe('PaymentsService.verifyPaystack not-found', () => {
+describe('PaymentsService.verifyCheckout not-found', () => {
   it('throws NotFound when the intent does not exist', async () => {
     const { service } = build({ intent: undefined });
-    await expect(service.verifyPaystack('u1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.verifyCheckout('u1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+// ── Stripe path: global card-buying for non-African currencies (USD today). ──
+
+// Stripe signs webhooks as t=<unix>,v1=<hmacSHA256(`${t}.${rawBody}`)>.
+function stripeSigned(body: object, secret = 'whsec_test') {
+  const raw = Buffer.from(JSON.stringify(body), 'utf8');
+  const t = '1700000000';
+  const v1 = crypto.createHmac('sha256', secret).update(`${t}.${raw.toString('utf8')}`).digest('hex');
+  return { raw, signature: `t=${t},v1=${v1}` };
+}
+
+const stripeCompleted = (over: any = {}) => ({
+  type: 'checkout.session.completed',
+  data: { object: { id: 'cs_test_123', amount_total: 500, currency: 'usd', payment_status: 'paid', ...over } }
+});
+
+const stripeIntent = {
+  id: 'pi2',
+  userId: 'owner-1',
+  provider: 'stripe',
+  status: 'PENDING',
+  amountMinor: 500,
+  currency: 'USD',
+  coinAmount: 550,
+  providerReference: 'cs_test_123'
+};
+
+describe('PaymentsService currency routing (Stripe vs Paystack)', () => {
+  it('routes a USD package to Stripe and persists the returned session id', async () => {
+    const { service, prisma } = build();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'cs_test_xyz', url: 'https://checkout.stripe.com/pay/cs_test_xyz' })
+    } as any);
+
+    const res: any = await service.createIntent('user-1234-5678', { packageId: 'popular_usd', provider: 'card' } as any);
+
+    expect(res.checkoutUrl).toBe('https://checkout.stripe.com/pay/cs_test_xyz');
+    expect(prisma.paymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'stripe', currency: 'USD', coinAmount: 550 }) })
+    );
+    // Stripe's session id differs from our reference, so the intent is updated to it.
+    expect(prisma.paymentIntent.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pi1' }, data: { providerReference: 'cs_test_xyz' } })
+    );
+  });
+
+  it('rejects a USD package when Stripe is not configured', async () => {
+    const { service } = build({ configured: false });
+    await expect(service.createIntent('u1', { packageId: 'popular_usd', provider: 'card' } as any)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('PaymentsService.verifyCheckout (Stripe)', () => {
+  it('credits coins once when Stripe reports the session paid', async () => {
+    const { service, ledger } = build({ intent: { ...stripeIntent } });
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'cs_test_123', payment_status: 'paid', amount_total: 500, currency: 'usd' })
+    } as any);
+    const res = await service.verifyCheckout('owner-1', 'pi2');
+    expect(res).toEqual({ credited: true, status: 'succeeded' });
+    expect(ledger.postTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not credit when the Stripe session is unpaid', async () => {
+    const { service, ledger } = build({ intent: { ...stripeIntent } });
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'cs_test_123', payment_status: 'unpaid', amount_total: 500, currency: 'usd' })
+    } as any);
+    const res = await service.verifyCheckout('owner-1', 'pi2');
+    expect(res.credited).toBe(false);
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaymentsService.handleWebhook (Stripe boundary)', () => {
+  it('credits coins for a valid Stripe signature with matching amount + currency', async () => {
+    const { service, ledger } = build({ intent: { ...stripeIntent } });
+    const { raw, signature } = stripeSigned(stripeCompleted());
+    const res = await service.handleWebhook('stripe', raw, signature);
+    expect(res).toEqual({ received: true, matched: true });
+    expect(ledger.postTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid Stripe signature before doing anything', async () => {
+    const { service, ledger, prisma } = build({ intent: { ...stripeIntent } });
+    const { raw } = stripeSigned(stripeCompleted());
+    await expect(service.handleWebhook('stripe', raw, 't=1700000000,v1=deadbeef')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.paymentIntent.findFirst).not.toHaveBeenCalled();
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+
+  it('ignores non checkout.session.completed events', async () => {
+    const { service, ledger } = build({ intent: { ...stripeIntent } });
+    const { raw, signature } = stripeSigned({ type: 'payment_intent.created', data: { object: {} } });
+    const res = await service.handleWebhook('stripe', raw, signature);
+    expect(res.received).toBe(true);
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a Stripe amount mismatch before crediting', async () => {
+    const { service, ledger } = build({ intent: { ...stripeIntent } });
+    const { raw, signature } = stripeSigned(stripeCompleted({ amount_total: 999 }));
+    await expect(service.handleWebhook('stripe', raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown payment provider name', async () => {
+    const { service } = build();
+    await expect(service.handleWebhook('venmo', Buffer.from('{}'), 'x')).rejects.toBeInstanceOf(BadRequestException);
   });
 });

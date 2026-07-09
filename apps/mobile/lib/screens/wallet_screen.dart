@@ -23,15 +23,32 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen> {
   bool _busy = false;
   bool _useCard = false;
-  String? _pendingIntentId; // last Paystack checkout awaiting confirmation
+  String? _pendingIntentId; // last card checkout awaiting confirmation
 
-  /// Display catalog. Pricing is server-authoritative; the client only sends the
-  /// package id (`id`) — the server owns amount + coins. Labels are cosmetic.
-  static const _packages = <(String id, String label)>[
-    ('starter', '₦1,000 → 100 coins'),
-    ('popular', '₦5,000 → 550 coins'),
-    ('pro', '₦10,000 → 1,200 coins'),
-  ];
+  /// Server-authoritative coin catalog (`/payments/coin-packages`). Holds every
+  /// market's tiers — NGN (routed to Paystack) and USD (routed to Stripe) — the
+  /// client only sends the package id; the server owns amount + coins + routing.
+  List<({String id, String label})> _catalog = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCatalog();
+  }
+
+  Future<void> _loadCatalog() async {
+    try {
+      final rows = await context.read<AppState>().api.getList('/payments/coin-packages');
+      if (!mounted) return;
+      setState(() => _catalog = [
+            for (final p in rows.cast<Map<String, dynamic>>())
+              (id: p['id'] as String, label: p['label'] as String)
+          ]);
+    } on Exception {
+      // Non-fatal (network blip, no server in a widget test): the buy sheet
+      // shows a "loading" state; reopening it retries the fetch.
+    }
+  }
 
   Future<void> _buy(String packageId) async {
     if (_useCard) {
@@ -55,8 +72,9 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
-  // Real Paystack: open the hosted checkout. Coins are credited by the verified
-  // webhook after payment, so we tell the user to refresh once it completes.
+  // Real card checkout: open the hosted checkout (Paystack for NGN, Stripe for
+  // USD — the server routes by the package's currency). Coins are credited by
+  // the verified webhook after payment, so we prompt the user to confirm.
   Future<void> _buyWithCard(String packageId) async {
     setState(() => _busy = true);
     final state = context.read<AppState>();
@@ -64,9 +82,9 @@ class _WalletScreenState extends State<WalletScreen> {
     try {
       final intent = await state.api.post('/payments/coin-purchase-intents', {
         'packageId': packageId,
-        'provider': 'paystack',
+        'provider': 'card',
       });
-      final url = intent['authorizationUrl'] as String?;
+      final url = intent['checkoutUrl'] as String?;
       if (url == null) {
         throw const ApiException(502, 'No checkout URL returned');
       }
@@ -87,7 +105,8 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   // Pull-based confirm for the last checkout — works in dev where webhooks can't
-  // reach localhost. The backend re-verifies with Paystack before crediting.
+  // reach localhost. The intent knows its processor; the backend re-verifies with
+  // Paystack or Stripe before crediting.
   Future<void> _confirmCard() async {
     final intentId = _pendingIntentId;
     if (intentId == null) {
@@ -97,7 +116,8 @@ class _WalletScreenState extends State<WalletScreen> {
     final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final res = await state.api.post('/payments/paystack/$intentId/verify');
+      final res = await state.api
+          .post('/payments/coin-purchase-intents/$intentId/verify');
       await state.refreshWallet();
       final credited =
           res['credited'] == true || res['status'] == 'already_credited';
@@ -277,6 +297,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
   // Buy-coins moved into a bottom sheet (the mockup wallet leads with earnings).
   void _openBuyCoins() {
+    if (_catalog.isEmpty) _loadCatalog(); // recover if the initial fetch failed
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AfriColors.surface,
@@ -303,11 +324,17 @@ class _WalletScreenState extends State<WalletScreen> {
                     const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
           ]),
           const SizedBox(height: 8),
-          for (final p in _packages)
+          if (_catalog.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text('Loading coin packages…',
+                  style: TextStyle(color: AfriColors.mutedText)),
+            ),
+          for (final p in _catalog)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: AfriCoinPackageCard(
-                label: p.$2,
+                label: p.label,
                 body: _useCard
                     ? 'Open secure checkout'
                     : 'Credit instantly in dev mode',
@@ -315,7 +342,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     ? null
                     : () {
                         Navigator.pop(sheetCtx);
-                        _buy(p.$1);
+                        _buy(p.id);
                       },
                 busy: _busy,
               ),
