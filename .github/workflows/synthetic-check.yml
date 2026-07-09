@@ -1,0 +1,38 @@
+# Q1 — outside-in synthetic health check ("a system that calls you").
+# The service serves its health route from INSIDE its own network, so it cannot tell you
+# the platform is unreachable to real users. This probes the public endpoint from OUTSIDE,
+# on a schedule, and fails the job (+ POSTs an alert) when it is down.
+#
+# CAVEAT: GitHub-hosted runners are region-limited (mostly US) — catches TOTAL outages, not
+# region-specific ones. For multi-region, also run tools/monitoring/synthetic_check.py as a
+# scheduled function in >=2 cloud regions, or use a synthetic-monitoring provider.
+#
+# Setup (repo Settings): Variable SYNTHETIC_HEALTH_URL = https://<prod-domain>/health
+#                        Secret   ALERT_WEBHOOK        = Slack/PagerDuty inbound webhook
+
+name: synthetic-check
+on:
+  schedule:
+    - cron: "*/5 * * * *"      # every 5 min (GitHub minimum for scheduled workflows)
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.x" }
+      - name: outside-in probe of the live platform
+        # Config via env (not inline ${{ }} in run:) so values are never interpolated into the shell.
+        env:
+          SYNTHETIC_HEALTH_URL: ${{ vars.SYNTHETIC_HEALTH_URL }}
+          ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+        run: |
+          python3 tools/monitoring/synthetic_check.py \
+            --url "$SYNTHETIC_HEALTH_URL" \
+            --expect-status 200 \
+            --expect-body '"status":"ok"' \
+            --max-latency-ms 3000 \
+            --region "gh-actions" \
+            --alert-webhook "$ALERT_WEBHOOK"
