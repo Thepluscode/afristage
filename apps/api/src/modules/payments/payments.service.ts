@@ -4,17 +4,34 @@ import { PrismaService } from '../../database/prisma.service';
 import { MoneyService } from '../money/money.service';
 import { COIN_PACKAGES, CoinPackage, findCoinPackage } from './coin-packages';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
+import { PaymentProvider } from './providers/payment-provider';
 import { PaystackProvider } from './providers/paystack.provider';
+import { StripeProvider } from './providers/stripe.provider';
+
+// Currency → processor. African local corridors settle through Paystack; every
+// other currency (USD today, more later) routes to Stripe. Adding a market is a
+// package (coin-packages.ts) + an entry here.
+const AFRICAN_CURRENCIES = new Set(['NGN', 'GHS', 'KES', 'ZAR']);
 
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
+  private readonly providers: Record<string, PaymentProvider>;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly money: MoneyService,
-    private readonly paystack: PaystackProvider
-  ) {}
+    private readonly paystack: PaystackProvider,
+    private readonly stripe: StripeProvider
+  ) {
+    this.providers = { paystack, stripe };
+  }
+
+  // The processor a package's currency settles through.
+  private providerForCurrency(currency: string): PaymentProvider {
+    return AFRICAN_CURRENCIES.has(currency.toUpperCase()) ? this.paystack : this.stripe;
+  }
 
   // Catalog of purchasable coin packages (server-authoritative pricing).
   listPackages() {
@@ -25,7 +42,7 @@ export class PaymentsService {
     // Resolve the package server-side: the client picks an id, never the amounts.
     const pkg = findCoinPackage(dto.packageId);
     if (!pkg) throw new BadRequestException('Unknown coin package');
-    if (dto.provider === 'paystack') return this.createPaystackIntent(userId, pkg);
+    if (dto.provider === 'card') return this.createCheckoutIntent(userId, pkg);
     return this.prisma.paymentIntent.create({
       data: {
         userId,
@@ -39,19 +56,20 @@ export class PaymentsService {
     });
   }
 
-  // Records a PENDING intent, then initializes a real Paystack checkout keyed to
-  // the same reference. Coins are credited later, only by the verified webhook.
-  // Returns the intent plus the hosted-checkout URL the client must open.
-  private async createPaystackIntent(userId: string, pkg: CoinPackage) {
-    if (!this.paystack.isConfigured()) throw new BadRequestException('Paystack is not configured');
+  // Records a PENDING intent, then initializes a real hosted checkout with the
+  // provider its currency routes to. Coins are credited later, only by the
+  // verified webhook / pull-verify. Returns the intent plus the checkout URL.
+  private async createCheckoutIntent(userId: string, pkg: CoinPackage) {
+    const provider = this.providerForCurrency(pkg.currency);
+    if (!provider.isConfigured()) throw new BadRequestException(`${provider.name} is not configured`);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!user?.email) throw new BadRequestException('A verified email is required for card payments');
 
-    const reference = `psk_${userId.slice(0, 8)}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+    const reference = `${provider.name.toLowerCase()}_${userId.slice(0, 8)}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
     const intent = await this.prisma.paymentIntent.create({
       data: {
         userId,
-        provider: 'paystack',
+        provider: provider.name.toLowerCase(),
         amountMinor: pkg.amountMinor,
         currency: pkg.currency,
         coinAmount: pkg.coinAmount,
@@ -61,14 +79,20 @@ export class PaymentsService {
     });
 
     try {
-      const init = await this.paystack.initializeTransaction({
+      const init = await provider.initialize({
         email: user.email,
         amountMinor: pkg.amountMinor,
         currency: pkg.currency,
         reference
       });
-      this.logger.log(`Paystack checkout initialized for intent ${intent.id} (ref ${reference})`);
-      return { ...intent, authorizationUrl: init.authorizationUrl };
+      // Stripe returns its session id as the canonical reference; persist it so
+      // the webhook + pull-verify find this intent. Paystack echoes our own ref.
+      const finalIntent =
+        init.providerReference === reference
+          ? intent
+          : await this.prisma.paymentIntent.update({ where: { id: intent.id }, data: { providerReference: init.providerReference } });
+      this.logger.log(`${provider.name} checkout initialized for intent ${intent.id} (ref ${init.providerReference})`);
+      return { ...finalIntent, checkoutUrl: init.checkoutUrl };
     } catch (err) {
       // Don't leave a stranded PENDING intent if the provider call fails.
       await this.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: PaymentStatus.FAILED } });
@@ -113,19 +137,20 @@ export class PaymentsService {
   // recover when a webhook never arrives in dev). Re-checks amount/currency against
   // the recorded intent, then credits via the same idempotent path as the webhook —
   // so verify + webhook (or a double-tap) can never double-credit.
-  async verifyPaystack(userId: string, intentId: string) {
+  async verifyCheckout(userId: string, intentId: string) {
     const intent = await this.prisma.paymentIntent.findUnique({ where: { id: intentId } });
     if (!intent) throw new NotFoundException('Payment intent not found');
     if (intent.userId !== userId) throw new ForbiddenException('Cannot verify another user payment intent');
-    if (intent.provider !== 'paystack') throw new BadRequestException('Not a Paystack intent');
+    const provider = this.providers[intent.provider];
+    if (!provider) throw new BadRequestException('Not a card intent');
     if (intent.status === PaymentStatus.SUCCEEDED) return { credited: false, status: 'already_credited' as const };
 
-    const v = await this.paystack.verifyTransaction(intent.providerReference || intentId);
+    const v = await provider.verify(intent.providerReference || intentId);
     if (!v.success) return { credited: false, status: 'pending' as const };
 
     if (BigInt(v.amountMinor) !== BigInt(intent.amountMinor) || v.currency !== intent.currency) {
       this.logger.error(
-        `Paystack verify amount/currency mismatch for ${intent.providerReference}: got ${v.amountMinor} ${v.currency}, expected ${intent.amountMinor} ${intent.currency}`
+        `${provider.name} verify amount/currency mismatch for ${intent.providerReference}: got ${v.amountMinor} ${v.currency}, expected ${intent.amountMinor} ${intent.currency}`
       );
       throw new BadRequestException('Amount or currency mismatch');
     }
@@ -134,33 +159,33 @@ export class PaymentsService {
     return { credited: true, status: 'succeeded' as const };
   }
 
-  // Verified Paystack webhook. Never trusts the body until the HMAC matches, and
-  // never credits unless the charged amount/currency match the recorded intent.
-  async handlePaystackWebhook(rawBody: Buffer | undefined, signature?: string) {
-    if (!this.paystack.verifySignature(rawBody, signature)) {
-      this.logger.warn('Rejected Paystack webhook: invalid or missing signature');
+  // Verified provider webhook. Never trusts the body until the provider's HMAC
+  // matches, and never credits unless the charged amount/currency match the
+  // recorded intent. `providerName` comes from the route ('paystack' | 'stripe').
+  async handleWebhook(providerName: string, rawBody: Buffer | undefined, signature?: string) {
+    const provider = this.providers[providerName];
+    if (!provider) throw new BadRequestException('Unknown payment provider');
+    if (!provider.verifySignature(rawBody, signature)) {
+      this.logger.warn(`Rejected ${provider.name} webhook: invalid or missing signature`);
       throw new UnauthorizedException('Invalid signature');
     }
 
-    const event = JSON.parse(rawBody!.toString('utf8'));
-    if (event?.event !== 'charge.success') {
-      return { received: true, ignored: event?.event ?? 'unknown' };
+    const charge = provider.parseWebhook(rawBody!);
+    if (!charge || !charge.success) {
+      return { received: true, ignored: true };
     }
+    if (!charge.providerReference) throw new BadRequestException('Missing reference');
 
-    const reference = event?.data?.reference;
-    if (!reference) throw new BadRequestException('Missing reference');
-
-    const intent = await this.prisma.paymentIntent.findFirst({ where: { providerReference: reference } });
+    const intent = await this.prisma.paymentIntent.findFirst({ where: { providerReference: charge.providerReference } });
     if (!intent) {
-      this.logger.warn(`Paystack webhook for unknown reference ${reference}`);
+      this.logger.warn(`${provider.name} webhook for unknown reference ${charge.providerReference}`);
       return { received: true, matched: false };
     }
 
     // Doctrine: amount and currency must match the expected package before crediting.
-    const paidMinor = BigInt(event.data.amount ?? -1);
-    if (paidMinor !== BigInt(intent.amountMinor) || event.data.currency !== intent.currency) {
+    if (BigInt(charge.amountMinor) !== BigInt(intent.amountMinor) || charge.currency !== intent.currency) {
       this.logger.error(
-        `Paystack amount/currency mismatch for ${reference}: paid ${paidMinor} ${event.data.currency}, expected ${intent.amountMinor} ${intent.currency}`
+        `${provider.name} amount/currency mismatch for ${charge.providerReference}: paid ${charge.amountMinor} ${charge.currency}, expected ${intent.amountMinor} ${intent.currency}`
       );
       throw new BadRequestException('Amount or currency mismatch');
     }

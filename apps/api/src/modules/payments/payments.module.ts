@@ -5,10 +5,11 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsWebhookController } from './payments-webhook.controller';
 import { PaymentsService } from './payments.service';
 import { PaystackProvider } from './providers/paystack.provider';
+import { StripeProvider } from './providers/stripe.provider';
 
 @Module({
   imports: [JwtModule.register({}), WalletModule],
   controllers: [PaymentsController, PaymentsWebhookController],
-  providers: [PaymentsService, PaystackProvider]
+  providers: [PaymentsService, PaystackProvider, StripeProvider]
 })
 export class PaymentsModule {}

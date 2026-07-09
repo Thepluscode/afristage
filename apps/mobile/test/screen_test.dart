@@ -40,6 +40,15 @@ import 'package:provider/provider.dart';
 import 'net_image_mock.dart';
 import 'url_launcher_mock.dart';
 
+/// Mirrors the server's coin catalog (NGN → Paystack, USD → Stripe). Labels
+/// match COIN_PACKAGES so buy-sheet taps by label keep resolving.
+const _defaultCoinPackages = <Map<String, dynamic>>[
+  {'id': 'starter', 'label': '₦1,000 → 100 coins'},
+  {'id': 'popular', 'label': '₦5,000 → 550 coins'},
+  {'id': 'pro', 'label': '₦10,000 → 1,200 coins'},
+  {'id': 'starter_usd', 'label': '\$1.00 → 100 coins'},
+];
+
 /// Configurable fake: canned get/getList responses by path; records writes.
 /// Paths in [errors] throw, so error-state branches are testable.
 class _FakeApi extends ApiClient {
@@ -59,7 +68,10 @@ class _FakeApi extends ApiClient {
   @override
   Future<List<dynamic>> getList(String path) async {
     if (errors.contains(path)) throw const ApiException(500, 'boom');
-    return lists[path] ?? const [];
+    if (lists.containsKey(path)) return lists[path]!;
+    // The wallet loads its coin catalog on init; default it so buy-sheet taps work.
+    if (path == '/payments/coin-packages') return _defaultCoinPackages;
+    return const [];
   }
 
   @override
@@ -2022,9 +2034,9 @@ void main() {
     final api = _FakeApi(maps: {
       '/payments/coin-purchase-intents': {
         'id': 'pi1',
-        'authorizationUrl': 'https://pay/x'
+        'checkoutUrl': 'https://pay/x'
       },
-      '/payments/paystack/pi1/verify': {'credited': true},
+      '/payments/coin-purchase-intents/pi1/verify': {'credited': true},
     });
     final state = AppState(api: api)
       ..wallet =
@@ -2043,7 +2055,7 @@ void main() {
     await tester
         .tap(find.text("I've paid — confirm")); // _confirmCard -> verify
     await tester.pumpAndSettle();
-    expect(api.posts, contains('/payments/paystack/pi1/verify'));
+    expect(api.posts, contains('/payments/coin-purchase-intents/pi1/verify'));
     await tester.pump(const Duration(seconds: 5));
   });
 
@@ -3214,10 +3226,10 @@ void main() {
       maps: {
         '/payments/coin-purchase-intents': {
           'id': 'pi1',
-          'authorizationUrl': 'https://pay/x'
+          'checkoutUrl': 'https://pay/x'
         }
       },
-      postErrors: {'/payments/paystack/pi1/verify'}, // verify throws (109-110)
+      postErrors: {'/payments/coin-purchase-intents/pi1/verify'}, // verify throws (109-110)
     );
     final state = AppState(api: api)
       ..wallet =

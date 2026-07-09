@@ -1,5 +1,6 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { CheckoutInit, ChargeVerification, PaymentProvider, WebhookCharge } from './payment-provider';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 const INIT_TIMEOUT_MS = 10_000;
@@ -12,22 +13,12 @@ const BASE_BACKOFF_MS = Number(process.env.PAYSTACK_BACKOFF_BASE_MS ?? 200);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export interface PaystackInit {
-  authorizationUrl: string;
-  reference: string;
-}
-
-export interface PaystackVerification {
-  success: boolean;
-  amountMinor: number;
-  currency: string;
-}
-
 // Paystack signs each webhook with HMAC-SHA512 of the raw request body using the
 // secret key, sent in the `x-paystack-signature` header. We MUST verify against
 // the raw bytes (not re-serialized JSON) and never credit coins without a match.
 @Injectable()
-export class PaystackProvider {
+export class PaystackProvider extends PaymentProvider {
+  readonly name = 'PAYSTACK';
   private readonly logger = new Logger(PaystackProvider.name);
   private readonly secret = process.env.PAYSTACK_SECRET_KEY || '';
 
@@ -85,12 +76,12 @@ export class PaystackProvider {
   // the intent we record; Paystack echoes it back in the verified webhook. Money
   // is only credited by the webhook after amount/currency/signature checks — this
   // call just hands the client a hosted-checkout URL.
-  async initializeTransaction(params: {
+  async initialize(params: {
     email: string;
     amountMinor: number;
     currency: string;
     reference: string;
-  }): Promise<PaystackInit> {
+  }): Promise<CheckoutInit> {
     try {
       const res = await this.fetchWithRetry(`${PAYSTACK_BASE}/transaction/initialize`, {
         method: 'POST',
@@ -107,7 +98,7 @@ export class PaystackProvider {
         this.logger.error(`Paystack init failed (${res.status}): ${json?.message ?? 'no body'}`);
         throw new BadGatewayException('Payment provider rejected the request');
       }
-      return { authorizationUrl: json.data.authorization_url, reference: json.data.reference ?? params.reference };
+      return { checkoutUrl: json.data.authorization_url, providerReference: json.data.reference ?? params.reference };
     } catch (err) {
       if (err instanceof BadGatewayException) throw err;
       this.logger.error(`Paystack init error: ${err instanceof Error ? err.message : String(err)}`);
@@ -119,7 +110,7 @@ export class PaystackProvider {
   // as a fallback if a webhook is delayed. Returns the authoritative charge state
   // straight from Paystack; the caller still re-checks amount/currency before
   // crediting, exactly like the webhook path.
-  async verifyTransaction(reference: string): Promise<PaystackVerification> {
+  async verify(reference: string): Promise<ChargeVerification> {
     try {
       const res = await this.fetchWithRetry(`${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`, {
         method: 'GET',
@@ -149,5 +140,23 @@ export class PaystackProvider {
     const b = Buffer.from(signature);
     // length check first; timingSafeEqual throws on length mismatch.
     return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+
+  parseWebhook(rawBody: Buffer): WebhookCharge | null {
+    let event: any;
+    try {
+      event = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      return null;
+    }
+    if (event?.event !== 'charge.success') return null;
+    const reference = event.data?.reference;
+    return {
+      // Keep an absent reference falsy so handleWebhook's Missing-reference 400 fires.
+      providerReference: reference ? String(reference) : '',
+      amountMinor: Number(event.data?.amount ?? -1),
+      currency: String(event.data?.currency ?? '').toUpperCase(),
+      success: true
+    };
   }
 }
