@@ -180,6 +180,20 @@ describe('StripeProvider config + signature', () => {
     expect(p.verifySignature(body, `t=${stale},v1=${sig}`)).toBe(false);
   });
 
+  it('verifySignature accepts when ANY v1 matches (secret rotation sends two)', () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_new';
+    const p = new StripeProvider();
+    const body = Buffer.from('{"type":"checkout.session.completed"}');
+    const t = String(Math.floor(Date.now() / 1000));
+    const oldSig = sign(body, t, 'whsec_old'); // signed with the retiring secret
+    const newSig = sign(body, t, 'whsec_new'); // signed with the active secret
+    // Stripe orders old-then-new; only the second matches our configured secret.
+    expect(p.verifySignature(body, `t=${t},v1=${oldSig},v1=${newSig}`)).toBe(true);
+    // ...and still rejects when NONE of the provided v1s match.
+    expect(p.verifySignature(body, `t=${t},v1=${oldSig},v1=${oldSig}`)).toBe(false);
+  });
+
   it('verifySignature rejects a non-numeric timestamp', () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
