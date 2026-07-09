@@ -133,14 +133,18 @@ export class StripeProvider extends PaymentProvider {
   // same ~5-minute default Stripe's own libraries enforce.
   verifySignature(rawBody: Buffer | undefined, signature?: string): boolean {
     if (!this.webhookSecret || !rawBody || !signature) return false;
-    const parts = Object.fromEntries(signature.split(',').map((kv) => kv.split('=')));
-    const t = parts.t;
-    const v1 = parts.v1;
-    if (!t || !v1) return false;
-    const expected = crypto.createHmac('sha256', this.webhookSecret).update(`${t}.${rawBody.toString('utf8')}`).digest('hex');
-    const a = Buffer.from(expected);
-    const b = Buffer.from(v1);
-    const hmacOk = a.length === b.length && crypto.timingSafeEqual(a, b);
+    const pairs = signature.split(',').map((kv) => kv.split('='));
+    const t = pairs.find(([k]) => k === 't')?.[1];
+    // During webhook-secret rotation Stripe signs with both secrets and sends
+    // multiple `v1=`; accept if ANY matches, or a valid webhook is rejected
+    // mid-rotation. (Object.fromEntries would keep only the last one.)
+    const v1s = pairs.filter(([k]) => k === 'v1').map(([, v]) => v);
+    if (!t || v1s.length === 0) return false;
+    const expected = Buffer.from(crypto.createHmac('sha256', this.webhookSecret).update(`${t}.${rawBody.toString('utf8')}`).digest('hex'));
+    const hmacOk = v1s.some((v1) => {
+      const b = Buffer.from(v1);
+      return expected.length === b.length && crypto.timingSafeEqual(expected, b);
+    });
     // Reject stale or skewed timestamps (replay protection). Compute alongside the
     // HMAC so a bad timestamp doesn't short-circuit before the constant-time compare.
     const ts = Number(t);

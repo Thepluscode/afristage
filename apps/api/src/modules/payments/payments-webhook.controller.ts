@@ -1,9 +1,14 @@
 import { Controller, Headers, HttpCode, Post, RawBodyRequest, Req } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
 
 // Public (no JWT): the processors call these directly. Auth is the per-provider
 // HMAC signature over the raw body, verified in the service — not a token.
+// Exempt from the app-wide per-IP rate limit: providers retry on their own
+// schedule and must not compete with user traffic for the throttle bucket — a
+// throttled webhook would drop a real payment to the pull-verify fallback.
+@SkipThrottle()
 @Controller('payments/webhooks')
 export class PaymentsWebhookController {
   constructor(private readonly payments: PaymentsService) {}
