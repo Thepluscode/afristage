@@ -1,6 +1,7 @@
 import { LedgerDirection, LedgerTransactionType, PrismaClient, WalletAccountType } from '@prisma/client';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from './money.service';
 
 // RFC #144 boundary test: the money catalog runs against a REAL Postgres, so
@@ -40,7 +41,7 @@ describe('MoneyService boundary (integration, real Postgres)', () => {
     }
     const ledger = new LedgerService(prisma as any);
     const wallet = new WalletService(prisma as any, ledger as any);
-    money = new MoneyService(prisma as any, ledger, wallet);
+    money = new MoneyService(prisma as any, ledger, wallet, new MetricsService());
 
     const viewer = await prisma.user.create({ data: {} });
     const creator = await prisma.user.create({ data: {} });
