@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { LedgerDirection, LedgerTransactionStatus, LedgerTransactionType } from '@prisma/client';
+import { LedgerDirection, LedgerTransactionStatus, LedgerTransactionType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 
 type LedgerEntryInput = {
@@ -58,44 +58,60 @@ export class LedgerService {
       if (!deltas.has(accountId)) deltas.set(accountId, 0n);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      // O(1) balance maintenance: the atomic increment takes the account's row
-      // lock, so concurrent posts on the same account serialize here — the same
-      // guarantee the old FOR-UPDATE + full entry re-sum gave, without scanning
-      // every historical entry on the hot gifting path (R5 §9 item 1). A
-      // guarded account that would go negative aborts the whole transaction,
-      // rolling the increments back.
-      for (const [accountId, delta] of deltas) {
-        const updated = await tx.walletAccount.update({
-          where: { id: accountId },
-          data: { balanceMinor: { increment: delta } }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // O(1) balance maintenance: the atomic increment takes the account's row
+        // lock, so concurrent posts on the same account serialize here — the same
+        // guarantee the old FOR-UPDATE + full entry re-sum gave, without scanning
+        // every historical entry on the hot gifting path (R5 §9 item 1). A
+        // guarded account that would go negative aborts the whole transaction,
+        // rolling the increments back.
+        for (const [accountId, delta] of deltas) {
+          const updated = await tx.walletAccount.update({
+            where: { id: accountId },
+            data: { balanceMinor: { increment: delta } }
+          });
+          if (guarded.has(accountId) && updated.balanceMinor < 0n) {
+            throw new BadRequestException('Insufficient balance');
+          }
+        }
+
+        const transaction = await tx.ledgerTransaction.create({
+          data: {
+            type: input.type,
+            status: LedgerTransactionStatus.POSTED,
+            idempotencyKey: input.idempotencyKey,
+            externalReference: input.externalReference,
+            metadata: input.metadata || {}
+          }
         });
-        if (guarded.has(accountId) && updated.balanceMinor < 0n) {
-          throw new BadRequestException('Insufficient balance');
-        }
+
+        await tx.ledgerEntry.createMany({
+          data: input.entries.map((entry) => ({
+            transactionId: transaction.id,
+            accountId: entry.accountId,
+            direction: entry.direction,
+            amountMinor: BigInt(entry.amountMinor),
+            currency: entry.currency
+          }))
+        });
+
+        return tx.ledgerTransaction.findUniqueOrThrow({ where: { id: transaction.id }, include: { entries: true } });
+      });
+    } catch (err) {
+      // Idempotency race: a concurrent poster (e.g. the Stripe webhook + the
+      // client's pull-verify crediting the same intent) inserted the row between
+      // our findUnique probe and this unique-constrained insert. The $transaction
+      // rolled our duplicate back — no double-post — so return the winner's row as
+      // a clean replay instead of surfacing a raw 500 the caller can't act on.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const winner = await this.prisma.ledgerTransaction.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+          include: { entries: true }
+        });
+        if (winner) return winner;
       }
-
-      const transaction = await tx.ledgerTransaction.create({
-        data: {
-          type: input.type,
-          status: LedgerTransactionStatus.POSTED,
-          idempotencyKey: input.idempotencyKey,
-          externalReference: input.externalReference,
-          metadata: input.metadata || {}
-        }
-      });
-
-      await tx.ledgerEntry.createMany({
-        data: input.entries.map((entry) => ({
-          transactionId: transaction.id,
-          accountId: entry.accountId,
-          direction: entry.direction,
-          amountMinor: BigInt(entry.amountMinor),
-          currency: entry.currency
-        }))
-      });
-
-      return tx.ledgerTransaction.findUniqueOrThrow({ where: { id: transaction.id }, include: { entries: true } });
-    });
+      throw err;
+    }
   }
 }

@@ -106,4 +106,46 @@ describe('LedgerService overdraw protection under concurrency (integration)', ()
     expect(finalBalance).toBe(0n); // drained to zero, never overdrawn
     expect(finalBalance >= 0n).toBe(true);
   }, 60000);
+
+  // Directly exercises the idempotency-race fix: N concurrent posts sharing ONE
+  // key (the Stripe-webhook + pull-verify race) must credit exactly once, and the
+  // losers must resolve to a clean replay — never a raw P2002/500.
+  it('N concurrent posts with the SAME key credit exactly once (one post + N-1 replays)', async () => {
+    if (!dbReady) {
+      // eslint-disable-next-line no-console
+      console.warn('SKIP: no DATABASE_URL reachable for the concurrency integration test');
+      return;
+    }
+
+    const N = 20;
+    const KEY = `${PREFIX}:race:once`;
+    const CREDIT = 250n;
+    const balanceOf = async () =>
+      sum(await prisma.ledgerEntry.findMany({ where: { accountId: coinId }, select: { direction: true, amountMinor: true } }));
+    const before = await balanceOf();
+
+    const results = await Promise.all(
+      Array.from({ length: N }, () =>
+        ledger
+          .postTransaction({
+            type: LedgerTransactionType.COIN_PURCHASE,
+            idempotencyKey: KEY, // SAME key — the unique constraint + catch must dedupe
+            entries: [
+              { accountId: sinkId, direction: LedgerDirection.DEBIT, amountMinor: CREDIT, currency: 'COIN' },
+              { accountId: coinId, direction: LedgerDirection.CREDIT, amountMinor: CREDIT, currency: 'COIN' }
+            ]
+          })
+          .then((tx) => tx.id)
+          .catch((e: any) => `ERR:${e?.code ?? e?.message}`)
+      )
+    );
+
+    const errors = results.filter((r) => String(r).startsWith('ERR:'));
+    const rows = await prisma.ledgerTransaction.findMany({ where: { idempotencyKey: KEY } });
+
+    expect(errors).toEqual([]); // no caller saw a 500 — losers got a graceful replay
+    expect(new Set(results).size).toBe(1); // all N callers received the SAME transaction row
+    expect(rows).toHaveLength(1); // exactly one ledger transaction was ever created
+    expect((await balanceOf()) - before).toBe(CREDIT); // credited once, not N times
+  }, 60000);
 });

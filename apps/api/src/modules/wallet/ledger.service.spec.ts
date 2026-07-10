@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { LedgerDirection, LedgerTransactionType } from '@prisma/client';
+import { LedgerDirection, LedgerTransactionType, Prisma } from '@prisma/client';
 import { LedgerService } from './ledger.service';
 
 // ponytail: hand-rolled Prisma stub, no test framework mocking lib needed.
@@ -155,6 +155,52 @@ describe('LedgerService.postTransaction', () => {
       entries: balancedEntries
     });
     expect(tx).toBe(existing);
+  });
+});
+
+describe('LedgerService idempotency-race collision (concurrent poster)', () => {
+  const p2002 = () => new Prisma.PrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002', clientVersion: 'test' });
+
+  // Probe returns null (we think we're first), the insert then loses the race and
+  // throws P2002; the catch re-fetches the winner and returns it as a replay.
+  it('returns the winner row (replay) when the unique insert loses the race', async () => {
+    const prisma = makePrisma();
+    const winner = { id: 'tx-winner', entries: [] };
+    let probes = 0;
+    prisma.ledgerTransaction.findUnique = async () => (probes++ === 0 ? null : (winner as any));
+    prisma.$transaction = async () => {
+      throw p2002();
+    };
+    const service = new LedgerService(prisma as any);
+    const tx = await service.postTransaction({
+      type: LedgerTransactionType.COIN_PURCHASE,
+      idempotencyKey: 'raced',
+      entries: balancedEntries
+    });
+    expect(tx).toBe(winner);
+  });
+
+  it('rethrows a P2002 whose winner cannot be found (should not happen, but no silent success)', async () => {
+    const prisma = makePrisma();
+    prisma.ledgerTransaction.findUnique = async () => null; // never resolves to a winner
+    prisma.$transaction = async () => {
+      throw p2002();
+    };
+    const service = new LedgerService(prisma as any);
+    await expect(
+      service.postTransaction({ type: LedgerTransactionType.COIN_PURCHASE, idempotencyKey: 'raced-lost', entries: balancedEntries })
+    ).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+  });
+
+  it('rethrows any non-P2002 error unchanged (real DB failure is not a replay)', async () => {
+    const prisma = makePrisma();
+    prisma.$transaction = async () => {
+      throw new Error('connection reset');
+    };
+    const service = new LedgerService(prisma as any);
+    await expect(
+      service.postTransaction({ type: LedgerTransactionType.COIN_PURCHASE, idempotencyKey: 'db-down', entries: balancedEntries })
+    ).rejects.toThrow('connection reset');
   });
 });
 
