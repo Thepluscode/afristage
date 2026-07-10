@@ -30,6 +30,21 @@ function buildAuth() {
   return { service, prisma, jwt, wallet };
 }
 
+// Freeze otplib's clock to a fixed epoch for the duration of `fn`, so a live
+// `generate()` and the service's `verify()` always land in the SAME 30s step.
+// Removes the window-boundary race that made the TOTP tests intermittently flaky
+// under parallel load. otplib-native (options.epoch), so it doesn't touch global
+// timers and leaves bcrypt's async scheduling alone. Restores options after.
+async function withFrozenTotp<T>(fn: () => Promise<T>): Promise<T> {
+  const saved = { ...authenticator.options };
+  authenticator.options = { ...authenticator.options, epoch: 1_700_000_000_000 };
+  try {
+    return await fn();
+  } finally {
+    authenticator.options = saved;
+  }
+}
+
 describe('AuthService.register (guards)', () => {
   it('rejects when neither email nor phone is provided', async () => {
     const { service } = buildAuth();
@@ -245,12 +260,19 @@ describe('AuthService.login (privileged + MFA enable)', () => {
     const { service, prisma } = buildAuth();
     const secret = authenticator.generateSecret();
     prisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'u1', mfaSecret: secret });
-    const res = await service.enableMfa('u1', authenticator.generate(secret));
-    expect(res.mfaEnabled).toBe(true);
-    expect(res.recoveryCodes).toHaveLength(8);
-    expect(prisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ mfaEnabled: true }) })
-    );
+    // Stub the 8×cost-10 recovery-code hashing (the test asserts plaintext codes,
+    // not the hashes) — ~3s of real bcrypt was the timeout-under-load flake.
+    const hashSpy = jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed' as never);
+    try {
+      const res = await withFrozenTotp(() => service.enableMfa('u1', authenticator.generate(secret)));
+      expect(res.mfaEnabled).toBe(true);
+      expect(res.recoveryCodes).toHaveLength(8);
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ mfaEnabled: true }) })
+      );
+    } finally {
+      hashSpy.mockRestore();
+    }
   });
 });
 
@@ -299,9 +321,11 @@ describe('AuthService final branch arms', () => {
       id: 'u1', role: 'VIEWER', status: 'ACTIVE', passwordHash: await bcrypt.hash('right', 4),
       mfaEnabled: true, mfaSecret: secret, mfaRecoveryCodes: []
     });
-    await expect(
-      service.login({ identifier: 'a@b.c', password: 'right', mfaToken: authenticator.generate(secret) } as any)
-    ).resolves.toMatchObject({ userId: 'u1' });
+    await withFrozenTotp(() =>
+      expect(
+        service.login({ identifier: 'a@b.c', password: 'right', mfaToken: authenticator.generate(secret) } as any)
+      ).resolves.toMatchObject({ userId: 'u1' })
+    );
   });
 
   it('setupMfa falls back to the userId when there is no email or username', async () => {
