@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ReportPriority, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { RedisService } from '../../common/redis.service';
 import { RoomPresence } from '../chat/room-events';
 import { PUBLIC_HOST_INCLUDE } from './public-host';
 import { REPORT_SEVERITY, RoomFeatures, scoreRoom } from './ranking';
@@ -15,21 +16,27 @@ import { REPORT_SEVERITY, RoomFeatures, scoreRoom } from './ranking';
 // a short TTL; viewer-specific boosts are applied at request time over the
 // cached slice, so personalization is never baked into the cache. Text search
 // bypasses the cache (long-tail keys).
-// ponytail: per-instance in-memory cache; move the slice to Redis when the
-// instance count makes N-cold-starts-per-TTL matter.
+//
+// The slice lives in REDIS so every API instance shares one cache and one
+// invalidation. Redis down degrades to fresh queries — never an error.
 
 const RANK_CANDIDATE_POOL = 100; // rooms we score per request
 const RANK_RETURN = 50;
 const GIFT_WINDOW_MINUTES = 10; // recent window for gift-velocity
 const DAY_MS = 86_400_000;
 
-// TTL in seconds via FEED_CACHE_TTL_SECONDS: default 10, clamped 0..300,
-// 0 disables caching entirely (escape hatch).
-const feedCacheTtlMs = () => {
+// TTL in whole seconds via FEED_CACHE_TTL_SECONDS: default 10, clamped 0..300,
+// 0 disables caching entirely (escape hatch). Fixed at write time (Redis EX).
+const feedCacheTtlSeconds = () => {
   const s = Number(process.env.FEED_CACHE_TTL_SECONDS ?? 10);
-  return (Number.isFinite(s) ? Math.min(Math.max(s, 0), 300) : 10) * 1000;
+  return Number.isFinite(s) ? Math.min(Math.max(Math.round(s), 0), 300) : 10;
 };
-const FEED_CACHE_MAX_KEYS = 64; // bound the (country,category) key space
+
+// Invalidation bumps a generation counter (INCR is atomic and cross-instance);
+// slices are keyed by generation, so old-generation keys are never read again
+// and simply expire. No SCAN/DEL fan-out, no client-side key cap — keys are
+// tiny and TTL-bounded.
+const FEED_GEN_KEY = 'feed:gen';
 
 // A candidate room with its safe public host payload — the shape everything
 // in the feed pipeline (and the API response) carries.
@@ -50,20 +57,38 @@ export interface FeedQuery {
   q?: string;
 }
 
+// Redis stores strings: Map -> entries, BigInt -> string. BigInt-as-string is
+// exactly what the HTTP layer emits anyway (main.ts patches BigInt.toJSON), and
+// Date objects serialize to the same ISO strings fresh or cached — so a cached
+// slice produces byte-identical API responses to a fresh one.
+const serializeSlice = (slice: FeedSlice): string =>
+  JSON.stringify({ rooms: slice.rooms, features: [...slice.features] }, (_k, v) =>
+    typeof v === 'bigint' ? v.toString() : v
+  );
+
+const reviveSlice = (raw: string | null): FeedSlice | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { rooms: FeedRoom[]; features: [string, NeutralFeatures][] };
+    return { rooms: parsed.rooms, features: new Map(parsed.features) };
+  } catch {
+    return null; // corrupt entry -> treat as a miss; it expires on its own
+  }
+};
+
 @Injectable()
 export class FeedEngine {
-  // key: `${country ?? '*'}:${category ?? '*'}` → cached feed slice
-  private readonly cache = new Map<string, { at: number; slice: FeedSlice }>();
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly presence: RoomPresence
+    private readonly presence: RoomPresence,
+    private readonly redis: RedisService
   ) {}
 
-  // Room visibility changed (start/end/suspend/stale-sweep): never serve a
-  // stale slice for up to a TTL.
-  invalidate() {
-    this.cache.clear();
+  // Room visibility changed (start/end/suspend/stale-sweep): bump the cache
+  // generation so EVERY instance stops serving stale slices now, not after a
+  // TTL. Redis down is fine — readers can't see cached slices then either.
+  async invalidate() {
+    await this.redis.incr(FEED_GEN_KEY);
   }
 
   // Ranked live feed. Explainable weighted score (see ranking.ts), not ML.
@@ -72,18 +97,16 @@ export class FeedEngine {
   // breakdown so the feed order is auditable.
   async list(query: FeedQuery) {
     const q = query.q?.trim();
-    const ttl = feedCacheTtlMs();
+    const ttl = feedCacheTtlSeconds();
     if (q || ttl === 0) return this.rankSlice(await this.loadFeedSlice(query, q), query);
 
-    const key = `${query.country ?? '*'}:${query.category ?? '*'}`;
-    const hit = this.cache.get(key);
-    if (hit && Date.now() - hit.at < ttl) return this.rankSlice(hit.slice, query);
+    const gen = (await this.redis.get(FEED_GEN_KEY)) ?? '0';
+    const key = `feed:slice:${gen}:${query.country ?? '*'}:${query.category ?? '*'}`;
+    const hit = reviveSlice(await this.redis.get(key));
+    if (hit) return this.rankSlice(hit, query);
 
     const slice = await this.loadFeedSlice(query, undefined);
-    if (this.cache.size >= FEED_CACHE_MAX_KEYS) {
-      this.cache.delete(this.cache.keys().next().value as string); // drop oldest key
-    }
-    this.cache.set(key, { at: Date.now(), slice });
+    await this.redis.setex(key, ttl, serializeSlice(slice));
     return this.rankSlice(slice, query);
   }
 

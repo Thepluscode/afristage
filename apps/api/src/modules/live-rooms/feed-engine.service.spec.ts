@@ -1,6 +1,26 @@
 import { FeedEngine } from './feed-engine.service';
 
-function buildFeed() {
+// In-memory stand-in for RedisService's best-effort ops: honors TTL via
+// Date.now (so jest fake-time tests work) and INCR semantics for the
+// generation counter.
+function fakeRedis() {
+  const store = new Map<string, { v: string; exp: number }>();
+  return {
+    store,
+    get: jest.fn(async (k: string) => {
+      const e = store.get(k);
+      return e && e.exp > Date.now() ? e.v : null;
+    }),
+    setex: jest.fn(async (k: string, ttl: number, v: string) => {
+      store.set(k, { v, exp: Date.now() + ttl * 1000 });
+    }),
+    incr: jest.fn(async (k: string) => {
+      store.set(k, { v: String(Number(store.get(k)?.v ?? 0) + 1), exp: Number.POSITIVE_INFINITY });
+    })
+  };
+}
+
+function buildFeed(redis: any = fakeRedis()) {
   const prisma: any = {
     liveRoom: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}) },
     roomParticipant: { findMany: jest.fn().mockResolvedValue([]) },
@@ -9,7 +29,7 @@ function buildFeed() {
     chatMessage: { findFirst: jest.fn().mockResolvedValue(null) }
   };
     const chat: any = { viewerCount: jest.fn().mockReturnValue(0), emit: jest.fn() };
-    return { service: new FeedEngine(prisma, chat), prisma, chat };
+    return { service: new FeedEngine(prisma, chat, redis), prisma, chat, redis };
 }
 
 const liveRoom = (over: any = {}) => ({
@@ -114,15 +134,32 @@ describe('FeedEngine cache (R5 §9 #3)', () => {
     expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1); // still cached
   });
 
-  it('evicts the oldest key once the key space is full', async () => {
+  it('degrades to fresh queries when Redis is unavailable (get/setex are misses)', async () => {
+    const deadRedis = { get: jest.fn(async () => null), setex: jest.fn(async () => {}), incr: jest.fn(async () => {}) };
+    const { service, prisma } = buildFeed(deadRedis);
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom()]);
+    expect(await service.list({})).toHaveLength(1); // still serves, no error
+    await service.list({});
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2); // no cache -> fresh each time
+  });
+
+  it('treats a corrupt cached entry as a miss instead of failing the feed', async () => {
+    const redis = fakeRedis();
+    redis.store.set('feed:slice:0:*:*', { v: 'not-json{', exp: Number.POSITIVE_INFINITY });
+    const { service, prisma } = buildFeed(redis);
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom()]);
+    expect(await service.list({})).toHaveLength(1); // fresh query, not a crash
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('round-trips BigInt fields through the cache as strings (same as the HTTP layer)', async () => {
     const { service, prisma } = buildFeed();
-    prisma.liveRoom.findMany.mockResolvedValue([]);
-    for (let i = 0; i < 65; i++) await service.list({ country: `C${i}` }); // 64-key bound
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(65);
-    await service.list({ country: 'C0' }); // was evicted as oldest -> fresh query
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(66);
-    await service.list({ country: 'C64' }); // still cached
-    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(66);
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ totalWatchSeconds: 10n })]);
+    const fresh = await service.list({});
+    const cached = await service.list({});
+    expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(1); // second read from cache
+    expect(String(fresh[0].totalWatchSeconds)).toBe('10');
+    expect((cached[0] as any).totalWatchSeconds).toBe('10');
   });
 
   it('rankSlice falls back to zero features for a room missing from the slice map', () => {
@@ -131,12 +168,13 @@ describe('FeedEngine cache (R5 §9 #3)', () => {
     expect(ranked[0].ranking.score).toBeDefined();
   });
 
-  it('invalidate() empties the cache so the next read is fresh', async () => {
-    const { service, prisma } = buildFeed();
+  it('invalidate() bumps the generation so the next read is fresh', async () => {
+    const { service, prisma, redis } = buildFeed();
     prisma.liveRoom.findMany.mockResolvedValue([]);
     await service.list({});
-    service.invalidate();
-    await service.list({});
+    await service.invalidate();
+    expect(redis.incr).toHaveBeenCalledWith('feed:gen');
+    await service.list({}); // new generation -> old slice key is never read
     expect(prisma.liveRoom.findMany).toHaveBeenCalledTimes(2);
   });
 

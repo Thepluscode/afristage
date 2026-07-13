@@ -105,7 +105,7 @@ export class ModerationService {
   async suspendRoom(actorId: string, id: string, reason?: string) {
     const room = await this.prisma.liveRoom.update({ where: { id }, data: { status: RoomStatus.SUSPENDED, endedAt: new Date() } });
     // A suspended room must vanish from the feed NOW, not after the cache TTL.
-    this.feed.invalidate();
+    await this.feed.invalidate();
     await this.prisma.moderationAction.create({ data: { moderatorId: actorId, roomId: id, action: 'ROOM_SUSPENDED', reason } });
     await this.audit(actorId, 'room.suspended', id, { reason });
     return room;
