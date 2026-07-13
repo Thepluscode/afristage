@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'node:crypto';
 import { authenticator } from 'otplib';
 import { PrismaService } from '../../database/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -228,6 +229,77 @@ export class AuthService {
     const hashed = await Promise.all(recoveryCodes.map((c) => bcrypt.hash(c, 10)));
     await this.prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true, mfaRecoveryCodes: hashed } });
     return { mfaEnabled: true, recoveryCodes }; // shown once
+  }
+
+  // ---- Password reset (admin-issued during beta: no email/SMS provider is
+  // wired, so support verifies identity out-of-band and hands the one-time
+  // token to the user; the public self-service *request* endpoint arrives with
+  // the delivery provider). Token is 256-bit random, stored as sha256 (high-
+  // entropy secret — bcrypt's cost adds nothing), 15 min TTL, single active
+  // token per user (a new issue supersedes the old).
+
+  async adminIssuePasswordResetToken(actorId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Unknown user');
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60_000);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordResetTokenHash: createHash('sha256').update(token).digest('hex'), passwordResetExpiresAt: expiresAt }
+    });
+    await this.prisma.adminAuditLog.create({
+      data: { actorId, action: 'user.password_reset_issued', target: userId, metadata: { expiresAt } }
+    });
+    return { token, expiresAt }; // plaintext shown once, to the admin only
+  }
+
+  // Public: exchange a live reset token for a new password. Non-enumerating
+  // error; consumes the token and signs the user out everywhere (the old
+  // password — and anyone holding it — must lose every session).
+  async confirmPasswordReset(token: string, newPassword: string) {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const user = await this.prisma.user.findFirst({
+      where: { passwordResetTokenHash: tokenHash, passwordResetExpiresAt: { gt: new Date() } }
+    });
+    if (!user) throw new BadRequestException('Invalid or expired reset token');
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await bcrypt.hash(newPassword, 12),
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null
+      }
+    });
+    await this.logoutAll(user.id);
+    return { ok: true };
+  }
+
+  // Admin MFA reset for a user who lost the device AND all recovery codes.
+  // ROTATES the secret + recovery codes instead of disabling MFA: disabling
+  // would hard-lock privileged accounts under REQUIRE_ADMIN_MFA=true (login
+  // rejects before MFA setup is reachable), and MFA never silently drops off
+  // an account. Signs the user out everywhere (if this was an attacker's
+  // social-engineering attempt, stolen sessions die too). Identity must be
+  // verified out-of-band before calling this; enrollment material is handed
+  // to the user the same way.
+  async adminResetMfa(actorId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { profile: true } });
+    if (!user) throw new BadRequestException('Unknown user');
+    if (!user.mfaEnabled) throw new BadRequestException('MFA is not enabled for this user');
+
+    const secret = authenticator.generateSecret();
+    const recoveryCodes = Array.from({ length: 8 }, () => authenticator.generateSecret().slice(0, 10).toLowerCase());
+    const hashed = await Promise.all(recoveryCodes.map((c) => bcrypt.hash(c, 10)));
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret, mfaRecoveryCodes: hashed }
+    });
+    await this.logoutAll(userId);
+    await this.prisma.adminAuditLog.create({
+      data: { actorId, action: 'user.mfa_reset', target: userId, metadata: {} }
+    });
+    const account = user.email || user.profile?.username || userId;
+    return { otpauthUrl: authenticator.keyuri(account, 'AfriStage', secret), recoveryCodes }; // shown once
   }
 
   // Exchange a valid refresh JWT for a fresh token pair. Re-loads the user so a

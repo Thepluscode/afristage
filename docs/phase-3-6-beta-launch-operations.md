@@ -104,27 +104,21 @@ is on); `identifier` is email OR phone.
 
 | User sees | Cause | Diagnosis | Resolution | Tier |
 |---|---|---|---|---|
-| "Invalid credentials" | Unknown identifier or wrong password | `select id, email, phone, status from users where email='X' or phone='X';` — distinguish no-such-account from wrong password | No password reset flow exists (see gap below). Confirm the identifier they registered with (email vs phone are distinct columns) | 2 |
+| "Invalid credentials" | Unknown identifier or wrong password | `select id, email, phone, status from users where email='X' or phone='X';` — distinguish no-such-account from wrong password | Verify identity out-of-band, then `POST /api/admin/users/:id/password-reset-token` (audited; returns a one-time token, 15 min TTL). User sets a new password at `POST /api/auth/password-reset/confirm {token, newPassword}` — this also signs them out everywhere | 2 |
 | "User is not active" | Account SUSPENDED/BANNED | `select status from users where id='U';` + check Admin → audit logs for the moderation action | If suspension was wrong: `POST /api/admin/users/:id/reactivate` (moderation, audited). If correct: user-safe reply, no detail | 2 |
-| "MFA token required" / "Invalid MFA token" | MFA on; missing/wrong/expired TOTP | TOTP accepts ±30s clock skew already — a "wrong code" that persists means wrong device clock or wrong account entry in the authenticator | Ask user to check device auto-time. Recovery codes (8, one-time) work in the `mfaToken` field. Lost device AND codes: see gap below | 2 |
+| "MFA token required" / "Invalid MFA token" | MFA on; missing/wrong/expired TOTP | TOTP accepts ±30s clock skew already — a "wrong code" that persists means wrong device clock or wrong account entry in the authenticator | Ask user to check device auto-time. Recovery codes (8, one-time) work in the `mfaToken` field. Lost device AND codes: verify identity out-of-band, then `POST /api/admin/users/:id/mfa-reset` — ROTATES the secret + recovery codes (never disables MFA, so no `REQUIRE_ADMIN_MFA` lockout) and signs the account out everywhere; hand the returned otpauth URL + codes to the user | 2 |
 | "MFA setup required for this account" | Privileged role + `REQUIRE_ADMIN_MFA=true` without MFA enrolled | `select role, mfa_enabled from users where id='U';` | Expected behavior. User must log in from an already-authenticated session and run `POST /api/auth/mfa/setup` + `mfa/enable`; if fully locked out, see MFA gap below | 2 |
 | "Seeded test accounts are disabled in production" | `admin/creator/viewer@afristage.local` in prod | — | Expected. Real accounts only in prod (`ALLOW_SEEDED_PROD_LOGIN` must stay unset) | 1 (reply template) |
 | 429 Too Many Requests | Auth throttle: 10 req/min/IP (global default 100) | Check JSON logs for the IP: repeated `POST /api/auth/login` completions | Self-resolves in 60s. Many DIFFERENT users behind one IP (campus/office NAT) hitting it → escalate as a limits decision | 2 |
 | Session dies / logout loops | Refresh rejected: "revoked" (sign-out-everywhere), "signed out" (device revoked), "superseded" (rotation — client double-fired refresh or token theft), "Account is not active" | `GET /api/admin/users/:id/sessions` for live sessions; grep logs by `requestId` for which rejection fired | Revoked/superseded: user logs in again (by design). Repeated "superseded" from one client → mobile refresh race, file a bug. Suspected theft: `POST /api/admin/users/:id/sessions/revoke-all` (audited) | 2 |
 | Works then fails after ~15 min | Client not refreshing (access TTL 15m, refresh 30d) | One user: client/device bug. All users: check `JWT_ACCESS_TTL`/`JWT_REFRESH_TTL` env, recent deploy | Single user: reinstall/re-login. All users: Tier 3 — config regression | 2/3 |
 
-**Known gaps (no fix exists — do not improvise one):**
+**Known gaps (do not improvise fixes):**
 
-- **No password reset flow.** No forgot-password endpoint, no admin
-  reset-password endpoint. A user who forgot their password is unrecoverable
-  self-service. Backlog: password reset via verified email/phone — REQUIRED
-  before any wave where support can't hand-verify identity. Interim: identity
-  verified out-of-band by the ops lead → manual `password_hash` update (bcrypt
-  cost 12) recorded in the incident log. Never do this on request alone.
-- **No admin MFA reset.** A user who loses the authenticator device AND all
-  recovery codes cannot log in, and no endpoint can clear MFA. Interim: ops-lead
-  identity verification → manual `mfa_enabled=false, mfa_secret=null` + audit
-  note. Backlog: audited admin MFA-reset endpoint.
+- **No self-service password reset.** Recovery is admin-assisted (endpoints
+  above) because no email/SMS provider is wired for token delivery. The public
+  `password-reset/request` endpoint ships together with the delivery provider —
+  needed before any wave too large for support to hand-verify identity.
 - **No per-account lockout counter** — brute-force control is the per-IP
   throttle only (deliberate). A targeted slow attack across IPs is bounded by
   bcrypt cost 12; revisit at scale.

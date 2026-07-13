@@ -519,3 +519,101 @@ describe('AuthService final branch arms', () => {
     }
   });
 });
+
+describe('AuthService account recovery (password reset + MFA reset)', () => {
+  it('adminIssuePasswordResetToken rejects an unknown user', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.adminIssuePasswordResetToken('admin1', 'ghost')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('issues a one-time token: sha256 stored (never plaintext), 15min expiry, audited', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+    const before = Date.now();
+    const res = await service.adminIssuePasswordResetToken('admin1', 'u1');
+    expect(res.token).toMatch(/^[0-9a-f]{64}$/); // 32 random bytes, hex
+    expect(res.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 14 * 60_000);
+    const stored = prisma.user.update.mock.calls[0][0].data.passwordResetTokenHash;
+    expect(stored).toMatch(/^[0-9a-f]{64}$/);
+    expect(stored).not.toBe(res.token); // hash stored, not the credential
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'user.password_reset_issued', target: 'u1' }) })
+    );
+  });
+
+  it('confirmPasswordReset rejects an invalid/expired token with a non-enumerating error', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue(null); // hash lookup missed (bad token OR expired)
+    await expect(service.confirmPasswordReset('bad-token', 'NewPassw0rd!')).rejects.toThrow('Invalid or expired reset token');
+  });
+
+  it('confirmPasswordReset sets a bcrypt hash, consumes the token, and signs out everywhere', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue({ id: 'u1' });
+    await expect(service.confirmPasswordReset('live-token', 'NewPassw0rd!')).resolves.toEqual({ ok: true });
+    // token consumed + new password hashed (never stored plaintext)
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(data.passwordResetTokenHash).toBeNull();
+    expect(data.passwordResetExpiresAt).toBeNull();
+    expect(await bcrypt.compare('NewPassw0rd!', data.passwordHash)).toBe(true);
+    // logoutAll: tokenVersion bump + every device session revoked
+    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { tokenVersion: { increment: 1 } } });
+    expect(prisma.deviceSession.updateMany).toHaveBeenCalled();
+  });
+
+  it('lookup filters on an unexpired token (expiry enforced in the query)', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue({ id: 'u1' });
+    await service.confirmPasswordReset('live-token', 'NewPassw0rd!');
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: expect.objectContaining({ passwordResetExpiresAt: { gt: expect.any(Date) } })
+    });
+  });
+
+  it('adminResetMfa rejects an unknown user and a user without MFA', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findUnique.mockResolvedValueOnce(null);
+    await expect(service.adminResetMfa('admin1', 'ghost')).rejects.toBeInstanceOf(BadRequestException);
+    prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1', mfaEnabled: false });
+    await expect(service.adminResetMfa('admin1', 'u1')).rejects.toThrow('MFA is not enabled');
+  });
+
+  it('adminResetMfa ROTATES secret + recovery codes (never disables), signs out everywhere, audits', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: 'a@b.c', mfaEnabled: true, profile: null });
+    const res = await service.adminResetMfa('admin1', 'u1');
+    expect(res.otpauthUrl).toContain('otpauth://totp/');
+    expect(res.recoveryCodes).toHaveLength(8);
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(data.mfaSecret).toBeTruthy(); // rotated, NOT nulled — mfaEnabled untouched
+    expect(data.mfaEnabled).toBeUndefined();
+    expect(data.mfaRecoveryCodes).toHaveLength(8);
+    expect(data.mfaRecoveryCodes[0]).not.toBe(res.recoveryCodes[0]); // hashes stored
+    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { tokenVersion: { increment: 1 } } });
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'user.mfa_reset', target: 'u1' }) })
+    );
+  });
+
+  it('adminResetMfa otpauth account label falls back to username then id', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: null, mfaEnabled: true, profile: { username: 'ada' } });
+    expect((await service.adminResetMfa('a', 'u1')).otpauthUrl).toContain('ada');
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: null, mfaEnabled: true, profile: null });
+    expect((await service.adminResetMfa('a', 'u1')).otpauthUrl).toContain('u1');
+  });
+
+  it('end-to-end: an issued token round-trips through confirm (real sha256 match)', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+    const { token } = await service.adminIssuePasswordResetToken('admin1', 'u1');
+    const storedHash = prisma.user.update.mock.calls[0][0].data.passwordResetTokenHash;
+    // confirm looks up by the SAME hash the issue stored
+    prisma.user.findFirst.mockImplementation(async ({ where }: any) =>
+      where.passwordResetTokenHash === storedHash ? { id: 'u1' } : null
+    );
+    await expect(service.confirmPasswordReset(token, 'NewPassw0rd!')).resolves.toEqual({ ok: true });
+    await expect(service.confirmPasswordReset('tampered' + token.slice(8), 'x'.repeat(8))).rejects.toThrow('Invalid or expired');
+  });
+});

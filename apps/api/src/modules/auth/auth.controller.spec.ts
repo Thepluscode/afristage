@@ -8,7 +8,8 @@ const svc = () => ({
   listSessions: jest.fn().mockResolvedValue([]),
   revokeSession: jest.fn().mockResolvedValue('rv'),
   setupMfa: jest.fn().mockResolvedValue('s'),
-  enableMfa: jest.fn().mockResolvedValue('e')
+  enableMfa: jest.fn().mockResolvedValue('e'),
+  confirmPasswordReset: jest.fn().mockResolvedValue({ ok: true })
 });
 const req = { ip: '1.2.3.4', headers: { 'user-agent': 'jest-agent' } };
 describe('AuthController', () => {
@@ -17,6 +18,8 @@ describe('AuthController', () => {
     await c.register({ a: 1 } as any, req); await c.login({ a: 1 } as any, req); await c.refresh({ refreshToken: 't' } as any, req);
     expect(c.me(u)).toBe(u); await c.logoutAll(u); await c.mfaSetup(u); await c.mfaEnable(u, 'tok');
     await c.sessions(u); await c.revokeSession(u, 'sess2'); await c.logout(u);
+    await c.passwordResetConfirm({ token: 'rt', newPassword: 'NewPassw0rd!' } as any);
+    expect(s.confirmPasswordReset).toHaveBeenCalledWith('rt', 'NewPassw0rd!');
     const meta = { ip: '1.2.3.4', userAgent: 'jest-agent' };
     expect(s.register).toHaveBeenCalledWith({ a: 1 }, meta);
     expect(s.login).toHaveBeenCalledWith({ a: 1 }, meta);
