@@ -1,5 +1,29 @@
 # Runbook
 
+## Staging (Railway)
+
+- **API**: https://api-production-e12f.up.railway.app/api (project `afristage`,
+  services: `api`, `Postgres`, `Redis`). Health: `/api/health`, readiness
+  `/api/health/ready` (checks db + redis).
+- **Deploy**: `railway up --service api` from the repo root (`railway.toml`
+  sets the Dockerfile path and `prisma migrate deploy` as the pre-deploy step).
+- **Credentials**: seeded accounts exist but their passwords are ROTATED to
+  strong randoms — read `STAGING_ADMIN_PASSWORD` / `STAGING_CREATOR_PASSWORD` /
+  `STAGING_VIEWER_PASSWORD` from the api service's Railway variables. Never
+  restore the well-known seed passwords on a public URL.
+- **Posture (staging, not production)**: `ENABLE_MOCK_PAYMENTS=true` (money
+  loop verifiable without cards), `REQUIRE_ADMIN_MFA=false`, `NODE_ENV` unset.
+  Flipping to production needs: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
+  URL/key/secret, `NODE_ENV=production`, `REQUIRE_ADMIN_MFA=true` — then
+  `validate-env` enforces the rest at boot.
+- **LiveKit**: `LIVEKIT_URL` points at a placeholder — room start/gift/chat
+  APIs work (tokens sign locally); actual media streaming needs a LiveKit
+  Cloud project before creator sessions can be tested end-to-end.
+- **Monitoring**: `python3 tools/monitoring/synthetic_check.py --url
+  https://api-production-e12f.up.railway.app/api/health --expect-status 200
+  --max-latency-ms 3000 [--alert-webhook <slack-hook>]` — schedule from any
+  vantage point outside Railway.
+
 ## Local startup
 
 ```bash
