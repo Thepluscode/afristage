@@ -84,7 +84,7 @@ export class LiveRoomsService {
       where: { id: room.id },
       data: { status: RoomStatus.LIVE, livekitRoomName, startedAt: new Date() }
     });
-    this.feed.invalidate(); // a room went live — don't serve a stale slice for up to a TTL
+    await this.feed.invalidate(); // a room went live — don't serve a stale slice for up to a TTL
     // Notify followers AND anyone who set a reminder for this specific room —
     // routed through the notifications service so the CREATOR_LIVE opt-out and
     // per-room throttle apply (reminders override the opt-out: they're an
@@ -104,7 +104,7 @@ export class LiveRoomsService {
     if (!room) throw new NotFoundException('Room not found');
     if (room.hostUserId !== hostUserId) throw new ForbiddenException('Not room host');
     const updated = await this.prisma.liveRoom.update({ where: { id: roomId }, data: { status: RoomStatus.ENDED, endedAt: new Date() } });
-    this.feed.invalidate();
+    await this.feed.invalidate();
     this.broadcast.emit(roomId, 'room.ended', { roomId, reason: 'HOST_ENDED' });
     return updated;
   }
@@ -145,7 +145,7 @@ export class LiveRoomsService {
     const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
     if (!room) throw new NotFoundException('Room not found');
     const updated = await this.prisma.liveRoom.update({ where: { id: roomId }, data: { status: RoomStatus.ENDED, endedAt: new Date() } });
-    this.feed.invalidate();
+    await this.feed.invalidate();
     await this.prisma.adminAuditLog.create({ data: { actorId, action: 'room.ended', target: roomId, metadata: {} } });
     this.broadcast.emit(roomId, 'room.ended', { roomId, reason: 'ADMIN_ENDED' });
     return updated;
@@ -173,7 +173,7 @@ export class LiveRoomsService {
     }
 
     if (ended.length) {
-      this.feed.invalidate(); // ended rooms must leave the feed now, not after a TTL
+      await this.feed.invalidate(); // ended rooms must leave the feed now, not after a TTL
       this.logger.warn(`Auto-ended ${ended.length} stale room(s): ${ended.join(', ')}`);
     }
     return { ended, maxIdleMinutes };

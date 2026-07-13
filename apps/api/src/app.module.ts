@@ -4,7 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthController } from './health.controller';
-import { RedisService } from './common/redis.service';
+import { RedisModule } from './common/redis.module';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -43,6 +43,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     // when running more than one API instance, or limits are per-instance.
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
     ScheduleModule.forRoot(),
+    RedisModule,
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -68,7 +69,6 @@ import { UploadsModule } from './modules/uploads/uploads.module';
   ],
   controllers: [HealthController],
   providers: [
-    RedisService,
     // THROTTLE_DISABLED=true turns off rate limiting for test/CI runs only. Never set in prod.
     ...(process.env.THROTTLE_DISABLED === 'true' ? [] : [{ provide: APP_GUARD, useClass: ThrottlerGuard }])
   ]
