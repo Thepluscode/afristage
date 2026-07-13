@@ -4,6 +4,7 @@ import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { AuthService, SessionMeta } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -24,6 +25,13 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: any) {
     return this.auth.login(dto, metaOf(req));
+  }
+
+  // The reset token is itself the credential, so no JwtAuthGuard here.
+  // Inherits the controller's 10/min brute-force throttle.
+  @Post('password-reset/confirm')
+  passwordResetConfirm(@Body() dto: PasswordResetConfirmDto) {
+    return this.auth.confirmPasswordReset(dto.token, dto.newPassword);
   }
 
   // The refresh token is itself the credential, so no JwtAuthGuard here.

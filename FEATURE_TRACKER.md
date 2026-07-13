@@ -259,6 +259,15 @@ layer already existed (feed slice cache). One deferred item promoted and shipped
 |---------|--------|----------|----|
 | Feed slice cache moved from per-instance memory to **Redis** (shared across instances); invalidation via atomic generation counter (`INCR feed:gen`); Redis outage degrades to fresh DB queries, never a feed error | DEPLOYED | 100% cov on changed files; live: fresh-vs-cached responses **byte-identical**, `feed:slice:0:*:*` TTL 10s, `feed:gen` nil→2 across real API start/end, feed 200 with Redis stopped + degrade/recover logs; `validate:ranking` 10/10, `validate:room-events` 9/9 | #162 |
 
+## Account recovery (2026-07-13)
+
+Closes the two auth gaps documented in the support playbook (PR #163):
+
+| Feature | Status | Evidence | PR |
+|---------|--------|----------|----|
+| **Admin-issued password reset**: `POST /admin/users/:id/password-reset-token` (audited, one-time 256-bit token, sha256-stored, 15 min TTL) + public `POST /auth/password-reset/confirm` (non-enumerating, single-use, signs out everywhere). Self-service `request` endpoint deferred until an email/SMS provider exists | DEPLOYED | 100% cov on changed files; live 16/16: token issue→confirm→old password dead→new works, replay rejected, audit rows in SQL | #164 |
+| **Admin MFA reset**: `POST /admin/users/:id/mfa-reset` — ROTATES secret + 8 recovery codes instead of disabling (avoids `REQUIRE_ADMIN_MFA` hard-lock), signs out everywhere, audited | DEPLOYED | live: real TOTP enrollment → rotate → old secret 401, new secret 201, MFA never dropped | #164 |
+
 ## Verification debt
 
 These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
