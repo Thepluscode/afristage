@@ -68,7 +68,66 @@ Do not invite or expand beta users when any condition is true:
 - Critical report categories do not appear in the admin queue.
 - Open Critical or unresolved money/safety High issue exists.
 
+## Support tiers
+
+Every ticket lands in exactly one tier. The tier decides who acts, not how urgent it feels.
+
+**Tier 1 — automated/scripted resolution.** Known issue, documented fix, safe +
+idempotent + already exposed via an admin endpoint. During beta this tier starts
+EMPTY on purpose: automating resolutions before real ticket volume means
+automating guesses. After ~2 weeks of beta tickets, promote recurring Tier-2
+resolutions here (candidates: session revoke for "logged in on a lost phone",
+re-run of the stale-room sweep). Everything not explicitly promoted stays Tier 2.
+
+**Tier 2 — assisted triage (default).** Unknown or judgment-required issue. The
+operator (or agent) packages context and escalates with a recommendation. An
+escalation package always contains: the `x-request-id` (every API response
+carries one; JSON logs are searchable by `requestId`), the user id + role, a
+timeline of what the user did, and which playbook rows were already ruled out.
+Resolution feeds back into the playbook the same week.
+
+**Tier 3 — incident response.** Multiple users affected, or money, security, or
+data integrity involved. Execute the matching incident playbook below. Sequence:
+(1) contain first (stop payouts / suspend room / revoke sessions), (2) notify the
+ops lead immediately, (3) user-safe status replies only — never internal detail,
+(4) record incident, root cause, and prevention action before the next invite wave.
+
 ## Incident playbooks
+
+### Login / auth failures
+
+Impact: Medium per user; Critical if many users or an admin account is affected.
+
+Every login failure returns a distinct message — diagnose from what the user
+reports seeing. Login body is `{identifier, password}` (+ `mfaToken` when MFA
+is on); `identifier` is email OR phone.
+
+| User sees | Cause | Diagnosis | Resolution | Tier |
+|---|---|---|---|---|
+| "Invalid credentials" | Unknown identifier or wrong password | `select id, email, phone, status from users where email='X' or phone='X';` — distinguish no-such-account from wrong password | No password reset flow exists (see gap below). Confirm the identifier they registered with (email vs phone are distinct columns) | 2 |
+| "User is not active" | Account SUSPENDED/BANNED | `select status from users where id='U';` + check Admin → audit logs for the moderation action | If suspension was wrong: `POST /api/admin/users/:id/reactivate` (moderation, audited). If correct: user-safe reply, no detail | 2 |
+| "MFA token required" / "Invalid MFA token" | MFA on; missing/wrong/expired TOTP | TOTP accepts ±30s clock skew already — a "wrong code" that persists means wrong device clock or wrong account entry in the authenticator | Ask user to check device auto-time. Recovery codes (8, one-time) work in the `mfaToken` field. Lost device AND codes: see gap below | 2 |
+| "MFA setup required for this account" | Privileged role + `REQUIRE_ADMIN_MFA=true` without MFA enrolled | `select role, mfa_enabled from users where id='U';` | Expected behavior. User must log in from an already-authenticated session and run `POST /api/auth/mfa/setup` + `mfa/enable`; if fully locked out, see MFA gap below | 2 |
+| "Seeded test accounts are disabled in production" | `admin/creator/viewer@afristage.local` in prod | — | Expected. Real accounts only in prod (`ALLOW_SEEDED_PROD_LOGIN` must stay unset) | 1 (reply template) |
+| 429 Too Many Requests | Auth throttle: 10 req/min/IP (global default 100) | Check JSON logs for the IP: repeated `POST /api/auth/login` completions | Self-resolves in 60s. Many DIFFERENT users behind one IP (campus/office NAT) hitting it → escalate as a limits decision | 2 |
+| Session dies / logout loops | Refresh rejected: "revoked" (sign-out-everywhere), "signed out" (device revoked), "superseded" (rotation — client double-fired refresh or token theft), "Account is not active" | `GET /api/admin/users/:id/sessions` for live sessions; grep logs by `requestId` for which rejection fired | Revoked/superseded: user logs in again (by design). Repeated "superseded" from one client → mobile refresh race, file a bug. Suspected theft: `POST /api/admin/users/:id/sessions/revoke-all` (audited) | 2 |
+| Works then fails after ~15 min | Client not refreshing (access TTL 15m, refresh 30d) | One user: client/device bug. All users: check `JWT_ACCESS_TTL`/`JWT_REFRESH_TTL` env, recent deploy | Single user: reinstall/re-login. All users: Tier 3 — config regression | 2/3 |
+
+**Known gaps (no fix exists — do not improvise one):**
+
+- **No password reset flow.** No forgot-password endpoint, no admin
+  reset-password endpoint. A user who forgot their password is unrecoverable
+  self-service. Backlog: password reset via verified email/phone — REQUIRED
+  before any wave where support can't hand-verify identity. Interim: identity
+  verified out-of-band by the ops lead → manual `password_hash` update (bcrypt
+  cost 12) recorded in the incident log. Never do this on request alone.
+- **No admin MFA reset.** A user who loses the authenticator device AND all
+  recovery codes cannot log in, and no endpoint can clear MFA. Interim: ops-lead
+  identity verification → manual `mfa_enabled=false, mfa_secret=null` + audit
+  note. Backlog: audited admin MFA-reset endpoint.
+- **No per-account lockout counter** — brute-force control is the per-IP
+  throttle only (deliberate). A targeted slow attack across IPs is bounded by
+  bcrypt cost 12; revisit at scale.
 
 ### Ledger imbalance
 
