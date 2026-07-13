@@ -249,6 +249,16 @@ Container has since been **stopped** (`docker stop afristage-api-1`; not removed
 local deps (Postgres/Redis/LiveKit/MinIO) and the host dev API on `:3000` were left
 running. Relaunch with `docker compose -f docker-compose.yml -f /tmp/afri-api-port.yml up -d api`.
 
+## Layer 10 — caching (2026-07-13)
+
+Audit result: browser layer is framework-handled (Next.js hashed assets), CDN layer
+correctly absent (all GETs auth-scoped/personalized; global `no-store` stands), app
+layer already existed (feed slice cache). One deferred item promoted and shipped:
+
+| Feature | Status | Evidence | PR |
+|---------|--------|----------|----|
+| Feed slice cache moved from per-instance memory to **Redis** (shared across instances); invalidation via atomic generation counter (`INCR feed:gen`); Redis outage degrades to fresh DB queries, never a feed error | DEPLOYED | 100% cov on changed files; live: fresh-vs-cached responses **byte-identical**, `feed:slice:0:*:*` TTL 10s, `feed:gen` nil→2 across real API start/end, feed 200 with Redis stopped + degrade/recover logs; `validate:ranking` 10/10, `validate:room-events` 9/9 | #162 |
+
 ## Verification debt
 
 These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
