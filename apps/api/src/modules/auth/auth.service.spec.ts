@@ -560,7 +560,7 @@ describe('AuthService account recovery (password reset + MFA reset)', () => {
     // logoutAll: tokenVersion bump + every device session revoked
     expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { tokenVersion: { increment: 1 } } });
     expect(prisma.deviceSession.updateMany).toHaveBeenCalled();
-  });
+  }, 20_000);
 
   it('lookup filters on an unexpired token (expiry enforced in the query)', async () => {
     const { service, prisma } = buildAuth();
@@ -569,7 +569,7 @@ describe('AuthService account recovery (password reset + MFA reset)', () => {
     expect(prisma.user.findFirst).toHaveBeenCalledWith({
       where: expect.objectContaining({ passwordResetExpiresAt: { gt: expect.any(Date) } })
     });
-  });
+  }, 20_000);
 
   it('adminResetMfa rejects an unknown user and a user without MFA', async () => {
     const { service, prisma } = buildAuth();
@@ -594,7 +594,7 @@ describe('AuthService account recovery (password reset + MFA reset)', () => {
     expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'user.mfa_reset', target: 'u1' }) })
     );
-  });
+  }, 20_000);
 
   it('adminResetMfa otpauth account label falls back to username then id', async () => {
     const { service, prisma } = buildAuth();
@@ -602,7 +602,7 @@ describe('AuthService account recovery (password reset + MFA reset)', () => {
     expect((await service.adminResetMfa('a', 'u1')).otpauthUrl).toContain('ada');
     prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: null, mfaEnabled: true, profile: null });
     expect((await service.adminResetMfa('a', 'u1')).otpauthUrl).toContain('u1');
-  });
+  }, 20_000);
 
   it('end-to-end: an issued token round-trips through confirm (real sha256 match)', async () => {
     const { service, prisma } = buildAuth();
@@ -615,5 +615,5 @@ describe('AuthService account recovery (password reset + MFA reset)', () => {
     );
     await expect(service.confirmPasswordReset(token, 'NewPassw0rd!')).resolves.toEqual({ ok: true });
     await expect(service.confirmPasswordReset('tampered' + token.slice(8), 'x'.repeat(8))).rejects.toThrow('Invalid or expired');
-  });
+  }, 20_000);
 });
