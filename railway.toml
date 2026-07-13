@@ -1,0 +1,13 @@
+# Railway service config for the AfriStage API (staging).
+# Build context is the repo root (Dockerfile COPYs apps/api + root package files).
+[build]
+builder = "dockerfile"
+dockerfilePath = "apps/api/Dockerfile"
+
+[deploy]
+# Image WORKDIR is /app/apps/api — prisma/schema.prisma resolves from there.
+preDeployCommand = "npx prisma migrate deploy"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

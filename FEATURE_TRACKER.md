@@ -268,6 +268,19 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 | **Admin-issued password reset**: `POST /admin/users/:id/password-reset-token` (audited, one-time 256-bit token, sha256-stored, 15 min TTL) + public `POST /auth/password-reset/confirm` (non-enumerating, single-use, signs out everywhere). Self-service `request` endpoint deferred until an email/SMS provider exists | DEPLOYED | 100% cov on changed files; live 16/16: token issue→confirm→old password dead→new works, replay rejected, audit rows in SQL | #164 |
 | **Admin MFA reset**: `POST /admin/users/:id/mfa-reset` — ROTATES secret + 8 recovery codes instead of disabling (avoids `REQUIRE_ADMIN_MFA` hard-lock), signs out everywhere, audited | DEPLOYED | live: real TOTP enrollment → rotate → old secret 401, new secret 201, MFA never dropped | #164 |
 
+## Staging environment (2026-07-13) — the VERIFIED unblock
+
+| Feature | Status | Evidence | PR |
+|---------|--------|----------|----|
+| **Railway staging**: api + Postgres + Redis at https://api-production-e12f.up.railway.app/api; migrations run pre-deploy; seeded passwords rotated to randoms (in Railway vars); mock payments on | VERIFIED | live 10/10 on the public URL: 3-role login → mock purchase (+100 coins exact) → room start → gift (−10 exact) → ranked feed → **ledger integrity OK** → recovery flow → room end; readiness `{db:true,redis:true}`; helmet+HSTS headers; synthetic check green from outside | #165 |
+| Account recovery (PR #164) — staging evidence | VERIFIED | admin-issued reset token → confirm 201 on the deployed environment | #165 |
+| Redis feed slice cache (PR #162) — staging evidence | VERIFIED | feed served twice on staging against Railway Redis; readiness redis:true | #165 |
+
+Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
+project (media streaming untestable until then), `NODE_ENV=production` +
+`REQUIRE_ADMIN_MFA=true`, admin-web deploy, scheduled synthetic check with an
+alert webhook.
+
 ## Verification debt
 
 These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
