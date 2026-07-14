@@ -11,8 +11,9 @@ async function cleanup() {
   await sql(`delete from reports where room_id in (select id from live_rooms where title like '${MARK}-%')`);
   await sql(`delete from room_participants where room_id in (select id from live_rooms where title like '${MARK}-%')`);
   await sql(`delete from live_rooms where title like '${MARK}-%'`);
-  // Remove our synthetic, report-free host(s).
-  await sql(`delete from users where role='CREATOR' and email is null and password_hash is null`);
+  // Remove our synthetic host(s) by their marker email ONLY — a null-email
+  // predicate also matched SEEDED demo creators and died on their FK rows.
+  await sql(`delete from users where email like '${MARK.toLowerCase()}-%@invalid.local'`);
 }
 
 async function makeRoom(host, title, { viewers, criticalReport }) {
@@ -46,15 +47,18 @@ async function main() {
   await sql(`update live_rooms set status='ENDED', ended_at=now() where status='LIVE' and title not like '${MARK}-%'`);
   const host = randomUUID();
   await sql(
-    `insert into users (id, role, status, age_confirmed, email_verified, phone_verified, mfa_enabled, created_at, updated_at)
-     values ('${host}', 'CREATOR', 'ACTIVE', true, false, false, false, now(), now())`
+    `insert into users (id, email, role, status, age_confirmed, email_verified, phone_verified, mfa_enabled, created_at, updated_at)
+     values ('${host}', '${MARK.toLowerCase()}-${host.slice(0, 8)}@invalid.local', 'CREATOR', 'ACTIVE', true, false, false, false, now(), now())`
   );
   ok(!!host, `created an isolated host (${host.slice(0, 8)})`);
   const popularClean = await makeRoom(host, `${MARK}-popular-clean`, { viewers: 5 });
   const quietClean = await makeRoom(host, `${MARK}-quiet-clean`, { viewers: 1 });
   const popularFlagged = await makeRoom(host, `${MARK}-popular-flagged`, { viewers: 5, criticalReport: true });
 
-  const { status, data } = await api('GET', '/live-rooms');
+  // ?q= takes the cache-BYPASS path (text search): SQL-seeded rooms never bump
+  // the Redis slice generation, so a plain GET within the TTL can see a stale
+  // slice and flake. This script proves RANKING, not caching.
+  const { status, data } = await api('GET', `/live-rooms?q=${MARK}`);
   ok(status === 200, `GET /live-rooms 200 (${status})`);
   ok(Array.isArray(data), 'response is an array');
 

@@ -1,4 +1,4 @@
-import { ok, sql, api, login, finish } from './_lib.mjs';
+import { ok, sql, api, login, finish, SEED } from './_lib.mjs';
 
 const stamp = Date.now();
 const reg = async (tag) => {
@@ -9,7 +9,7 @@ const reg = async (tag) => {
   return { email, token: r.data.accessToken, userId: r.data.userId };
 };
 
-const ATOK = await login('admin@afristage.local', 'Admin123!');
+const ATOK = await login('admin@afristage.local', SEED.admin);
 
 console.log('\n=== BETA INVITES ===');
 const inv = await api('POST', '/admin/beta-invites', { token: ATOK, body: { email: `invitee_${stamp}@test.local`, type: 'VIEWER' } });
@@ -38,7 +38,7 @@ const postCreate = await api('POST', '/live-rooms', { token: candTok2, body: { t
 ok(postCreate.status === 201, `approved creator can create a room (${postCreate.status})`);
 
 console.log('\n=== REPORT AUTO-PRIORITY ===');
-const VTOK = await login('viewer@afristage.local', 'Viewer123!');
+const VTOK = await login('viewer@afristage.local', SEED.viewer);
 const rep = await api('POST', '/reports', { token: VTOK, body: { targetUserId: cand.userId, reason: 'UNDERAGE_RISK', details: 'auto-priority test' } });
 ok(rep.status === 201, 'report created');
 ok(await sql(`select priority from reports where id='${rep.data.id}'`) === 'CRITICAL', 'UNDERAGE_RISK auto-prioritised to CRITICAL');
@@ -65,7 +65,7 @@ ok(opsForbidden.status === 403, `viewer cannot access /admin/beta-ops (${opsForb
 
 console.log('\n=== MOCK PAYMENT OWNERSHIP ===');
 const other = await reg('other');
-const intent = await api('POST', '/payments/coin-purchase-intents', { token: VTOK, body: { amountMinor: 1000, currency: 'NGN', coinAmount: 10 } });
+const intent = await api('POST', '/payments/coin-purchase-intents', { token: VTOK, body: { packageId: 'starter' } });
 const steal = await api('POST', `/payments/mock/${intent.data.id}/complete`, { token: other.token });
 ok(steal.status === 403, `cannot complete another user's payment intent (${steal.status})`);
 

@@ -27,10 +27,19 @@
 - **LiveKit**: `LIVEKIT_URL` points at a placeholder — room start/gift/chat
   APIs work (tokens sign locally); actual media streaming needs a LiveKit
   Cloud project before creator sessions can be tested end-to-end.
-- **Monitoring**: `python3 tools/monitoring/synthetic_check.py --url
-  https://api-production-e12f.up.railway.app/api/health --expect-status 200
-  --max-latency-ms 3000 [--alert-webhook <slack-hook>]` — schedule from any
-  vantage point outside Railway.
+- **Monitoring**: cron on the ops Mac probes both services every 5 min
+  (`crontab -l`, logs in `tmp/synthetic-check.log`):
+  `python3 tools/monitoring/synthetic_check.py --url .../api/health --url
+  https://admin-web-production-803b.up.railway.app/api/health --expect-status
+  200 --max-latency-ms 3000` — add `--alert-webhook <hook>` once a Slack or
+  Discord hook exists so failures page instead of logging.
+- **Mobile against staging**: no code change needed —
+  `flutter run --dart-define=API_BASE=https://api-production-e12f.up.railway.app/api`
+  (an explicit `API_BASE` define always wins over the localhost defaults).
+- **Launch gate against staging**: `API_BASE=<staging api> DATABASE_URL=<Railway
+  DATABASE_PUBLIC_URL> SEED_ADMIN_PASSWORD=... SEED_CREATOR_PASSWORD=...
+  SEED_VIEWER_PASSWORD=... npm run launch:beta:live` — the SEED_* overrides
+  exist because staging rotates the seeded passwords.
 
 ## Local startup
 

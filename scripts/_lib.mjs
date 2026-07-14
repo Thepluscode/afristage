@@ -12,6 +12,14 @@ const prisma = new PrismaClient();
 export const B = process.env.API_BASE || 'http://localhost:3000/api';
 export const WS = process.env.WS_BASE || 'http://localhost:3000/chat';
 
+// Seeded-account passwords. Local stacks use the well-known seeds; staging
+// rotates them (runbook: STAGING_*_PASSWORD in Railway vars) — override via env.
+export const SEED = {
+  admin: process.env.SEED_ADMIN_PASSWORD || 'Admin123!',
+  creator: process.env.SEED_CREATOR_PASSWORD || 'Creator123!',
+  viewer: process.env.SEED_VIEWER_PASSWORD || 'Viewer123!'
+};
+
 let pass = 0, fail = 0;
 export const ok = (c, m) => { console.log(`${c ? '  PASS' : '  FAIL'}  ${m}`); c ? pass++ : fail++; };
 
