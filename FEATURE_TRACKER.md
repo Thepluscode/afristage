@@ -289,6 +289,8 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 | **Mobile app ↔ staging verified**: debug APK built with `--dart-define=API_BASE=<staging>`, real login on the afri emulator with the ROTATED viewer password → home screen with live wallet balance (540 coins) + correct empty-feed state, all over the public internet | VERIFIED | `afri-mobile-staging-home.png`; staging log shows the app's `POST /auth/login` 201 + refresh-on-launch | #170 |
 | **Request log lied on error paths** — every 4xx/5xx logged the PRE-filter `res.statusCode` (a rejected login logged as `statusCode=201`). Cost a live debugging session. Status now taken from the thrown exception | HIGH | VERIFIED: bad-password login against staging now logs `statusCode=401`; regression tests added; interceptor 100% cov | #170 |
 
+| **Cinematic redesign shipped through the gate** (external tool authored; gate hardened): public `/site` on staging admin-web (auth-exempt, tested), photographic mobile UI, landing product reel. Gate caught: coverage 91.95%→100% restored (site test + 5 flutter tests, 330/330 + 327/327), unignored `build/` dir, 5.4MB PNGs→958KB JPEGs, false "running site" claim | VERIFIED | live: staging `/site` 200 unauthenticated + hero jpg 200, gh-pages reel + suite jpg 200, waitlist intact, prod render zero console errors (`site-live-render.png`). **Open: imagery provenance before marketing push** | #171 |
+
 Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
 project (media streaming untestable until then), `NODE_ENV=production` +
 `REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check, `RESEND_API_KEY`
