@@ -278,9 +278,13 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 
 | **admin-web on staging**: https://admin-web-production-803b.up.railway.app — Next.js proxy over the Railway private mesh (`api.railway.internal:8080`); own `/api/health`; deployed via per-service `RAILWAY_DOCKERFILE_PATH` | VERIFIED | live: UI login 200 with rotated admin creds, authed dashboard 200, ledger-integrity `ok:true` THROUGH the UI proxy, all 6 playbook pages (support/reports/payments/payouts/ledger-integrity/live-rooms) 200, unauthed → /login 307; admin-web vitest 323/323 | #166 |
 
+| **Beta launch gate passed on staging** — `launch:beta:live` with `API_BASE`/`DATABASE_URL`/`SEED_*` pointed at Railway: docs gate, prod-readiness static, UX readiness, admin-web build, mobile analyze+tests, live health, beta validator 20/20, smoke test 36/36 | VERIFIED | `tmp/staging-gate-full.log`; gate scripts fixed en route (stale legacy payment bodies + pre-#29 gift quantity had 11 latent failures — identical locally, so staging itself was never at fault) | #167 |
+| **Continuous monitoring**: cron every 5 min probes api + admin-web health from outside Railway (`tmp/synthetic-check.log`); webhook slot ready | VERIFIED | scheduled run wrote 2/2 healthy without manual invocation | #167 |
+| `validate-ranking` idempotent: synthetic hosts carry marker emails (cleanup can't touch seeded creators) + feed GET uses the cache-bypass `?q=` path (SQL seeds never bump the slice generation) | VERIFIED | 3 consecutive green runs (was: crashed on 2nd run) | #167 |
+
 Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
 project (media streaming untestable until then), `NODE_ENV=production` +
-`REQUIRE_ADMIN_MFA=true`, scheduled synthetic check with an alert webhook.
+`REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check.
 
 ## Verification debt
 

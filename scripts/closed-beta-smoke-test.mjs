@@ -4,7 +4,7 @@
 // payout lifecycle + double-pay guard, report + escalate, room.ended + join
 // guard, ledger integrity, audit logs. Exits non-zero on the first failure.
 import { io } from 'socket.io-client';
-import { api, login, ok, sql, finish, B } from './_lib.mjs';
+import { api, login, ok, sql, finish, B, SEED } from './_lib.mjs';
 
 const ORIGIN = process.env.SOCKET_BASE || B.replace(/\/api\/?$/, '');
 const stamp = Date.now();
@@ -35,9 +35,9 @@ const register = async (tag) => {
 async function main() {
   // 1. AUTH
   console.log('\n=== AUTH ===');
-  const ATOK = await login('admin@afristage.local', 'Admin123!');
-  const CTOK = await login('creator@afristage.local', 'Creator123!');
-  const VTOK = await login('viewer@afristage.local', 'Viewer123!');
+  const ATOK = await login('admin@afristage.local', SEED.admin);
+  const CTOK = await login('creator@afristage.local', SEED.creator);
+  const VTOK = await login('viewer@afristage.local', SEED.viewer);
   ok(!!ATOK && !!CTOK && !!VTOK, 'admin + creator + viewer logged in');
 
   // 2. BETA INVITE
@@ -59,11 +59,15 @@ async function main() {
 
   // 4. COINS
   console.log('\n=== COINS ===');
-  const intent = await api('POST', '/payments/coin-purchase-intents', { token: VTOK, body: { amountMinor: 200000000, currency: 'NGN', coinAmount: 2000000 } });
+  // Purchases go through the coin-package catalog now (raw amount bodies are
+  // gone). 'pro' = 1200 coins: enough for a gift whose 60% creator cut clears
+  // the 500-coin payout minimum below.
+  const balBefore = BigInt((await api('GET', '/wallet/me', { token: VTOK })).data?.coinBalance ?? '0');
+  const intent = await api('POST', '/payments/coin-purchase-intents', { token: VTOK, body: { packageId: 'pro' } });
   const done = await api('POST', `/payments/mock/${intent.data.id}/complete`, { token: VTOK });
   ok(done.status === 201 || done.status === 200, `mock coin purchase completes (${done.status})`);
   const wallet = await api('GET', '/wallet/me', { token: VTOK });
-  ok(BigInt(wallet.data?.coinBalance ?? '0') >= 2000000n, `wallet credited (balance ${wallet.data?.coinBalance})`);
+  ok(BigInt(wallet.data?.coinBalance ?? '0') - balBefore === 1200n, `wallet credited +1200 (balance ${wallet.data?.coinBalance})`);
   // Ownership guard: another user must not be able to complete this viewer's intent.
   const steal = await api('POST', `/payments/mock/${intent.data.id}/complete`, { token: CTOK });
   ok(steal.status === 403, `creator cannot complete a viewer's mock payment intent (${steal.status})`);
@@ -96,26 +100,31 @@ async function main() {
 
   // 9. GIFT + BROADCAST + IDEMPOTENCY
   console.log('\n=== GIFT ===');
-  const gift = (await api('GET', '/gifts')).data[0];
+  // quantity is capped at 10000/request since the overdraw hardening (PR #29);
+  // size the gift so the creator's 60% cut clears the 500-coin payout minimum.
+  const gifts = (await api('GET', '/gifts')).data;
+  const gift = gifts.find((g) => g.name?.toLowerCase().includes('rose')) ?? gifts[0];
+  const qty = Math.ceil(850 / gift.coinPrice); // 60% of ~850+ coins ≥ 510 earned
+  const giftCoins = gift.coinPrice * qty;
   const giftP = waitForEvent(socket, 'gift.sent');
   const giftKey = `smoke-gift-${stamp}`;
-  const sent = await api('POST', `/live-rooms/${roomId}/gifts`, { token: VTOK, body: { giftId: gift.id, quantity: 200000, idempotencyKey: giftKey } });
+  const sent = await api('POST', `/live-rooms/${roomId}/gifts`, { token: VTOK, body: { giftId: gift.id, quantity: qty, idempotencyKey: giftKey } });
   ok(sent.status === 201, `gift sent (${sent.status})`);
   ok(!!(await giftP), 'gift.sent broadcast received');
-  const dup = await api('POST', `/live-rooms/${roomId}/gifts`, { token: VTOK, body: { giftId: gift.id, quantity: 200000, idempotencyKey: giftKey } });
+  const dup = await api('POST', `/live-rooms/${roomId}/gifts`, { token: VTOK, body: { giftId: gift.id, quantity: qty, idempotencyKey: giftKey } });
   ok(dup.data?.id === sent.data.id, 'duplicate gift idempotencyKey returns the same transaction');
 
   // 9b. TOP-GIFTERS LEADERBOARD (sole gifter in this fresh room tops the board)
   const board = await api('GET', `/live-rooms/${roomId}/top-gifters`);
   ok(Array.isArray(board.data) && board.data.length >= 1, `leaderboard returns gifters (${board.data?.length})`);
-  ok(board.data[0]?.rank === 1 && board.data[0]?.totalCoins === 2000000, `top gifter ranked with correct coins (${board.data?.[0]?.totalCoins})`);
+  ok(board.data[0]?.rank === 1 && Number(board.data[0]?.totalCoins) === giftCoins, `top gifter ranked with correct coins (${board.data?.[0]?.totalCoins})`);
 
   // 10. PAYOUT LIFECYCLE
   console.log('\n=== PAYOUT ===');
   const payKey = `smoke-payout-${stamp}`;
-  const req = await api('POST', '/payouts/request', { token: CTOK, body: { coinAmount: 500000, idempotencyKey: payKey } });
+  const req = await api('POST', '/payouts/request', { token: CTOK, body: { coinAmount: 500, idempotencyKey: payKey } });
   ok(req.data?.status === 'UNDER_REVIEW', `payout requested UNDER_REVIEW (${req.data?.status})`);
-  const reqDup = await api('POST', '/payouts/request', { token: CTOK, body: { coinAmount: 500000, idempotencyKey: payKey } });
+  const reqDup = await api('POST', '/payouts/request', { token: CTOK, body: { coinAmount: 500, idempotencyKey: payKey } });
   ok(reqDup.data?.id === req.data.id, 'duplicate payout idempotencyKey returns the same payout');
   const approve = await api('POST', `/admin/payouts/${req.data.id}/approve`, { token: ATOK });
   ok(approve.data?.status === 'APPROVED', `admin approved payout (${approve.data?.status})`);
