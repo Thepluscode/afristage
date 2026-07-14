@@ -286,6 +286,9 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 
 | **Email slot (dark until keyed)**: `EmailService` (Resend via raw fetch, `isConfigured()` pattern, best-effort — failures log + return false, never throw) wired into self-service `POST /auth/password-reset/request` (non-enumerating) and beta-invite code delivery; lights up with `RESEND_API_KEY` | DEPLOYED (dark) | 100% cov on changed files; API suite 677/677; live on staging: known + unknown email both `{ok:true}`, log shows token issued + "email skipped (no provider configured)" | #169 |
 
+| **Mobile app ↔ staging verified**: debug APK built with `--dart-define=API_BASE=<staging>`, real login on the afri emulator with the ROTATED viewer password → home screen with live wallet balance (540 coins) + correct empty-feed state, all over the public internet | VERIFIED | `afri-mobile-staging-home.png`; staging log shows the app's `POST /auth/login` 201 + refresh-on-launch | #170 |
+| **Request log lied on error paths** — every 4xx/5xx logged the PRE-filter `res.statusCode` (a rejected login logged as `statusCode=201`). Cost a live debugging session. Status now taken from the thrown exception | HIGH | VERIFIED: bad-password login against staging now logs `statusCode=401`; regression tests added; interceptor 100% cov | #170 |
+
 Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
 project (media streaming untestable until then), `NODE_ENV=production` +
 `REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check, `RESEND_API_KEY`
