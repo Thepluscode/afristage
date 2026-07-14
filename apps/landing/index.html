@@ -303,6 +303,18 @@
   .cta .display em{color:var(--gold)}
   .cta-row{display:flex;gap:22px;flex-wrap:wrap;margin-top:6vh;align-items:center}
   .cta .fine{margin-top:26px;font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--ash)}
+  .wait{margin-top:6vh;max-width:760px;margin-left:auto;margin-right:auto}
+  .wait-row{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+  .wl{display:flex;flex-direction:column;gap:8px;text-align:left;font-family:var(--mono);
+    font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--ash)}
+  .wl small{opacity:.55;letter-spacing:.2em}
+  .wl input{background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.22);
+    color:#fff;font:16px/1.4 var(--serif,serif);padding:6px 2px;min-width:200px;outline:none;
+    border-radius:0;transition:border-color .3s}
+  .wl input:focus{border-bottom-color:#e9b44c}
+  .wait .cta-row{justify-content:center}
+  #w-msg:not(:empty){color:#e9b44c;letter-spacing:.14em}
+  #w-msg.err{color:#e06a5a}
 
   footer{
     padding:34px var(--pad);border-top:1px solid var(--line);
@@ -564,10 +576,21 @@
   <h2 class="display rv d1" style="margin-top:3vh">
     The spotlight is on.<br><em>Step into it.</em>
   </h2>
-  <div class="cta-row rv d2">
-    <a class="btn" href="mailto:beta@afristage.live?subject=Creator%20application">Apply to perform</a>
-    <a class="btn ghost-btn" href="mailto:beta@afristage.live?subject=Audience%20invite">Request an invite</a>
-  </div>
+  <form class="wait rv d2" id="waitlist" novalidate>
+    <div class="wait-row">
+      <label class="wl" for="w-email">Email<input id="w-email" name="email" type="email" required
+        placeholder="you@example.com" autocomplete="email" maxlength="120"></label>
+      <label class="wl" for="w-name">Stage name <small>optional</small><input id="w-name" name="displayName"
+        type="text" placeholder="Ayra" autocomplete="nickname" maxlength="80"></label>
+      <label class="wl" for="w-country">Country <small>optional</small><input id="w-country" name="country"
+        type="text" placeholder="Nigeria" autocomplete="country-name" maxlength="40"></label>
+    </div>
+    <div class="cta-row" style="margin-top:26px">
+      <button class="btn" type="submit" data-role="CREATOR">Apply to perform</button>
+      <button class="btn ghost-btn" type="submit" data-role="FAN">Request an invite</button>
+    </div>
+    <p class="fine" id="w-msg" role="status" aria-live="polite"></p>
+  </form>
   <p class="fine rv d3">Season one: Lagos · Accra · Nairobi · Johannesburg — and every fan abroad.</p>
 </section>
 
@@ -719,6 +742,54 @@
     t.addEventListener("keydown", function(e){
       if (e.key === "ArrowDown" || e.key === "ArrowRight"){ e.preventDefault(); tabs[(i + 1) % tabs.length].focus(); select((i + 1) % tabs.length); }
       if (e.key === "ArrowUp" || e.key === "ArrowLeft"){ e.preventDefault(); tabs[(i + 4) % tabs.length].focus(); select((i + 4) % tabs.length); }
+    });
+  });
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  // Waitlist -> the public beta/request endpoint (5/min/IP throttle server-side).
+  // Staging today; swap for the production API origin at launch.
+  var API = "https://api-production-e12f.up.railway.app/api";
+  var form = document.getElementById("waitlist");
+  var msg = document.getElementById("w-msg");
+  var role = "FAN";
+  form.addEventListener("click", function(e){
+    var b = e.target.closest("button[data-role]");
+    if (b) role = b.getAttribute("data-role");
+  });
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = document.getElementById("w-email").value.trim();
+    if (!email || email.indexOf("@") < 1) {
+      msg.className = "fine err"; msg.textContent = "Enter a real email address."; return;
+    }
+    var body = { email: email, category: role };
+    var name = document.getElementById("w-name").value.trim();
+    var country = document.getElementById("w-country").value.trim();
+    if (name) body.displayName = name;
+    if (country) body.country = country;
+    msg.className = "fine"; msg.textContent = "Sending…";
+    fetch(API + "/beta/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function(r){
+      if (r.ok) {
+        form.querySelector(".wait-row").style.display = "none";
+        form.querySelector(".cta-row").style.display = "none";
+        msg.textContent = "You’re on the list. We’ll write to " + email + " when your wave opens.";
+      } else if (r.status === 429) {
+        msg.className = "fine err"; msg.textContent = "Too many requests from this connection — try again in a minute.";
+      } else {
+        return r.json().then(function(d){
+          msg.className = "fine err";
+          msg.textContent = Array.isArray(d.message) ? d.message[0] : (d.message || "Something went wrong — try again.");
+        });
+      }
+    }).catch(function(){
+      msg.className = "fine err"; msg.textContent = "Network hiccup — try again.";
     });
   });
 })();
