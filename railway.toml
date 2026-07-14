@@ -1,12 +1,16 @@
-# Railway service config for the AfriStage API (staging).
-# Build context is the repo root (Dockerfile COPYs apps/api + root package files).
+# Railway service config (staging). This file applies to EVERY service deployed
+# from the repo root — service-specific bits are env-driven or conditional.
+# Per-service Dockerfile: set RAILWAY_DOCKERFILE_PATH on each service
+# (api -> apps/api/Dockerfile, admin-web -> apps/admin-web/Dockerfile).
+# No dockerfilePath here — config-as-code overrides the per-service
+# RAILWAY_DOCKERFILE_PATH variable, which is what selects each service's image.
 [build]
 builder = "dockerfile"
-dockerfilePath = "apps/api/Dockerfile"
 
 [deploy]
-# Image WORKDIR is /app/apps/api — prisma/schema.prisma resolves from there.
-preDeployCommand = "npx prisma migrate deploy"
+# Runs in each image's WORKDIR. Only the api image has a prisma/ dir — admin-web
+# skips migrations instead of crashing its deploy on a missing schema.
+preDeployCommand = "sh -c 'if [ -d prisma ]; then npx prisma migrate deploy; else echo no-prisma-skip; fi'"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

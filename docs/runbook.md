@@ -3,10 +3,18 @@
 ## Staging (Railway)
 
 - **API**: https://api-production-e12f.up.railway.app/api (project `afristage`,
-  services: `api`, `Postgres`, `Redis`). Health: `/api/health`, readiness
-  `/api/health/ready` (checks db + redis).
-- **Deploy**: `railway up --service api` from the repo root (`railway.toml`
-  sets the Dockerfile path and `prisma migrate deploy` as the pre-deploy step).
+  services: `api`, `admin-web`, `Postgres`, `Redis`). Health: `/api/health`,
+  readiness `/api/health/ready` (checks db + redis).
+- **Admin dashboard**: https://admin-web-production-803b.up.railway.app —
+  log in with the rotated staging admin credentials. Talks to the API over the
+  private mesh (`AFRISTAGE_API_BASE=http://api.railway.internal:8080/api` —
+  Railway injects `PORT=8080` at runtime, so internal callers use 8080, not
+  the app default 3000).
+- **Deploy**: `railway up --service api` / `railway up --service admin-web`
+  from the repo root. Each service's `RAILWAY_DOCKERFILE_PATH` variable picks
+  its image (a `dockerfilePath` in railway.toml would override BOTH — don't
+  add one back). Shared `railway.toml`: healthcheck `/api/health` (both apps
+  serve it) + conditional prisma migrate (api image only).
 - **Credentials**: seeded accounts exist but their passwords are ROTATED to
   strong randoms — read `STAGING_ADMIN_PASSWORD` / `STAGING_CREATOR_PASSWORD` /
   `STAGING_VIEWER_PASSWORD` from the api service's Railway variables. Never
