@@ -43,6 +43,11 @@ describe('admin middleware', () => {
     expect(res.headers.get('location')).toContain('/login');
   });
 
+  it('lets public marketing pages through without cookies', () => {
+    const res = middleware(req('/site'));
+    expect(res.headers.get('location')).toBeNull();
+  });
+
   it('redirects and clears both cookies when access and refresh are both expired', () => {
     const res = middleware(req('/users', { access: token(past), refresh: token(past) }));
     expect(res.headers.get('location')).toContain('/login');

@@ -211,6 +211,23 @@
   .viz svg{display:block;width:100%;height:auto;margin-top:14px}
   .viz .glow{position:absolute;inset:auto -30% -55% -30%;height:70%;background:radial-gradient(50% 100% at 50% 100%,rgba(233,180,76,.22),transparent 70%);pointer-events:none}
 
+  /* ————— product reel ————— */
+  .product-reel{background:#050505;padding-top:clamp(80px,11vh,140px);padding-bottom:0;overflow:hidden}
+  .product-reel-head{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:clamp(28px,7vw,120px);align-items:end}
+  .product-reel h2{font-size:clamp(38px,6vw,92px);line-height:.98;max-width:12ch}
+  .product-reel-copy{max-width:42ch;color:var(--bone-dim);font-size:15px;margin-left:auto}
+  .product-window{margin:clamp(48px,8vh,96px) calc(var(--pad) * -1) 0;overflow-x:auto;scrollbar-width:none;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:radial-gradient(70% 80% at 50% 0,rgba(233,180,76,.12),transparent 70%),#050505}
+  .product-window::-webkit-scrollbar{display:none}
+  .product-window img{display:block;width:100%;height:auto;min-width:980px}
+  .product-caption{display:grid;grid-template-columns:repeat(5,1fr);min-width:980px;border-top:1px solid var(--line)}
+  .product-caption span{padding:16px 20px;border-right:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ash)}
+  .product-caption span:last-child{border-right:0}
+  @media(max-width:880px){
+    .product-reel-head{grid-template-columns:1fr}
+    .product-reel-copy{margin-left:0}
+    .product-window img,.product-caption{min-width:900px}
+  }
+
   /* ————— proof (ivory interlude) ————— */
   .results{background:var(--bone);color:var(--stage)}
   .results .eyebrow{color:var(--gold-deep)}
@@ -478,17 +495,37 @@
   </div>
 </section>
 
+<section class="product-reel" aria-label="AfriStage product experience">
+  <div class="product-reel-head">
+    <div>
+      <span class="eyebrow rv">The product, in motion</span>
+      <h2 class="rv d1" style="margin-top:24px">One stage. Every side of live.</h2>
+    </div>
+    <p class="product-reel-copy rv d2">Discovery, performance, gifting, creator control and payout confidence share one visual language — so the energy never disappears when the work begins.</p>
+  </div>
+  <figure class="product-window rv d2">
+    <img src="assets/afristage-mobile-suite.jpg" width="1693" height="929" loading="lazy" decoding="async" alt="Five AfriStage mobile screens showing the live discovery feed, live room and gift drawer, Go Live setup, creator dashboard, and wallet." />
+    <figcaption class="product-caption">
+      <span>Discover live</span>
+      <span>Join the room</span>
+      <span>Open your stage</span>
+      <span>Run the show</span>
+      <span>Move the money</span>
+    </figcaption>
+  </figure>
+</section>
+
 <!-- ————————————————— 4 · PROOF ————————————————— -->
 <section class="results" id="proof" aria-label="Proof">
   <div class="ghost" aria-hidden="true">III</div>
   <span class="eyebrow rv">Proof</span>
-  <blockquote class="quote rv d1">“My circle in Peckham gifts my Friday show in Surulere. <em>The money lands the same week.</em>”</blockquote>
-  <p class="attrib rv d2">Comedy creator · Lagos · closed beta, season one</p>
+  <p class="quote rv d1">The performance is emotional. <em>The money trail is exact.</em></p>
+  <p class="attrib rv d2">Product evidence · current beta build</p>
 
   <div class="stats rv d2">
-    <div class="stat"><div class="v num"><span data-count="60">0</span><small>%</small></div><div class="k">of every gift goes to the creator — written into the ledger, not a policy page</div></div>
+    <div class="stat"><div class="v num"><span data-count="60">0</span><small>%</small></div><div class="k">default launch creator share — applied inside the gift transaction</div></div>
     <div class="stat"><div class="v num"><span data-count="100">0</span><small>%</small></div><div class="k">of coins accounted on a balanced double-entry ledger, checkable daily</div></div>
-    <div class="stat"><div class="v num"><span data-count="4">0</span><small>rails</small></div><div class="k">payout corridors at launch — Nigeria, Ghana, Kenya, South Africa</div></div>
+    <div class="stat"><div class="v num"><span data-count="4">0</span><small>currencies</small></div><div class="k">local card routes implemented for launch configuration — NGN, GHS, KES and ZAR</div></div>
   </div>
 
   <div class="marks rv d3" aria-label="Where the stages are">

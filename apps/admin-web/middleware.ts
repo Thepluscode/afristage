@@ -28,6 +28,10 @@ export function middleware(req: NextRequest) {
   const authed = (Boolean(access) && !isExpired(access!)) || (Boolean(refresh) && !isExpired(refresh!));
   const { pathname } = req.nextUrl;
 
+  if (pathname === '/site' || pathname.startsWith('/site/')) {
+    return NextResponse.next();
+  }
+
   const clearStale = (res: NextResponse) => {
     if (access) res.cookies.delete(ACCESS_COOKIE);
     if (refresh) res.cookies.delete(REFRESH_COOKIE);

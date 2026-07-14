@@ -79,7 +79,7 @@ class _GoLiveButton extends StatelessWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  // Tabs match the newer mockups: Home · Live · Create · Wallet · Profile.
+  // Tabs match the consumer navigation: Home · Live · Go Live · Wallet · Profile.
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +103,7 @@ class _HomeShellState extends State<HomeShell> {
       const NavigationDestination(
         icon: _GoLiveButton(icon: Icons.videocam),
         selectedIcon: _GoLiveButton(icon: Icons.videocam),
-        label: 'Create',
+        label: 'Go Live',
       ),
       const NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),

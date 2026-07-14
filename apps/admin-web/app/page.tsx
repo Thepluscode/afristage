@@ -113,13 +113,13 @@ export default function DashboardPage() {
       ) : (
         <SuccessBanner>Ledger, reports, payouts, and payment queues are inside normal operating range.</SuccessBanner>
       )}
+      <div className="metric-grid mission-metrics">
+        {cards.map((card) => (
+          <MetricCard key={card.label} {...card} />
+        ))}
+      </div>
       <div className="command-grid">
         <section className="ops-main">
-          <div className="metric-grid">
-            {cards.map((card) => (
-              <MetricCard key={card.label} {...card} />
-            ))}
-          </div>
           <section className="side-panel queue-panel">
             <div className="panel-head">
               <div>

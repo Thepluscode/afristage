@@ -62,7 +62,7 @@ class _LiveScreenState extends State<LiveScreen> {
               category: rooms[i].category,
               creator: rooms[i].hostName,
               country: rooms[i].country,
-              imageUrl: rooms[i].hostAvatarUrl,
+              imageUrl: rooms[i].coverImageUrl ?? rooms[i].hostAvatarUrl,
               viewerCount: rooms[i].viewerCount,
               width: double.infinity,
               onTap: () => _open(rooms[i]),

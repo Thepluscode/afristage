@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
+import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_live.dart';
@@ -9,7 +10,10 @@ import '../widgets/afri_ui.dart';
 import 'room_screen.dart';
 
 class GoLiveSetupScreen extends StatefulWidget {
-  const GoLiveSetupScreen({super.key});
+  const GoLiveSetupScreen({super.key, this.avatarUrl, this.stageName});
+
+  final String? avatarUrl;
+  final String? stageName;
 
   @override
   State<GoLiveSetupScreen> createState() => _GoLiveSetupScreenState();
@@ -137,81 +141,62 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return AfriScaffold(
-      title: 'Go Live Setup',
+      title: 'Go Live',
       children: [
-        AfriGradientPanel(
-          colors: const [Color(0xFF2B1606), Color(0xFF111827)],
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const AfriLiveBadge(label: 'HOST MODE'),
-              const SizedBox(height: 16),
-              Text('Prepare the stage',
-                  style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 8),
-              Text(
-                'Set the room context before viewers enter. Gifts, chat, and LiveKit publishing start after confirmation.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
+        _StagePreview(
+          title: _title.text.trim().isEmpty
+              ? 'Your live session'
+              : _title.text.trim(),
+          category: _category,
+          language: _language,
+          avatarUrl: widget.avatarUrl,
+          stageName: widget.stageName,
         ),
-        const SizedBox(height: 18),
-        const AfriSectionHeader(
-          title: 'Room details',
-          subtitle: 'These labels appear in discovery and moderation queues',
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 20),
         TextField(
           controller: _title,
-          onChanged: (_) {
-            if (_titleError != null) {
-              setState(() => _titleError = null);
-            }
-          },
+          maxLength: 80,
+          onChanged: (_) => setState(() => _titleError = null),
           decoration: const InputDecoration(
-                  labelText: 'Room title', prefixIcon: Icon(Icons.title))
-              .copyWith(errorText: _titleError),
+            labelText: 'Title',
+            hintText: 'What are you performing?',
+            prefixIcon: Icon(Icons.title),
+          ).copyWith(errorText: _titleError),
         ),
-        const SizedBox(height: 6),
-        Text('Choose a clear title so viewers know what to expect.',
-            style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _category,
-          decoration: const InputDecoration(labelText: 'Category'),
-          items: const [
-            'MUSIC',
-            'COMEDY',
-            'DANCE',
-            'TALK',
-            'FAITH',
-            'EDUCATION',
-            'FOOTBALL',
-            'GAMING',
-            'DIASPORA',
-            'RELATIONSHIPS'
-          ].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-          onChanged: (v) => setState(() => _category = v ?? 'MUSIC'),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                initialValue: _country,
-                decoration: const InputDecoration(labelText: 'Country'),
-                items: const ['NG', 'GH', 'KE', 'ZA', 'UK', 'US']
+                isExpanded: true,
+                initialValue: _category,
+                decoration: const InputDecoration(
+                    labelText: 'Category', prefixIcon: Icon(Icons.music_note)),
+                items: const [
+                  'MUSIC',
+                  'COMEDY',
+                  'DANCE',
+                  'TALK',
+                  'FAITH',
+                  'EDUCATION',
+                  'FOOTBALL',
+                  'GAMING',
+                  'DIASPORA',
+                  'RELATIONSHIPS'
+                ]
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
-                onChanged: (v) => setState(() => _country = v ?? 'NG'),
+                onChanged: (v) => setState(() => _category = v ?? 'MUSIC'),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: _language,
-                decoration: const InputDecoration(labelText: 'Language'),
+                decoration: const InputDecoration(
+                    labelText: 'Language',
+                    prefixIcon: Icon(Icons.translate_outlined)),
                 items: const [
                   'pidgin',
                   'english',
@@ -227,6 +212,62 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _country,
+          decoration: const InputDecoration(
+              labelText: 'Stage location',
+              prefixIcon: Icon(Icons.public_outlined)),
+          items: const ['NG', 'GH', 'KE', 'ZA', 'UK', 'US']
+              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              .toList(),
+          onChanged: (v) => setState(() => _country = v ?? 'NG'),
+        ),
+        const SizedBox(height: 20),
+        const AfriSectionHeader(
+          title: 'Audience & settings',
+          subtitle: 'Choose how viewers enter and interact with this room',
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          const Expanded(
+            child: _SetupTile(
+              icon: Icons.public,
+              title: 'Audience',
+              value: 'Public',
+              accent: AfriColors.teal,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _SetupTile(
+              icon: Icons.chat_bubble_outline,
+              title: 'Chat',
+              value: _chatRules ? 'Rules on' : 'Open chat',
+              accent: AfriColors.purple,
+            ),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          const Expanded(
+            child: _SetupTile(
+              icon: Icons.card_giftcard,
+              title: 'Gifts',
+              value: 'Enabled',
+              accent: AfriColors.gold,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _SetupTile(
+              icon: Icons.shield_outlined,
+              title: 'Moderation',
+              value: _chatRules ? 'Standard' : 'Basic',
+              accent: AfriColors.success,
+            ),
+          ),
+        ]),
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -244,7 +285,7 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           subtitle: const Text('Remind viewers to keep the room respectful.'),
         ),
         ListTile(
-          contentPadding: EdgeInsets.zero,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
           leading: const Icon(Icons.event_outlined),
           title: Text(_scheduledAt == null
               ? 'Schedule for later'
@@ -260,37 +301,175 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
                 ),
           onTap: _pickSchedule,
         ),
-        const SizedBox(height: 12),
-        const AfriSectionHeader(
-          title: 'Feed preview',
-          subtitle: 'How this stage will read in the home feed',
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: 188,
-          child: AfriLiveCard(
-            title: _title.text.trim().isEmpty
-                ? 'Your room title'
-                : _title.text.trim(),
-            category: _category,
-            country: _country,
-            creator: 'Your stage',
-            viewerCount: 0,
-            // Preview only — non-interactive (no dead tap, not a11y "button").
-          ),
-        ),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _busy ? null : _start,
+          style: FilledButton.styleFrom(
+            backgroundColor: AfriColors.purple,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(56),
+          ),
           icon: Icon(
               _scheduledAt == null ? Icons.live_tv : Icons.event_available),
           label: Text(_busy
               ? 'Working…'
               : _scheduledAt == null
-                  ? 'Start Live Room'
+                  ? 'GO LIVE'
                   : 'Schedule Room'),
         ),
       ],
+    );
+  }
+}
+
+class _StagePreview extends StatelessWidget {
+  const _StagePreview({
+    required this.title,
+    required this.category,
+    required this.language,
+    this.avatarUrl,
+    this.stageName,
+  });
+
+  final String title;
+  final String category;
+  final String language;
+  final String? avatarUrl;
+  final String? stageName;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: AspectRatio(
+        aspectRatio: 1.08,
+        child: Stack(fit: StackFit.expand, children: [
+          AfriCover(
+            imageUrl: avatarUrl,
+            category: category,
+            initial: stageName,
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x22000000), Color(0xDD07070A)],
+              ),
+            ),
+          ),
+          const Positioned(
+            top: 14,
+            left: 14,
+            child: AfriLiveBadge(label: 'CAMERA PREVIEW'),
+          ),
+          Positioned(
+            top: 14,
+            right: 14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0x8807070A),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0x33FFFFFF)),
+              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.cameraswitch_outlined,
+                    color: Colors.white, size: 16),
+                SizedBox(width: 6),
+                Text('Front camera',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      height: 1.08,
+                      fontWeight: FontWeight.w900)),
+              const SizedBox(height: 7),
+              Row(children: [
+                Text(stageName ?? 'Your stage',
+                    style: const TextStyle(
+                        color: Color(0xFFE4E4E7),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(width: 8),
+                const AfriLiveBadge(label: 'READY'),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text('$category · ${language.toUpperCase()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AfriColors.secondaryText, fontSize: 11)),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SetupTile extends StatelessWidget {
+  const _SetupTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AfriColors.elevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AfriColors.border),
+      ),
+      child: Row(children: [
+        Icon(icon, color: accent, size: 22),
+        const SizedBox(width: 10),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: const TextStyle(
+                    color: AfriColors.mutedText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 3),
+            Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AfriColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      ]),
     );
   }
 }

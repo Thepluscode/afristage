@@ -171,7 +171,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     category: rooms[i].category,
                     creator: rooms[i].hostName,
                     country: rooms[i].country,
-                    imageUrl: rooms[i].hostAvatarUrl,
+                    imageUrl: rooms[i].coverImageUrl ?? rooms[i].hostAvatarUrl,
                     viewerCount: rooms[i].viewerCount,
                     width: double.infinity,
                     onTap: () => Navigator.push(

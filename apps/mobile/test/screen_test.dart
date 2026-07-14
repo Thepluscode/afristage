@@ -465,6 +465,11 @@ void main() {
     });
     await tester.pumpWidget(_wrap(api, const CreatorScreen()));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Available balance'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Available balance'), findsOneWidget);
   });
 
@@ -490,12 +495,22 @@ void main() {
     expect(find.text('Join AfriStage'), findsOneWidget);
   });
 
-  testWidgets('GoLiveSetupScreen renders the room-details form',
+  testWidgets('GoLiveSetupScreen renders the stage preview and controls',
       (tester) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    expect(find.text('Go Live Setup'), findsOneWidget);
-    expect(find.text('Room details'), findsOneWidget);
+    expect(find.text('Go Live'), findsOneWidget);
+    expect(find.text('CAMERA PREVIEW'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Audience & settings'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Audience & settings'), findsOneWidget);
   });
 
   testWidgets('WalletScreen renders balance + earnings from AppState',
@@ -506,8 +521,8 @@ void main() {
     await tester.pumpWidget(_wrapState(state, const WalletScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Available balance'), findsOneWidget);
-    expect(find.text('Coin balance'), findsOneWidget);
-    expect(find.text('1200'), findsOneWidget);
+    expect(find.text(r'$620.00'), findsWidgets);
+    expect(find.text('Gift earnings'), findsOneWidget);
   });
 
   testWidgets('PayoutMethods add-method sheet opens with provider segments',
@@ -741,7 +756,7 @@ void main() {
     }); // getList('/payouts/methods') defaults to []
     await tester.pumpWidget(_wrap(api, const CreatorScreen()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Request payout'));
+    await tester.tap(find.text('Payout'));
     await tester.pumpAndSettle();
     expect(find.text('Add a payout method first so earnings can settle.'),
         findsOneWidget);
@@ -754,9 +769,9 @@ void main() {
     await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '   ');
-    await tester.scrollUntilVisible(find.text('Start Live Room'), 200,
+    await tester.scrollUntilVisible(find.text('GO LIVE'), 200,
         scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Start Live Room'));
+    await tester.tap(find.text('GO LIVE'));
     await tester.pumpAndSettle();
     expect(
         find.text('Choose a clear title before going live.'), findsOneWidget);
@@ -1926,7 +1941,7 @@ void main() {
     expect(find.text('Big Fan'), findsOneWidget); // supporter row (with avatar)
     await tester.tap(find.text('Go Live'));
     await tester.pumpAndSettle();
-    expect(find.text('Go Live Setup'), findsOneWidget);
+    expect(find.text('Go Live'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
     for (final row in [
@@ -1959,7 +1974,7 @@ void main() {
     });
     await tester.pumpWidget(_wrap(api, const CreatorScreen()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Request payout'));
+    await tester.tap(find.text('Payout'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, '500');
     await tester.tap(find.widgetWithText(FilledButton, 'Request Payout'));
@@ -1995,9 +2010,7 @@ void main() {
     await tester.pumpAndSettle();
     for (final row in [
       'Payout methods',
-      'Ledger and history',
-      'Gifts sent',
-      'Payout history',
+      'Live history',
       'Support'
     ]) {
       await tester.scrollUntilVisible(find.text(row).first, 200,
@@ -2007,11 +2020,13 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
     }
-    await tester.scrollUntilVisible(find.text('Report').first, 200,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Report').first); // snackbar guidance
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 5));
+    for (final row in ['Profile', 'Safety Center', 'Settings']) {
+      await tester.scrollUntilVisible(find.text(row).first, 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text(row).first);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 5));
+    }
   });
 
   Map<String, dynamic> feedRoom(String id, String cat, String host) =>
@@ -2235,8 +2250,9 @@ void main() {
     await tester.pumpWidget(_wrapState(state, const FeedScreen()));
     await tester.pumpAndSettle();
     expect(find.textContaining('warming up'), findsOneWidget);
-    await tester.tap(
-        find.text('Apply to Go Live')); // not a creator -> CreatorApplyScreen
+    await tester.scrollUntilVisible(find.text('Become a creator'), 300,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Become a creator')); // -> CreatorApplyScreen
     await tester.pumpAndSettle();
     expect(find.text('Creator Application'), findsOneWidget);
   });
@@ -2582,8 +2598,9 @@ void main() {
           'device': null,
           'ip': null,
           'userAgent': 'Safari on Mac',
-          'lastSeenAt':
-              DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
+          'lastSeenAt': DateTime.now()
+              .subtract(const Duration(hours: 3))
+              .toIso8601String(),
           'current': false,
         },
         {
@@ -2591,8 +2608,9 @@ void main() {
           'device': '',
           'ip': '1.2.3.4',
           'userAgent': '',
-          'lastSeenAt':
-              DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+          'lastSeenAt': DateTime.now()
+              .subtract(const Duration(days: 2))
+              .toIso8601String(),
           'current': false,
         },
       ];
@@ -2659,7 +2677,8 @@ void main() {
       (tester) async {
     _tall(tester);
     final errs = <String>{'/auth/sessions'};
-    final api = _FakeApi(lists: {'/auth/sessions': sessionList()}, errors: errs);
+    final api =
+        _FakeApi(lists: {'/auth/sessions': sessionList()}, errors: errs);
     await tester.pumpWidget(_wrap(api, const DevicesScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Could not load your devices'), findsOneWidget);
@@ -2896,12 +2915,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Request payout'));
+    await tester.tap(find.text('Payout'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel')); // coins == null -> return
     await tester.pumpAndSettle();
     expect(api.posts, isNot(contains('/payouts/request')));
-    await tester.tap(find.text('Request payout'));
+    await tester.tap(find.text('Payout'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, '500');
     await tester.tap(find.widgetWithText(FilledButton, 'Request Payout'));
@@ -2941,9 +2960,9 @@ void main() {
     });
     await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Start Live Room'), 200,
+    await tester.scrollUntilVisible(find.text('GO LIVE'), 200,
         scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Start Live Room'));
+    await tester.tap(find.text('GO LIVE'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(api.posts, contains('/live-rooms'));
@@ -2956,9 +2975,9 @@ void main() {
     final api = _FakeApi(postErrors: {'/live-rooms'});
     await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Start Live Room'), 200,
+    await tester.scrollUntilVisible(find.text('GO LIVE'), 200,
         scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Start Live Room'));
+    await tester.tap(find.text('GO LIVE'));
     await tester.pumpAndSettle();
     expect(find.text('boom'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
@@ -2971,9 +2990,9 @@ void main() {
     await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '   ');
-    await tester.scrollUntilVisible(find.text('Start Live Room'), 200,
+    await tester.scrollUntilVisible(find.text('GO LIVE'), 200,
         scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Start Live Room'));
+    await tester.tap(find.text('GO LIVE'));
     await tester.pumpAndSettle();
     expect(
         find.text('Choose a clear title before going live.'), findsOneWidget);
@@ -3229,7 +3248,9 @@ void main() {
           'checkoutUrl': 'https://pay/x'
         }
       },
-      postErrors: {'/payments/coin-purchase-intents/pi1/verify'}, // verify throws (109-110)
+      postErrors: {
+        '/payments/coin-purchase-intents/pi1/verify'
+      }, // verify throws (109-110)
     );
     final state = AppState(api: api)
       ..wallet =
@@ -3358,7 +3379,7 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Country').first);
+    await tester.tap(find.text('Stage location').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('GH').last); // != default NG -> onChanged (207)
     await tester.pumpAndSettle();
@@ -3407,7 +3428,7 @@ void main() {
     });
     await tester.pumpWidget(_wrap(api, const CreatorScreen()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Request payout'));
+    await tester.tap(find.text('Payout'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, '500');
     await tester.tap(find.widgetWithText(FilledButton, 'Request Payout'));
@@ -3493,5 +3514,57 @@ void main() {
     await tester.pumpWidget(_wrap(_FakeApi(), PayoutMethodsScreen()));
     await tester.pumpAndSettle();
     expect(find.byType(PayoutMethodsScreen), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen formats explicit view counts (views key present)',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
+        'earnings': 620,
+        'views': 2500,
+        'topSupporters': [],
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('2.5K'), findsOneWidget);
+  });
+
+  testWidgets('CreatorScreen "Prepare next room" opens GoLiveSetupScreen',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
+        'earnings': 0,
+        'topSupporters': [],
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Prepare next room'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Prepare next room'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GoLiveSetupScreen), findsOneWidget);
+  });
+
+  testWidgets('WalletScreen buy sheet shows the loading state on an empty catalog',
+      (tester) async {
+    _tall(tester);
+    final state = AppState(
+        api: _FakeApi(lists: {'/payments/coin-packages': []}))
+      ..wallet = const Wallet(
+          coinBalance: 100, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy coins'));
+    await tester.pumpAndSettle();
+    expect(find.text('Loading coin packages…'), findsOneWidget);
   });
 }

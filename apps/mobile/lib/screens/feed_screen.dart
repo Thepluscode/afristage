@@ -182,32 +182,8 @@ class _FeedScreenState extends State<FeedScreen> {
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                   color: AfriColors.text)),
-          SizedBox(width: 3),
-          Text('Live',
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: AfriColors.orange)),
         ]),
         actions: [
-          IconButton(
-            tooltip: 'Events',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const EventsScreen())),
-            icon: const Icon(Icons.emoji_events_outlined),
-          ),
-          IconButton(
-            tooltip: 'Circles',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const CirclesScreen())),
-            icon: const Icon(Icons.groups_outlined),
-          ),
-          IconButton(
-            tooltip: 'Daily missions',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const MissionsScreen())),
-            icon: const Icon(Icons.task_alt),
-          ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
@@ -268,39 +244,19 @@ class _FeedScreenState extends State<FeedScreen> {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                _HomeStageActions(
-                  isCreator: state.isCreator,
-                  onCreate: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => state.isCreator
-                            ? const CreatorScreen()
-                            : const CreatorApplyScreen()),
-                  ),
-                ),
-                const SizedBox(height: 18),
-
                 // Hero featured live card.
                 if (hero != null)
                   AfriHeroLive(
                     title: hero.title,
                     category: hero.category,
                     creator: hero.hostName,
-                    imageUrl: hero.hostAvatarUrl,
+                    imageUrl: hero.coverImageUrl ?? hero.hostAvatarUrl,
                     viewerCount: hero.viewerCount,
                     onTap: () => _openRoom(hero),
                   )
                 else
                   _WarmingUp(onRefresh: _refresh),
-                const SizedBox(height: 22),
-
-                _HomeWalletPanel(
-                  coins: coins,
-                  onWallet: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const WalletScreen())),
-                  onSendGift: hero == null ? null : () => _openRoom(hero),
-                ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
 
                 // Live now rail, scoped All Stages / Local (viewer's region).
                 _SectionHeader(
@@ -328,7 +284,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   )
                 else
                   SizedBox(
-                    height: 232,
+                    height: 190,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: rail.length,
@@ -338,8 +294,10 @@ class _FeedScreenState extends State<FeedScreen> {
                         category: rail[i].category,
                         creator: rail[i].hostName,
                         country: rail[i].country,
-                        imageUrl: rail[i].hostAvatarUrl,
+                        imageUrl:
+                            rail[i].coverImageUrl ?? rail[i].hostAvatarUrl,
                         viewerCount: rail[i].viewerCount,
+                        width: 122,
                         onTap: () => _openRoom(rail[i]),
                       ),
                     ),
@@ -375,7 +333,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         final r = creators.values.elementAt(i);
                         return AfriCreatorRing(
                           name: r.hostName ?? 'Creator',
-                          imageUrl: r.hostAvatarUrl,
+                          imageUrl: r.coverImageUrl ?? r.hostAvatarUrl,
                           viewerCount: r.viewerCount,
                           onTap: () => _openCreator(r),
                         );
@@ -383,6 +341,32 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 24),
+                _FeatureDock(
+                  isCreator: state.isCreator,
+                  onCreate: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => state.isCreator
+                            ? const CreatorScreen()
+                            : const CreatorApplyScreen()),
+                  ),
+                  onEvents: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const EventsScreen())),
+                  onCircles: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const CirclesScreen())),
+                  onMissions: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const MissionsScreen())),
+                ),
+                const SizedBox(height: 24),
+                _HomeWalletPanel(
+                  coins: coins,
+                  onWallet: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const WalletScreen())),
+                  onSendGift: hero == null ? null : () => _openRoom(hero),
+                ),
               ],
             );
           },
@@ -435,52 +419,113 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 }
 
-class _HomeStageActions extends StatelessWidget {
-  const _HomeStageActions({required this.isCreator, required this.onCreate});
+class _FeatureDock extends StatelessWidget {
+  const _FeatureDock({
+    required this.isCreator,
+    required this.onCreate,
+    required this.onEvents,
+    required this.onCircles,
+    required this.onMissions,
+  });
 
   final bool isCreator;
   final VoidCallback onCreate;
+  final VoidCallback onEvents;
+  final VoidCallback onCircles;
+  final VoidCallback onMissions;
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Expanded(
-        child: FilledButton.icon(
-          onPressed: onCreate,
-          style: FilledButton.styleFrom(
-            backgroundColor: AfriColors.teal,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(58),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const _SectionHeader(title: 'More on AfriStage', trailing: 'Explore'),
+      const SizedBox(height: 12),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          _FeatureAction(
+            tooltip: isCreator ? 'Go Live' : 'Apply to Go Live',
+            icon: Icons.videocam_rounded,
+            label: isCreator ? 'Go Live' : 'Become a creator',
+            accent: AfriColors.purple,
+            onTap: onCreate,
           ),
-          icon: const Icon(Icons.sensors),
-          label: Text(isCreator ? 'Go Live' : 'Apply to Go Live',
-              style: const TextStyle(fontWeight: FontWeight.w900)),
-        ),
-      ),
-      const SizedBox(width: 10),
-      InkWell(
-        onTap: onCreate,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AfriColors.purple, AfriColors.orange]),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: AfriColors.purple.withValues(alpha: 0.24),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10)),
-            ],
+          const SizedBox(width: 10),
+          _FeatureAction(
+            tooltip: 'Events',
+            icon: Icons.emoji_events_outlined,
+            label: 'Live events',
+            accent: AfriColors.orange,
+            onTap: onEvents,
           ),
-          child: const Icon(Icons.add, color: Colors.white, size: 30),
-        ),
+          const SizedBox(width: 10),
+          _FeatureAction(
+            tooltip: 'Circles',
+            icon: Icons.groups_outlined,
+            label: 'Circles',
+            accent: AfriColors.teal,
+            onTap: onCircles,
+          ),
+          const SizedBox(width: 10),
+          _FeatureAction(
+            tooltip: 'Daily missions',
+            icon: Icons.task_alt,
+            label: 'Daily missions',
+            accent: AfriColors.gold,
+            onTap: onMissions,
+          ),
+        ]),
       ),
     ]);
+  }
+}
+
+class _FeatureAction extends StatelessWidget {
+  const _FeatureAction({
+    required this.tooltip,
+    required this.icon,
+    required this.label,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final String label;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 116,
+          height: 88,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AfriColors.elevated,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.34)),
+          ),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, color: accent, size: 24),
+            const Spacer(),
+            Text(label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AfriColors.text,
+                    fontSize: 12,
+                    height: 1.15,
+                    fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      ),
+    );
   }
 }
 

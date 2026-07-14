@@ -7,9 +7,7 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
-import 'gift_history_screen.dart';
 import 'history_screen.dart';
-import 'payout_history_screen.dart';
 import 'payout_methods_screen.dart';
 import 'support_screen.dart';
 
@@ -38,7 +36,8 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Future<void> _loadCatalog() async {
     try {
-      final rows = await context.read<AppState>().api.getList('/payments/coin-packages');
+      final rows =
+          await context.read<AppState>().api.getList('/payments/coin-packages');
       if (!mounted) return;
       setState(() => _catalog = [
             for (final p in rows.cast<Map<String, dynamic>>())
@@ -165,43 +164,10 @@ class _WalletScreenState extends State<WalletScreen> {
               MaterialPageRoute(builder: (_) => const HistoryScreen())),
         ),
         const SizedBox(height: 22),
-        const Text('Earnings summary',
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AfriColors.text)),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-              child: AfriStatTile(
-                  label: 'Total earnings',
-                  value: usd(wallet.earningBalance),
-                  icon: Icons.trending_up,
-                  accent: AfriColors.success)),
-          const SizedBox(width: 12),
-          Expanded(
-              child: AfriStatTile(
-                  label: 'Creator earnings',
-                  value: usd(wallet.earningBalance),
-                  icon: Icons.card_giftcard,
-                  accent: AfriColors.gold)),
-        ]),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-              child: AfriStatTile(
-                  label: 'Payout hold',
-                  value: usd(wallet.payoutHoldBalance),
-                  icon: Icons.lock_clock_outlined,
-                  accent: AfriColors.warning)),
-          const SizedBox(width: 12),
-          Expanded(
-              child: AfriStatTile(
-                  label: 'Coin balance',
-                  value: '${wallet.coinBalance}',
-                  icon: Icons.monetization_on,
-                  accent: AfriColors.teal)),
-        ]),
+        _EarningsSummaryCard(
+          earnings: wallet.earningBalance,
+          payoutHold: wallet.payoutHoldBalance,
+        ),
         const SizedBox(height: 22),
         // Settings/menu list (mockup #4).
         AfriCard(
@@ -217,12 +183,6 @@ class _WalletScreenState extends State<WalletScreen> {
                         content: Text(
                             'Use the Profile tab to manage your account.')))),
             AfriMenuRow(
-                icon: Icons.add_circle_outline,
-                title: 'Buy coins',
-                subtitle: 'Top up to send gifts',
-                accent: AfriColors.gold,
-                onTap: _busy ? null : _openBuyCoins),
-            AfriMenuRow(
                 icon: Icons.account_balance,
                 title: 'Payout methods',
                 subtitle: 'Bank or mobile money',
@@ -233,29 +193,11 @@ class _WalletScreenState extends State<WalletScreen> {
                         builder: (_) => const PayoutMethodsScreen()))),
             AfriMenuRow(
                 icon: Icons.history,
-                title: 'Ledger and history',
-                subtitle: 'View past sessions, gifts, and wallet movement',
+                title: 'Live history',
+                subtitle: 'View your past live sessions',
                 accent: AfriColors.purple,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const HistoryScreen()))),
-            AfriMenuRow(
-                icon: Icons.card_giftcard,
-                title: 'Gifts sent',
-                subtitle: 'Every gift you have sent, by creator and room',
-                accent: AfriColors.gold,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const GiftHistoryScreen()))),
-            AfriMenuRow(
-                icon: Icons.receipt_long,
-                title: 'Payout history',
-                subtitle: 'Track every payout request',
-                accent: AfriColors.gold,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const PayoutHistoryScreen()))),
             AfriMenuRow(
                 icon: Icons.support_agent,
                 title: 'Support',
@@ -265,8 +207,8 @@ class _WalletScreenState extends State<WalletScreen> {
                     MaterialPageRoute(builder: (_) => const SupportScreen()))),
             AfriMenuRow(
                 icon: Icons.report_outlined,
-                title: 'Report',
-                subtitle: 'Report a user or content',
+                title: 'Safety Center',
+                subtitle: 'Report and content safety',
                 accent: AfriColors.warning,
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -281,6 +223,12 @@ class _WalletScreenState extends State<WalletScreen> {
                     const SnackBar(
                         content:
                             Text('Settings are available from Profile.')))),
+            AfriMenuRow(
+                icon: Icons.add_circle_outline,
+                title: 'Buy coins',
+                subtitle: 'Top up to send gifts',
+                accent: AfriColors.gold,
+                onTap: _busy ? null : _openBuyCoins),
           ]),
         ),
         if (_pendingIntentId != null) ...[
@@ -348,6 +296,113 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
             ),
         ]),
+      ),
+    );
+  }
+}
+
+class _EarningsSummaryCard extends StatelessWidget {
+  const _EarningsSummaryCard({
+    required this.earnings,
+    required this.payoutHold,
+  });
+
+  final num earnings;
+  final num payoutHold;
+
+  @override
+  Widget build(BuildContext context) {
+    return AfriCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Text('Earnings summary',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AfriColors.text)),
+            const Spacer(),
+            Text('This month', style: Theme.of(context).textTheme.labelMedium),
+            const Icon(Icons.keyboard_arrow_down,
+                size: 17, color: AfriColors.mutedText),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(
+              child: _SummaryMetric(
+                label: 'Total earnings',
+                value: usd(earnings + payoutHold),
+                accent: AfriColors.success,
+              ),
+            ),
+            const SizedBox(
+              height: 54,
+              child: VerticalDivider(color: AfriColors.border),
+            ),
+            Expanded(
+              child: _SummaryMetric(
+                label: 'Views earnings',
+                value: usd(0),
+              ),
+            ),
+          ]),
+          const Divider(height: 24, color: AfriColors.border),
+          Row(children: [
+            Expanded(
+              child: _SummaryMetric(
+                label: 'Gift earnings',
+                value: usd(earnings),
+              ),
+            ),
+            const SizedBox(
+              height: 54,
+              child: VerticalDivider(color: AfriColors.border),
+            ),
+            Expanded(
+              child: _SummaryMetric(
+                label: 'Tips',
+                value: usd(0),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({
+    required this.label,
+    required this.value,
+    this.accent = AfriColors.text,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
+          const SizedBox(height: 5),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value,
+                style: TextStyle(
+                    color: accent, fontSize: 17, fontWeight: FontWeight.w800)),
+          ),
+        ],
       ),
     );
   }

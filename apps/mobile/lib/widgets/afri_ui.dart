@@ -491,8 +491,7 @@ class AfriHeroEventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = room;
-    final avatar = r?.hostAvatarUrl;
-    final hasCover = avatar != null && avatar.isNotEmpty;
+    final cover = r?.coverImageUrl ?? r?.hostAvatarUrl;
     final title = r?.title ?? 'AfriStage is warming up';
     final subtitle = r != null
         ? 'With ${r.hostName ?? 'a creator'}'
@@ -503,11 +502,11 @@ class AfriHeroEventCard extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: hasCover
-                ? Image.network(avatar,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const _HeroGradient())
-                : const _HeroGradient(),
+            child: AfriCover(
+              imageUrl: cover,
+              category: r?.category ?? 'MUSIC',
+              initial: r?.hostName ?? 'AfriStage',
+            ),
           ),
           const Positioned.fill(
             child: DecoratedBox(
@@ -579,26 +578,6 @@ class AfriHeroEventCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeroGradient extends StatelessWidget {
-  const _HeroGradient();
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF2B1606), Color(0xFF171126), Color(0xFF092321)],
-        ),
-      ),
-      child: Center(
-        child: Icon(Icons.music_note,
-            size: 150, color: AfriColors.gold.withValues(alpha: 0.14)),
       ),
     );
   }
@@ -917,34 +896,40 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AfriGradientPanel(
-              colors: const [Color(0xFF2A1908), Color(0xFF17171F)],
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const AfriIconBadge(
-                      icon: Icons.card_giftcard, accent: AfriColors.gold),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Send Gift',
-                            style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(height: 3),
-                        Text('Balance: ${widget.coinBalance} coins',
-                            style: Theme.of(context).textTheme.bodyMedium),
-                      ],
-                    ),
-                  ),
-                  if (widget.onBuyCoins != null)
-                    TextButton(
-                      onPressed: widget.onBuyCoins,
-                      child: const Text('Buy coins'),
-                    ),
-                ],
+            Row(children: [
+              Text('Send Gift',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w900)),
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AfriColors.gold.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                      color: AfriColors.gold.withValues(alpha: 0.24)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.monetization_on,
+                      color: AfriColors.gold, size: 15),
+                  const SizedBox(width: 5),
+                  Text(formatCount(widget.coinBalance),
+                      style: const TextStyle(
+                          color: AfriColors.gold, fontWeight: FontWeight.w800)),
+                ]),
               ),
-            ),
+            ]),
+            if (widget.onBuyCoins != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: widget.onBuyCoins,
+                  child: const Text('Buy coins'),
+                ),
+              ),
             const SizedBox(height: 14),
             if (widget.gifts.isEmpty)
               const AfriEmptyState(
@@ -957,7 +942,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 4,
-                childAspectRatio: 0.68,
+                childAspectRatio: 0.72,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
                 children: [
@@ -994,12 +979,15 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
               ),
             if (selected != null) ...[
               const SizedBox(height: 14),
-              AfriCard(
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AfriColors.elevated,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AfriColors.border),
+                ),
                 child: Row(
                   children: [
-                    const AfriIconBadge(
-                        icon: Icons.card_giftcard, accent: AfriColors.gold),
-                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,13 +999,14 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                         ],
                       ),
                     ),
-                    FilledButton(
+                    FilledButton.icon(
                       onPressed: () => widget.onGiftSelected(selected),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(84, 42),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
-                      child: const Text('Send'),
+                      icon: const Icon(Icons.card_giftcard, size: 17),
+                      label: const Text('Send'),
                     ),
                   ],
                 ),
@@ -2596,8 +2585,7 @@ class AfriLiveTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatar = room.hostAvatarUrl;
-    final hasCover = avatar != null && avatar.isNotEmpty;
+    final cover = room.coverImageUrl ?? room.hostAvatarUrl;
     return Semantics(
       button: true,
       excludeSemantics: true,
@@ -2611,11 +2599,11 @@ class AfriLiveTile extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: hasCover
-                      ? Image.network(avatar,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const _TileGradient())
-                      : const _TileGradient(),
+                  child: AfriCover(
+                    imageUrl: cover,
+                    category: room.category,
+                    initial: room.hostName,
+                  ),
                 ),
                 const Positioned.fill(
                   child: DecoratedBox(
@@ -2689,26 +2677,6 @@ class AfriLiveTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _TileGradient extends StatelessWidget {
-  const _TileGradient();
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF3A1D6E), Color(0xFF1A1030), Color(0xFF2B1606)],
-        ),
-      ),
-      child: Center(
-        child: Icon(Icons.auto_awesome,
-            size: 96, color: AfriColors.gold.withValues(alpha: 0.18)),
       ),
     );
   }

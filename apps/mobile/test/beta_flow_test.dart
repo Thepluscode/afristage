@@ -90,16 +90,16 @@ void main() {
     expect(find.text('Submit Report'), findsOneWidget);
   });
 
-  testWidgets('wallet separates coins, earnings, payout hold, and history',
+  testWidgets('wallet separates earnings and keeps purchase access',
       (tester) async {
     await tester.pumpWidget(wrap(const WalletScreen()));
     expect(find.text('Wallet'), findsOneWidget);
-    expect(find.text('Creator earnings'), findsOneWidget);
-    expect(find.text('Payout hold'), findsOneWidget);
+    expect(find.text('Gift earnings'), findsOneWidget);
+    expect(find.text('Views earnings'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Buy coins'), 300);
     expect(find.text('Buy coins'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Ledger and history'), 300);
-    expect(find.text('Ledger and history'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Live history'), 300);
+    expect(find.text('Live history'), findsOneWidget);
   });
 
   testWidgets('feed renders gift wallet quick actions from home mockup',
@@ -111,16 +111,26 @@ void main() {
 
     await tester.pumpWidget(wrapWithState(state, const FeedScreen()));
     await tester.pump();
+    expect(find.text('Friday Afrobeats Live'), findsWidgets);
 
+    await tester.scrollUntilVisible(
+      find.text('More on AfriStage'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Go Live'), findsOneWidget);
-    expect(find.byIcon(Icons.add), findsOneWidget);
+    expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Gift Wallet'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Gift Wallet'), findsOneWidget);
     expect(find.text('Gift Balance'), findsOneWidget);
     expect(find.text('128,450'), findsOneWidget);
     expect(find.text('Send Gift'), findsOneWidget);
     expect(find.text('Top Up'), findsOneWidget);
     expect(find.text('History'), findsOneWidget);
-    expect(find.text('Friday Afrobeats Live'), findsWidgets);
   });
 
   testWidgets('gift drawer shows balance, buy coins, prices, and send action',
@@ -139,7 +149,7 @@ void main() {
     );
 
     expect(find.text('Send Gift'), findsOneWidget);
-    expect(find.text('Balance: 100 coins'), findsOneWidget);
+    expect(find.text('100'), findsOneWidget);
     expect(find.byIcon(Icons.flashlight_on), findsOneWidget);
     expect(find.text('Spotlight'), findsWidgets);
     expect(find.text('50 coins'), findsWidgets);

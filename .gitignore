@@ -16,3 +16,6 @@ apps/mobile/build
 *.tsbuildinfo
 tmp/
 phase30-dashboard.png
+
+# build outputs (flutter/gradle)
+build/
