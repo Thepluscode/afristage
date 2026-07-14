@@ -33,7 +33,10 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT') || 3000;
-  await app.listen(port);
+  // '::' = dual-stack bind so private-mesh traffic works regardless of the
+  // platform routing v4 or v6 to the container. NOTE: Railway injects PORT at
+  // runtime (e.g. 8080) — internal callers must use that port, not 3000.
+  await app.listen(port, '::');
 }
 
 bootstrap();
