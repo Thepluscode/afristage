@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { AuthService, SessionMeta } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
+import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -25,6 +26,13 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: any) {
     return this.auth.login(dto, metaOf(req));
+  }
+
+  // Public self-service reset request: always 201 {ok:true} (non-enumerating),
+  // delivery via the optional email provider. Inherits the 10/min throttle.
+  @Post('password-reset/request')
+  passwordResetRequest(@Body() dto: PasswordResetRequestDto) {
+    return this.auth.requestPasswordReset(dto.email);
   }
 
   // The reset token is itself the credential, so no JwtAuthGuard here.

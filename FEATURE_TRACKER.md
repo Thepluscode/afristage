@@ -284,9 +284,12 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 
 | **Public waitlist live**: https://thepluscode.github.io/afristage/ form → staging `POST /beta/request` → admin beta-requests queue (was a mailto to an unmonitored inbox) | VERIFIED | real-browser submit on the PUBLIC gh-pages URL landed `{category:FAN, country:Ghana, status:PENDING}` on staging, read back via admin API; test rows deleted | #168 |
 
+| **Email slot (dark until keyed)**: `EmailService` (Resend via raw fetch, `isConfigured()` pattern, best-effort — failures log + return false, never throw) wired into self-service `POST /auth/password-reset/request` (non-enumerating) and beta-invite code delivery; lights up with `RESEND_API_KEY` | DEPLOYED (dark) | 100% cov on changed files; API suite 677/677; live on staging: known + unknown email both `{ok:true}`, log shows token issued + "email skipped (no provider configured)" | #169 |
+
 Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
 project (media streaming untestable until then), `NODE_ENV=production` +
-`REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check.
+`REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check, `RESEND_API_KEY`
+to light up email delivery.
 
 ## Verification debt
 

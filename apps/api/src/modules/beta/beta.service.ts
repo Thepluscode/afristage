@@ -2,13 +2,17 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { BetaInvite, BetaInviteStatus, BetaInviteType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import { EmailService } from '../../common/email.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateBetaInviteDto } from './dto/create-beta-invite.dto';
 import { RequestBetaInviteDto } from './dto/request-beta-invite.dto';
 
 @Injectable()
 export class BetaService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService
+  ) {}
 
   // Public waitlist capture from the landing page. Idempotent on email so a
   // double-submit (or a return visitor) never duplicates or errors — the caller
@@ -59,6 +63,15 @@ export class BetaService {
         expiresAt: new Date(Date.now() + ttlDays * 86_400_000)
       }
     });
+    // Best-effort delivery (optional provider): the admin still sees the code
+    // in the response either way, so hand delivery keeps working when dark.
+    if (dto.email) {
+      await this.email.send(
+        dto.email,
+        'Your AfriStage beta invite',
+        `You're in. Sign up and enter this invite code within ${ttlDays} days:\n\n${code}\n\nAfriStage — Africa, centre stage.`
+      );
+    }
     return { invite: this.redact(invite), code }; // code shown once
   }
 

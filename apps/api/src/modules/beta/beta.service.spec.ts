@@ -16,7 +16,8 @@ function build() {
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'r1', ...data }))
     }
   };
-  return { service: new BetaService(prisma), prisma };
+  const email: any = { send: jest.fn().mockResolvedValue(true) };
+  return { service: new BetaService(prisma, email), prisma, email };
 }
 
 const future = new Date(Date.now() + 86_400_000);
@@ -130,4 +131,24 @@ describe('BetaService admin listing', () => {
     expect(prisma.betaInvite.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'REVOKED' } }));
     expect(res).not.toHaveProperty('codeHash');
   });
+});
+
+describe('BetaService invite email delivery (best-effort)', () => {
+  it('emails the one-time code to the invitee and still returns it to the admin', async () => {
+    const { service, prisma, email } = build();
+    prisma.betaInvite.create.mockResolvedValue({ id: 'i1', email: 'ada@example.com', codeHash: 'h', type: 'CREATOR', status: 'PENDING', expiresAt: new Date() });
+    const res = await service.create('admin1', { email: 'ada@example.com', type: 'CREATOR' } as any);
+    expect(res.code).toMatch(/^[0-9a-f]{32}$/);
+    const [to, subject, body] = email.send.mock.calls[0];
+    expect(to).toBe('ada@example.com');
+    expect(subject).toContain('invite');
+    expect(body).toContain(res.code);
+  }, 20_000);
+
+  it('skips email for phone-only invites', async () => {
+    const { service, prisma, email } = build();
+    prisma.betaInvite.create.mockResolvedValue({ id: 'i2', phone: '+2348000', codeHash: 'h', type: 'VIEWER', status: 'PENDING', expiresAt: new Date() });
+    await service.create('admin1', { phone: '+2348000', type: 'VIEWER' } as any);
+    expect(email.send).not.toHaveBeenCalled();
+  }, 20_000);
 });

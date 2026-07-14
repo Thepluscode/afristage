@@ -115,10 +115,12 @@ is on); `identifier` is email OR phone.
 
 **Known gaps (do not improvise fixes):**
 
-- **No self-service password reset.** Recovery is admin-assisted (endpoints
-  above) because no email/SMS provider is wired for token delivery. The public
-  `password-reset/request` endpoint ships together with the delivery provider —
-  needed before any wave too large for support to hand-verify identity.
+- **Self-service password reset ships DARK.** `POST /api/auth/password-reset/request`
+  exists (non-enumerating, always `{ok:true}`) and beta invites auto-email their
+  codes — but nothing is delivered until `RESEND_API_KEY` is set (`EMAIL_FROM`
+  optional). Until then recovery stays admin-assisted via the endpoints above.
+  Setting the key is the entire remaining work — REQUIRED before any wave too
+  large for support to hand-verify identity.
 - **No per-account lockout counter** — brute-force control is the per-IP
   throttle only (deliberate). A targeted slow attack across IPs is bounded by
   bcrypt cost 12; revisit at scale.
