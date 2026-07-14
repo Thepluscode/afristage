@@ -282,6 +282,8 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 | **Continuous monitoring**: cron every 5 min probes api + admin-web health from outside Railway (`tmp/synthetic-check.log`); webhook slot ready | VERIFIED | scheduled run wrote 2/2 healthy without manual invocation | #167 |
 | `validate-ranking` idempotent: synthetic hosts carry marker emails (cleanup can't touch seeded creators) + feed GET uses the cache-bypass `?q=` path (SQL seeds never bump the slice generation) | VERIFIED | 3 consecutive green runs (was: crashed on 2nd run) | #167 |
 
+| **Public waitlist live**: https://thepluscode.github.io/afristage/ form → staging `POST /beta/request` → admin beta-requests queue (was a mailto to an unmonitored inbox) | VERIFIED | real-browser submit on the PUBLIC gh-pages URL landed `{category:FAN, country:Ghana, status:PENDING}` on staging, read back via admin API; test rows deleted | #168 |
+
 Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
 project (media streaming untestable until then), `NODE_ENV=production` +
 `REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check.
