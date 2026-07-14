@@ -26,8 +26,9 @@ function buildAuth() {
   };
   const jwt: any = { sign: jest.fn().mockReturnValue('signed.jwt.token'), verify: jest.fn() };
   const wallet: any = { ensureUserWallets: jest.fn().mockResolvedValue(undefined) };
-  const service = new AuthService(prisma, jwt, wallet);
-  return { service, prisma, jwt, wallet };
+  const email: any = { send: jest.fn().mockResolvedValue(true), isConfigured: jest.fn().mockReturnValue(true) };
+  const service = new AuthService(prisma, jwt, wallet, email);
+  return { service, prisma, jwt, wallet, email };
 }
 
 // Freeze otplib's clock to a fixed epoch for the duration of `fn`, so a live
@@ -188,7 +189,7 @@ function build(user: any = { id: 'u1', role: 'VIEWER', status: 'ACTIVE', email: 
     verify: jest.fn().mockReturnValue({ sub: 'u1', role: 'VIEWER', email: 'v@a.live', tv: 0 }),
     sign: jest.fn().mockReturnValue('signed.jwt.token')
   };
-  const service = new AuthService(prisma, jwt, {} as any);
+  const service = new AuthService(prisma, jwt, {} as any, { send: jest.fn().mockResolvedValue(false) } as any);
   return { service, prisma, jwt };
 }
 
@@ -616,4 +617,30 @@ describe('AuthService account recovery (password reset + MFA reset)', () => {
     await expect(service.confirmPasswordReset(token, 'NewPassw0rd!')).resolves.toEqual({ ok: true });
     await expect(service.confirmPasswordReset('tampered' + token.slice(8), 'x'.repeat(8))).rejects.toThrow('Invalid or expired');
   }, 20_000);
+});
+
+describe('AuthService.requestPasswordReset (self-service, non-enumerating)', () => {
+  it('returns ok for an unknown email and sends nothing', async () => {
+    const { service, prisma, email } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue(null);
+    await expect(service.requestPasswordReset('ghost@a.c')).resolves.toEqual({ ok: true });
+    expect(email.send).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('issues a token, audits as the user, and emails the code for a known email', async () => {
+    const { service, prisma, email } = buildAuth();
+    prisma.user.findFirst.mockResolvedValue({ id: 'u1', email: 'a@b.c' });
+    await expect(service.requestPasswordReset('a@b.c')).resolves.toEqual({ ok: true });
+    const stored = prisma.user.update.mock.calls[0][0].data.passwordResetTokenHash;
+    expect(stored).toMatch(/^[0-9a-f]{64}$/);
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'user.password_reset_requested', actorId: 'u1' }) })
+    );
+    const [to, subject, body] = email.send.mock.calls[0];
+    expect(to).toBe('a@b.c');
+    expect(subject).toContain('Reset');
+    expect(body).toMatch(/[0-9a-f]{64}/); // the plaintext token goes to the OWNER only
+    expect(body).not.toContain(stored); // never the stored hash
+  });
 });

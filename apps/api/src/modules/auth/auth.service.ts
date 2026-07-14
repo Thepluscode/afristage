@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { authenticator } from 'otplib';
+import { EmailService } from '../../common/email.service';
 import { PrismaService } from '../../database/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LoginDto } from './dto/login.dto';
@@ -31,7 +32,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly wallet: WalletService
+    private readonly wallet: WalletService,
+    private readonly email: EmailService
   ) {}
 
   async register(dto: RegisterDto, meta: SessionMeta = {}) {
@@ -238,19 +240,43 @@ export class AuthService {
   // entropy secret — bcrypt's cost adds nothing), 15 min TTL, single active
   // token per user (a new issue supersedes the old).
 
-  async adminIssuePasswordResetToken(actorId: string, userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new BadRequestException('Unknown user');
+  private async issueResetToken(userId: string) {
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 15 * 60_000);
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordResetTokenHash: createHash('sha256').update(token).digest('hex'), passwordResetExpiresAt: expiresAt }
     });
+    return { token, expiresAt };
+  }
+
+  async adminIssuePasswordResetToken(actorId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Unknown user');
+    const { token, expiresAt } = await this.issueResetToken(userId);
     await this.prisma.adminAuditLog.create({
       data: { actorId, action: 'user.password_reset_issued', target: userId, metadata: { expiresAt } }
     });
     return { token, expiresAt }; // plaintext shown once, to the admin only
+  }
+
+  // Public self-service reset. ALWAYS answers {ok:true} (non-enumerating);
+  // delivery is best-effort via the optional email provider, so the endpoint
+  // ships dark until RESEND_API_KEY exists — the flow simply sends nothing.
+  async requestPasswordReset(emailAddr: string) {
+    const user = await this.prisma.user.findFirst({ where: { email: emailAddr } });
+    if (user) {
+      const { token } = await this.issueResetToken(user.id);
+      await this.prisma.adminAuditLog.create({
+        data: { actorId: user.id, action: 'user.password_reset_requested', target: user.id, metadata: {} }
+      });
+      await this.email.send(
+        emailAddr,
+        'Reset your AfriStage password',
+        `Use this one-time code within 15 minutes to set a new password:\n\n${token}\n\nIf you didn't ask for this, ignore this email — your password is unchanged.`
+      );
+    }
+    return { ok: true };
   }
 
   // Public: exchange a live reset token for a new password. Non-enumerating

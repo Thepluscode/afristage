@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { HealthController } from './health.controller';
+import { EmailModule } from './common/email.module';
 import { RedisModule } from './common/redis.module';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -43,6 +44,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     // when running more than one API instance, or limits are per-instance.
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
     ScheduleModule.forRoot(),
+    EmailModule,
     RedisModule,
     PrismaModule,
     AuthModule,
