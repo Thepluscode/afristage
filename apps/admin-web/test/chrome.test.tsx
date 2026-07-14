@@ -85,4 +85,12 @@ describe('AdminChrome', () => {
     expect(screen.queryByText('AfriStage')).not.toBeInTheDocument();
     expect(screen.queryByText('Operations')).not.toBeInTheDocument();
   });
+
+  it('returns just the children on public marketing routes', async () => {
+    path = '/site';
+    const AdminChrome = await loadChrome();
+    render(<AdminChrome><div>site-child</div></AdminChrome>);
+    expect(screen.getByText('site-child')).toBeInTheDocument();
+    expect(screen.queryByText('Operations')).not.toBeInTheDocument();
+  });
 });

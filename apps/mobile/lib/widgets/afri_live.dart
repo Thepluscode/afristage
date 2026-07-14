@@ -11,8 +11,26 @@ String formatCount(int n) {
   return '$n';
 }
 
-/// Deterministic, vibrant gradient per category — the cover fallback when a room
-/// has no photo, so cards read as intentional rather than empty.
+const _stageFallbacks = <String>[
+  'assets/stage/zola-live.jpg',
+  'assets/stage/kofi-live.jpg',
+  'assets/stage/nandi-live.jpg',
+  'assets/stage/tflow-live.jpg',
+];
+
+String stageFallback(String? seed) {
+  final value = (seed ?? 'AfriStage').toLowerCase();
+  if (value.contains('zola')) return _stageFallbacks[0];
+  if (value.contains('kofi')) return _stageFallbacks[1];
+  if (value.contains('ama') || value.contains('nandi')) {
+    return _stageFallbacks[2];
+  }
+  final hash = value.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+  return _stageFallbacks[hash % _stageFallbacks.length];
+}
+
+/// Deterministic gradient retained behind the photographic fallback so image
+/// loading never produces an empty or flashing surface.
 List<Color> categoryGradient(String category) {
   switch (category.toUpperCase()) {
     case 'MUSIC':
@@ -47,14 +65,15 @@ class AfriCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final grad = categoryGradient(category);
+    final fallback = _fallback(grad);
     return Stack(
       fit: StackFit.expand,
       children: [
         if (imageUrl != null && imageUrl!.isNotEmpty)
           Image.network(imageUrl!,
-              fit: BoxFit.cover, errorBuilder: (_, __, ___) => _gradient(grad))
+              fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
         else
-          _gradient(grad),
+          fallback,
         // bottom scrim for text legibility
         const DecoratedBox(
           decoration: BoxDecoration(
@@ -68,6 +87,17 @@ class AfriCover extends StatelessWidget {
       ],
     );
   }
+
+  Widget _fallback(List<Color> grad) => Stack(
+        fit: StackFit.expand,
+        children: [
+          _gradient(grad),
+          Image.asset(stageFallback(initial),
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+        ],
+      );
 
   Widget _gradient(List<Color> grad) => DecoratedBox(
         decoration: BoxDecoration(
@@ -412,6 +442,9 @@ class AfriCreatorRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ImageProvider avatar = (imageUrl != null && imageUrl!.isNotEmpty)
+        ? NetworkImage(imageUrl!)
+        : AssetImage(stageFallback(name));
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
@@ -431,16 +464,7 @@ class AfriCreatorRing extends StatelessWidget {
               child: CircleAvatar(
                 radius: 30,
                 backgroundColor: AfriColors.elevated,
-                backgroundImage: (imageUrl != null && imageUrl!.isNotEmpty)
-                    ? NetworkImage(imageUrl!)
-                    : null,
-                child: (imageUrl == null || imageUrl!.isEmpty)
-                    ? Text(name.characters.firstOrNull?.toUpperCase() ?? 'A',
-                        style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: AfriColors.text))
-                    : null,
+                backgroundImage: avatar,
               ),
             ),
             const SizedBox(height: 6),

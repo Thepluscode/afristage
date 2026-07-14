@@ -11,6 +11,7 @@ class LiveRoom {
     this.hostName,
     this.hostId,
     this.hostAvatarUrl,
+    this.coverImageUrl,
     this.viewerCount = 0,
   });
 
@@ -23,6 +24,7 @@ class LiveRoom {
   final String? hostName;
   final String? hostId;
   final String? hostAvatarUrl;
+  final String? coverImageUrl;
   final int viewerCount;
 
   factory LiveRoom.fromJson(Map<String, dynamic> json) {
@@ -40,6 +42,8 @@ class LiveRoom {
           profile?['displayName'] as String?,
       hostId: (host?['id'] as String?) ?? (json['hostUserId'] as String?),
       hostAvatarUrl: profile?['avatarUrl'] as String?,
+      coverImageUrl:
+          json['coverImageUrl'] as String? ?? json['thumbnailUrl'] as String?,
       viewerCount: (json['viewerCount'] as num?)?.toInt() ?? 0,
     );
   }

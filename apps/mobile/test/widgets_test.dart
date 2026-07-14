@@ -3,6 +3,7 @@ import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'net_image_mock.dart';
@@ -65,7 +66,9 @@ void main() {
     ])));
     await tester.tap(find.text('Zola'));
     expect(tapped, isTrue);
-    expect(find.text('A'), findsOneWidget); // empty-name initial fallback
+    final avatars = tester.widgetList<CircleAvatar>(find.byType(CircleAvatar));
+    expect(avatars.where((avatar) => avatar.backgroundImage is AssetImage),
+        hasLength(2));
   });
 
   testWidgets('AfriGiftBar lists gifts and reports taps', (tester) async {
@@ -819,4 +822,29 @@ void main() {
     await tester.pump();
     expect(fake.launched.length, 2);
   });
+
+  test('stageFallback maps ama/nandi seeds to the nandi asset', () {
+    expect(stageFallback('Nandi Cele'), 'assets/stage/nandi-live.jpg');
+    expect(stageFallback('Ama K'), 'assets/stage/nandi-live.jpg');
+  });
+
+  testWidgets('AfriCover fallback swallows asset load errors (errorBuilder)',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: DefaultAssetBundle(
+        bundle: _ThrowingAssetBundle(),
+        child: const SizedBox(
+            width: 200,
+            height: 200,
+            child: AfriCover(category: 'MUSIC', initial: 'Zola')),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull); // errorBuilder ate the failure
+  });
+}
+
+class _ThrowingAssetBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async => throw FlutterError('no asset: $key');
 }

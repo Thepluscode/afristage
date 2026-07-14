@@ -53,10 +53,14 @@ class _CreatorScreenState extends State<CreatorScreen> {
     return '${hours}h ${minutes % 60}m';
   }
 
-  Future<void> _goLive() async {
+  Future<void> _goLive({String? avatarUrl, String? stageName}) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const GoLiveSetupScreen()),
+      MaterialPageRoute(
+          builder: (_) => GoLiveSetupScreen(
+                avatarUrl: avatarUrl,
+                stageName: stageName,
+              )),
     );
     _reload();
   }
@@ -111,7 +115,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             tooltip: 'Creator settings',
@@ -160,6 +164,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 (creator == null ? 'PENDING' : 'APPROVED');
             final stageName = creator?['stageName'] as String? ?? 'Creator';
             final earnings = usd((data?['earnings'] as num?) ?? 0);
+            final rawViews = data?['views'] ?? data?['totalViews'];
+            final views = rawViews == null
+                ? _formatWatch(data?['totalWatchSeconds'])
+                : formatCount((rawViews as num).toInt());
             final supporters = (data?['topSupporters'] as List?)
                     ?.cast<Map<String, dynamic>>() ??
                 const <Map<String, dynamic>>[];
@@ -179,62 +187,9 @@ class _CreatorScreenState extends State<CreatorScreen> {
                       : 'Your creator profile is under review. Go Live unlocks once approved.',
                 ),
                 const SizedBox(height: 16),
-                // Earnings + actions hero.
-                AfriGradientPanel(
-                  colors: const [Color(0xFF1B2A18), Color(0xFF17171F)],
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Available balance',
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(earnings,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
-                                  ?.copyWith(
-                                      color: AfriColors.success,
-                                      fontWeight: FontWeight.w900)),
-                          const SizedBox(width: 6),
-                          Text('available',
-                              style: Theme.of(context).textTheme.bodyMedium),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _goLive,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AfriColors.purple,
-                                foregroundColor: Colors.white,
-                              ),
-                              icon: const Icon(Icons.live_tv),
-                              label: const Text('Go Live'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _requestPayout,
-                              icon: const Icon(Icons.payments_outlined),
-                              label: const Text('Request payout'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
                 const AfriSectionHeader(
                   title: 'Overview',
-                  subtitle: 'Your stage performance so far',
+                  subtitle: 'This week',
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -249,29 +204,9 @@ class _CreatorScreenState extends State<CreatorScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: AfriStatTile(
-                          label: 'Gifts received',
-                          value: '${data?['totalGiftTransactions'] ?? 0}',
-                          icon: Icons.card_giftcard,
-                          accent: AfriColors.gold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AfriStatTile(
-                          label: 'Live sessions',
-                          value: '${data?['totalRooms'] ?? 0}',
-                          icon: Icons.mic,
-                          accent: AfriColors.purple),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AfriStatTile(
-                          label: 'Followers',
-                          value: '${data?['followers'] ?? 0}',
-                          icon: Icons.group_outlined,
+                          label: 'Views',
+                          value: views,
+                          icon: Icons.visibility_outlined,
                           accent: AfriColors.teal),
                     ),
                   ],
@@ -281,17 +216,87 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   children: [
                     Expanded(
                       child: AfriStatTile(
-                          label: 'Watch time',
-                          value: _formatWatch(data?['totalWatchSeconds']),
-                          icon: Icons.schedule,
+                          label: 'New followers',
+                          value: formatCount(((data?['newFollowers'] ??
+                                      data?['followers']) as num?)
+                                  ?.toInt() ??
+                              0),
+                          icon: Icons.group_add_outlined,
+                          accent: AfriColors.purple),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AfriStatTile(
+                          label: 'Live sessions',
+                          value: '${data?['totalRooms'] ?? 0}',
+                          icon: Icons.mic,
                           accent: AfriColors.teal),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
                 const AfriSectionHeader(
+                  title: 'Earnings',
+                  subtitle: 'Ready to withdraw',
+                ),
+                const SizedBox(height: 10),
+                AfriGradientPanel(
+                  colors: const [Color(0xFF2D2408), Color(0xFF17150E)],
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Available balance',
+                                style: Theme.of(context).textTheme.bodyMedium),
+                            const SizedBox(height: 3),
+                            Text(earnings,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(
+                                        color: AfriColors.text,
+                                        fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 7),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 9, vertical: 5),
+                              decoration: BoxDecoration(
+                                color:
+                                    AfriColors.success.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'Ready to withdraw',
+                                style: TextStyle(
+                                  color: AfriColors.success,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _requestPayout,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          backgroundColor: AfriColors.gold,
+                          foregroundColor: const Color(0xFF170B02),
+                        ),
+                        icon: const Icon(Icons.north_east, size: 17),
+                        label: const Text('Payout'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const AfriSectionHeader(
                   title: 'Top supporters',
-                  subtitle: 'Viewers who gifted you the most',
+                  subtitle: 'This week',
                 ),
                 const SizedBox(height: 10),
                 if (supporters.isEmpty)
@@ -302,14 +307,37 @@ class _CreatorScreenState extends State<CreatorScreen> {
                         'When viewers send gifts in your rooms, your top supporters appear here.',
                   )
                 else
-                  for (final s in supporters) ...[
-                    _SupporterRow(
-                      name: s['displayName'] as String? ?? 'Supporter',
-                      avatarUrl: s['avatarUrl'] as String?,
-                      coins: (s['coins'] as num?)?.toInt() ?? 0,
+                  AfriCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        for (final entry in supporters.asMap().entries)
+                          _SupporterRow(
+                            name: entry.value['displayName'] as String? ??
+                                'Supporter',
+                            avatarUrl: entry.value['avatarUrl'] as String?,
+                            coins: (entry.value['coins'] as num?)?.toInt() ?? 0,
+                            rank: entry.key + 1,
+                            showDivider: entry.key < supporters.length - 1,
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: status == 'APPROVED'
+                      ? () => _goLive(
+                            avatarUrl: data?['avatarUrl'] as String?,
+                            stageName: stageName,
+                          )
+                      : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AfriColors.purple,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.sensors),
+                  label: const Text('Go Live'),
+                ),
                 const SizedBox(height: 16),
                 AfriActionRow(
                   icon: Icons.account_balance,
@@ -350,7 +378,10 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   title: 'Prepare next room',
                   body: 'Set title, region, language, and viewer defaults.',
                   accent: AfriColors.teal,
-                  onTap: _goLive,
+                  onTap: () => _goLive(
+                    avatarUrl: data?['avatarUrl'] as String?,
+                    stageName: stageName,
+                  ),
                 ),
               ],
             );
@@ -371,8 +402,6 @@ class _CreatorHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial =
-        stageName.trim().isEmpty ? 'C' : stageName.trim()[0].toUpperCase();
     final hasPhoto = avatarUrl != null && avatarUrl!.isNotEmpty;
     return Row(
       children: [
@@ -387,14 +416,9 @@ class _CreatorHeader extends StatelessWidget {
           ),
           child: CircleAvatar(
             backgroundColor: AfriColors.elevated,
-            backgroundImage: hasPhoto ? NetworkImage(avatarUrl!) : null,
-            child: hasPhoto
-                ? null
-                : Text(initial,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22)),
+            backgroundImage: hasPhoto
+                ? NetworkImage(avatarUrl!)
+                : AssetImage(stageFallback(stageName)),
           ),
         ),
         const SizedBox(width: 12),
@@ -434,42 +458,53 @@ class _CreatorHeader extends StatelessWidget {
 
 class _SupporterRow extends StatelessWidget {
   const _SupporterRow(
-      {required this.name, required this.coins, this.avatarUrl});
+      {required this.name,
+      required this.coins,
+      required this.rank,
+      required this.showDivider,
+      this.avatarUrl});
 
   final String name;
   final int coins;
+  final int rank;
+  final bool showDivider;
   final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.trim().isEmpty ? 'S' : name.trim()[0].toUpperCase();
     final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
-    return AfriCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AfriColors.gold.withValues(alpha: 0.16),
-            backgroundImage: hasAvatar ? NetworkImage(avatarUrl!) : null,
-            child: hasAvatar
-                ? null
-                : Text(initial,
-                    style: const TextStyle(
-                        color: AfriColors.gold, fontWeight: FontWeight.w800)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium),
-          ),
-          Text(usd(coins),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AfriColors.success, fontWeight: FontWeight.w800)),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        border: showDivider
+            ? const Border(bottom: BorderSide(color: AfriColors.border))
+            : null,
       ),
+      child: Row(children: [
+        SizedBox(
+          width: 22,
+          child: Text('$rank',
+              style: const TextStyle(
+                  color: AfriColors.mutedText, fontWeight: FontWeight.w800)),
+        ),
+        CircleAvatar(
+          radius: 17,
+          backgroundColor: AfriColors.gold.withValues(alpha: 0.16),
+          backgroundImage: hasAvatar
+              ? NetworkImage(avatarUrl!)
+              : AssetImage(stageFallback(name)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium),
+        ),
+        Text(usd(coins),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AfriColors.text, fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 }

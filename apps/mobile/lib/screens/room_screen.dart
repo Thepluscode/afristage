@@ -529,7 +529,7 @@ class _RoomScreenState extends State<RoomScreen> {
         isHost: widget.isHost,
         videoOn: _videoOn,
         roomEnded: _roomEnded,
-        coverImageUrl: widget.room.hostAvatarUrl,
+        coverImageUrl: widget.room.coverImageUrl ?? widget.room.hostAvatarUrl,
         coverCategory: widget.room.category,
         coverInitial: widget.room.hostName,
         onStartVideo: blocked ? null : () => setState(() => _videoOn = true),

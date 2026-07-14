@@ -86,7 +86,7 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
     setNavOpen(false);
   }, [pathname]);
 
-  if (pathname === '/login') return <>{children}</>;
+  if (pathname === '/login' || pathname === '/site' || pathname.startsWith('/site/')) return <>{children}</>;
 
   return (
     <AdminShell>
