@@ -1,0 +1,8 @@
+# AfriStage vulnerability disclosure policy (RFC 9116)
+Contact: mailto:security@afristage.live
+Policy: https://afristage.live/site/security
+Preferred-Languages: en
+Expires: 2027-01-01T00:00:00.000Z
+
+# We welcome good-faith security research. Please give us steps to reproduce
+# and reasonable time to remediate before any public disclosure.

@@ -274,6 +274,13 @@ export default function AfriStageSitePage() {
           Enter mission control <ArrowRight size={18} />
         </a>
       </section>
+
+      <footer className={styles.siteFooter}>
+        <span>© 2026 AfriStage — every coin on the ledger.</span>
+        <a href="/site/security">
+          <ShieldCheck size={15} /> Security &amp; trust
+        </a>
+      </footer>
     </main>
   );
 }

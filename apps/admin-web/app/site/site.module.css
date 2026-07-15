@@ -1418,3 +1418,30 @@
   .problemSection h2 { font-size: 42px; }
   .problemColumns { grid-column: auto; }
 }
+
+.siteFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #7c7160;
+}
+.siteFooter a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #95886f;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.siteFooter a:hover {
+  color: #e9b44c;
+}

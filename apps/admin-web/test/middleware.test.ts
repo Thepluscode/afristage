@@ -48,6 +48,16 @@ describe('admin middleware', () => {
     expect(res.headers.get('location')).toBeNull();
   });
 
+  it('lets the public security page and disclosure path through without cookies', () => {
+    expect(middleware(req('/site/security')).headers.get('location')).toBeNull();
+    expect(middleware(req('/.well-known/security.txt')).headers.get('location')).toBeNull();
+  });
+
+  it('still GATES the admin security screen (/security is not public)', () => {
+    const res = middleware(req('/security'));
+    expect(res.headers.get('location')).toContain('/login');
+  });
+
   it('redirects and clears both cookies when access and refresh are both expired', () => {
     const res = middleware(req('/users', { access: token(past), refresh: token(past) }));
     expect(res.headers.get('location')).toContain('/login');
