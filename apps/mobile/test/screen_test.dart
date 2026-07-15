@@ -3567,4 +3567,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Loading coin packages…'), findsOneWidget);
   });
+
+  // Regression (staging, 2026-07-14): the live creator dashboard crashed with
+  // "type 'String' is not a subtype of type 'num?'" — the REAL API serialises
+  // BigInt money/count fields as strings; test fixtures had used bare nums.
+  testWidgets('CreatorScreen renders when the API returns money/counts as STRINGS',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
+        'earnings': '620',
+        'views': '2500',
+        'newFollowers': '7',
+        'topSupporters': [
+          {'displayName': 'KingSteve', 'coins': '450'}
+        ],
+      },
+    });
+    await tester.pumpWidget(_wrap(api, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('2.5K'), findsOneWidget); // string view count parsed
+  });
 }

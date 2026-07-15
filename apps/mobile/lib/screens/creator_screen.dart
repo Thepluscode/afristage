@@ -10,6 +10,7 @@ import 'creator_rooms_screen.dart';
 import 'go_live_setup_screen.dart';
 import 'payout_history_screen.dart';
 import 'payout_methods_screen.dart';
+import '../models/models.dart';
 
 class CreatorScreen extends StatefulWidget {
   const CreatorScreen({super.key});
@@ -163,11 +164,11 @@ class _CreatorScreenState extends State<CreatorScreen> {
             final status = creator?['status'] as String? ??
                 (creator == null ? 'PENDING' : 'APPROVED');
             final stageName = creator?['stageName'] as String? ?? 'Creator';
-            final earnings = usd((data?['earnings'] as num?) ?? 0);
+            final earnings = usd(asNumOr(data?['earnings']));
             final rawViews = data?['views'] ?? data?['totalViews'];
             final views = rawViews == null
                 ? _formatWatch(data?['totalWatchSeconds'])
-                : formatCount((rawViews as num).toInt());
+                : formatCount(asInt(rawViews));
             final supporters = (data?['topSupporters'] as List?)
                     ?.cast<Map<String, dynamic>>() ??
                 const <Map<String, dynamic>>[];
@@ -217,10 +218,8 @@ class _CreatorScreenState extends State<CreatorScreen> {
                     Expanded(
                       child: AfriStatTile(
                           label: 'New followers',
-                          value: formatCount(((data?['newFollowers'] ??
-                                      data?['followers']) as num?)
-                                  ?.toInt() ??
-                              0),
+                          value: formatCount(asInt(
+                              data?['newFollowers'] ?? data?['followers'])),
                           icon: Icons.group_add_outlined,
                           accent: AfriColors.purple),
                     ),
@@ -316,7 +315,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                             name: entry.value['displayName'] as String? ??
                                 'Supporter',
                             avatarUrl: entry.value['avatarUrl'] as String?,
-                            coins: (entry.value['coins'] as num?)?.toInt() ?? 0,
+                            coins: asInt(entry.value['coins']),
                             rank: entry.key + 1,
                             showDivider: entry.key < supporters.length - 1,
                           ),

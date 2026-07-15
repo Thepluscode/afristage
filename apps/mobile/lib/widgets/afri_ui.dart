@@ -1698,29 +1698,35 @@ class _VideoWaitingState extends StatelessWidget {
       );
     }
     // Host: explicit go-live prompt (they must start camera + mic).
+    // scaleDown so the prompt — ABOVE ALL ITS BUTTON — always fits the stage:
+    // on a short stage the column used to overflow and clip the publish
+    // button, leaving the host unable to go live at all (staging, 2026-07-14).
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AfriIconBadge(
-                icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
-            const SizedBox(height: 14),
-            Text('Ready to publish',
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center),
-            const SizedBox(height: 6),
-            Text('Your stage stays private until you go live.',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onStartVideo,
-              icon: const Icon(Icons.videocam),
-              label: const Text('Go Live with Camera + Mic'),
-            ),
-          ],
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AfriIconBadge(
+                  icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
+              const SizedBox(height: 14),
+              Text('Ready to publish',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+              Text('Your stage stays private until you go live.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onStartVideo,
+                icon: const Icon(Icons.videocam),
+                label: const Text('Go Live with Camera + Mic'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2311,6 +2317,7 @@ class AfriHostControlsPanel extends StatelessWidget {
     required this.onSafety,
     required this.onEndRoom,
     this.ending = false,
+    this.onStartVideo,
   });
 
   final int viewerCount;
@@ -2331,59 +2338,80 @@ class AfriHostControlsPanel extends StatelessWidget {
   final VoidCallback onEndRoom;
   final bool ending;
 
+  /// Non-null until the host publishes: renders the primary go-live action in
+  /// the controls panel. The in-stage prompt scales away to nothing on short
+  /// stages (host layout, small screens) — the panel is where the host is
+  /// actually looking, so the button lives here too (staging, 2026-07-14).
+  final VoidCallback? onStartVideo;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          AfriChip(label: '$viewerCount viewers', selected: true),
-          AfriChip(label: '$giftCount gifts'),
-          AfriChip(label: '$earningsEstimate coins'),
-          FilterChip(
-            selected: cameraOn,
-            onSelected: onCameraChanged,
-            avatar: Icon(cameraOn ? Icons.videocam : Icons.videocam_off),
-            label: Text(cameraOn ? 'Camera on' : 'Camera off'),
+      child: Column(children: [
+        if (onStartVideo != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onStartVideo,
+                icon: const Icon(Icons.videocam),
+                label: const Text('Go Live with Camera + Mic'),
+              ),
+            ),
           ),
-          FilterChip(
-            selected: micOn,
-            onSelected: onMicChanged,
-            avatar: Icon(micOn ? Icons.mic : Icons.mic_off),
-            label: Text(micOn ? 'Mic on' : 'Mic off'),
-          ),
-          FilterChip(
-            selected: chatVisible,
-            onSelected: onChatVisibleChanged,
-            avatar: Icon(chatVisible ? Icons.chat : Icons.chat_bubble_outline),
-            label: Text(chatVisible ? 'Chat visible' : 'Chat hidden'),
-          ),
-          AfriNetworkStatusPill(
-            connected: socketConnected,
-            lowData: lowData,
-            poorNetwork: poorNetwork,
-            onToggleLowData: onLowDataChanged,
-          ),
-          ActionChip(
-            avatar: const Icon(Icons.volume_off),
-            label: const Text('Mute user'),
-            onPressed: onMuteUser,
-          ),
-          ActionChip(
-            avatar: const Icon(Icons.health_and_safety_outlined),
-            label: const Text('Safety'),
-            onPressed: onSafety,
-          ),
-          ActionChip(
-            avatar: const Icon(Icons.stop_circle_outlined,
-                color: AfriColors.danger),
-            label: Text(ending ? 'Ending…' : 'End Room'),
-            onPressed: ending ? null : onEndRoom,
-          ),
-        ],
-      ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            AfriChip(label: '$viewerCount viewers', selected: true),
+            AfriChip(label: '$giftCount gifts'),
+            AfriChip(label: '$earningsEstimate coins'),
+            FilterChip(
+              selected: cameraOn,
+              onSelected: onCameraChanged,
+              avatar: Icon(cameraOn ? Icons.videocam : Icons.videocam_off),
+              label: Text(cameraOn ? 'Camera on' : 'Camera off'),
+            ),
+            FilterChip(
+              selected: micOn,
+              onSelected: onMicChanged,
+              avatar: Icon(micOn ? Icons.mic : Icons.mic_off),
+              label: Text(micOn ? 'Mic on' : 'Mic off'),
+            ),
+            FilterChip(
+              selected: chatVisible,
+              onSelected: onChatVisibleChanged,
+              avatar:
+                  Icon(chatVisible ? Icons.chat : Icons.chat_bubble_outline),
+              label: Text(chatVisible ? 'Chat visible' : 'Chat hidden'),
+            ),
+            AfriNetworkStatusPill(
+              connected: socketConnected,
+              lowData: lowData,
+              poorNetwork: poorNetwork,
+              onToggleLowData: onLowDataChanged,
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.volume_off),
+              label: const Text('Mute user'),
+              onPressed: onMuteUser,
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.health_and_safety_outlined),
+              label: const Text('Safety'),
+              onPressed: onSafety,
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.stop_circle_outlined,
+                  color: AfriColors.danger),
+              label: Text(ending ? 'Ending…' : 'End Room'),
+              onPressed: ending ? null : onEndRoom,
+            ),
+          ],
+        ),
+      ]),
     );
   }
 }

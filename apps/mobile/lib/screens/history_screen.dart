@@ -6,6 +6,7 @@ import '../core/app_state.dart';
 import '../widgets/afri_live.dart';
 import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
+import '../models/models.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -41,7 +42,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final tx = e['transaction'] as Map<String, dynamic>?;
               final acct = e['account'] as Map<String, dynamic>?;
               final debit = e['direction'] == 'DEBIT';
-              final amountMinor = (e['amountMinor'] as num?)?.toInt() ?? 0;
+              final amountMinor = asInt(e['amountMinor']);
               final currency = '${e['currency'] ?? 'COIN'}';
               return AfriCard(
                 child: Row(

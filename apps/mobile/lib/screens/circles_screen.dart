@@ -5,6 +5,7 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
+import '../models/models.dart';
 
 /// Creator Circles (R4 §7): my circle (members + pooled points), the weekly
 /// circle leaderboard, and browse/join/create. Surfaces /circles endpoints.
@@ -158,10 +159,10 @@ class _CirclesScreenState extends State<CirclesScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                _pointsBox('This week', (week['total'] as num?)?.toInt() ?? 0),
+                _pointsBox('This week', asInt(week['total'])),
                 const SizedBox(width: 10),
                 _pointsBox(
-                    'All time', (allTime['total'] as num?)?.toInt() ?? 0),
+                    'All time', asInt(allTime['total'])),
               ],
             ),
             const SizedBox(height: 12),
@@ -276,7 +277,7 @@ class _CirclesScreenState extends State<CirclesScreen> {
                               style: const TextStyle(
                                   fontWeight: FontWeight.w800, fontSize: 14)),
                           Text(
-                              '${((c['_count'] as Map<String, dynamic>?)?['members'] as num?)?.toInt() ?? 0} members'
+                              '${asInt((c['_count'] as Map<String, dynamic>?)?['members'])} members'
                               '${c['city'] != null ? ' · ${c['city']}' : ''}',
                               style: const TextStyle(
                                   color: AfriColors.secondaryText,
@@ -314,7 +315,7 @@ class _CirclesScreenState extends State<CirclesScreen> {
                   style: const TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 14)),
             ),
-            Text('${(row['points'] as num?)?.toInt() ?? 0} pts',
+            Text('${asInt(row['points'])} pts',
                 style: const TextStyle(
                     color: AfriColors.secondaryText,
                     fontSize: 13,

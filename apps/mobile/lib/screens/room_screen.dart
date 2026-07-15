@@ -194,7 +194,7 @@ class _RoomScreenState extends State<RoomScreen> {
       })
       ..on('room.viewer_count_updated', (data) {
         if (!_canUpdate) return;
-        final count = data is Map ? (data['count'] as num?)?.toInt() : null;
+        final count = data is Map ? asIntOrNull(data['count']) : null;
         if (count != null) setState(() => _viewerCount = count);
       })
       ..on('user.muted', (data) {
@@ -615,6 +615,11 @@ class _RoomScreenState extends State<RoomScreen> {
               onMicChanged: (v) => setState(() => _micOn = v),
               onChatVisibleChanged: (v) => setState(() => _chatVisible = v),
               onLowDataChanged: (v) => setState(() => _lowData = v),
+              // Primary publish entry point: the in-stage prompt scales away on
+              // short host stages, so the panel carries the button until live.
+              onStartVideo: _videoOn || blocked
+                  ? null
+                  : () => setState(() => _videoOn = true),
               onMuteUser: _muteLatestViewer,
               onSafety: () => Navigator.push(
                 context,

@@ -50,7 +50,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
       setState(() {
         _data = d as Map<String, dynamic>?;
         _following = _data?['isFollowing'] == true;
-        _followers = (_data?['followers'] as num?)?.toInt() ?? 0;
+        _followers = asInt(_data?['followers']);
         _reminded = (_data?['upcomingRoom'] as Map?)?['reminded'] == true;
         _loading = false;
       });
@@ -162,7 +162,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
     final category = d['category'] as String? ?? '';
     final country = d['country'] as String? ?? '';
     final approved = d['approvalStatus'] == 'APPROVED';
-    final sessions = (d['totalRooms'] as num?)?.toInt() ?? 0;
+    final sessions = asInt(d['totalRooms']);
     final live = d['liveRoom'] as Map<String, dynamic>?;
     final upcoming = d['upcomingRoom'] as Map<String, dynamic>?;
     final creatorUserId = d['userId'] as String?;
@@ -248,7 +248,7 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
             Expanded(
               child: AfriStatCard(
                   label: 'Peak viewers',
-                  value: '${(d['peakViewers'] as num?)?.toInt() ?? 0}',
+                  value: '${asInt(d['peakViewers'])}',
                   icon: Icons.trending_up,
                   accent: AfriColors.gold),
             ),

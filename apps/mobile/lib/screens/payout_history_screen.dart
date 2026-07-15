@@ -6,6 +6,7 @@ import '../core/app_state.dart';
 import '../widgets/afri_live.dart';
 import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
+import '../models/models.dart';
 
 class PayoutHistoryScreen extends StatefulWidget {
   const PayoutHistoryScreen({super.key});
@@ -55,7 +56,7 @@ class _PayoutHistoryScreenState extends State<PayoutHistoryScreen> {
               final p = rows[i];
               final status = p['status'] as String? ?? 'REQUESTED';
               final color = _statusColor(status);
-              final fiatMinor = (p['fiatMinor'] as num?)?.toInt();
+              final fiatMinor = asIntOrNull(p['fiatMinor']);
               final when = shortDateTime('${p['createdAt'] ?? ''}');
               final subtitle = fiatMinor != null
                   ? '${ledgerMoney(fiatMinor, '${p['fiatCurrency'] ?? 'NGN'}')} · $when'

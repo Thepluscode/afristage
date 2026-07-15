@@ -5,6 +5,7 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
+import '../models/models.dart';
 
 /// Daily missions board (R4 §4): progress toward each mission and a Claim
 /// button once complete. Surfaces GET /missions/me + POST /missions/:key/claim.
@@ -78,9 +79,9 @@ class _MissionsScreenState extends State<MissionsScreen> {
 
   Widget _tile(Map<String, dynamic> m, Future<void> Function() refresh) {
     final key = m['key'] as String;
-    final target = (m['target'] as num?)?.toInt() ?? 1;
-    final progress = (m['progress'] as num?)?.toInt() ?? 0;
-    final reward = (m['rewardCoins'] as num?)?.toInt() ?? 0;
+    final target = asInt(m['target'], 1);
+    final progress = asInt(m['progress']);
+    final reward = asInt(m['rewardCoins']);
     final claimed = m['claimed'] == true;
     final claimable = m['claimable'] == true;
     return Padding(
