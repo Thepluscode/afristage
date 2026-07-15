@@ -187,6 +187,43 @@ void main() {
     expect(find.byType(AfriGiftDrawer), findsOneWidget);
   });
 
+  // Regression (staging, 2026-07-14): the only publish affordance lived inside
+  // the stage, where the host layout scales it to nothing on short screens —
+  // the host could not go live. The controls panel now carries the button.
+  testWidgets('host panel Go Live button starts publishing (video builder invoked)',
+      (tester) async {
+    _tall(tester);
+    final original = debugRoomVideoBuilder;
+    String? builtUrl;
+    bool? builtPublish;
+    debugRoomVideoBuilder = (u, t, p) {
+      builtUrl = u;
+      builtPublish = p;
+      return const Text('VIDEO-LIVE');
+    };
+    addTearDown(() => debugRoomVideoBuilder = original);
+    final socket = _FakeSocket();
+    final api = _RoomApi();
+    final state = AppState(api: api)..userId = 'h1';
+    await tester.pumpWidget(_wrap(
+        state,
+        RoomScreen(
+            room: _room(),
+            hostToken: 'htok',
+            livekitUrl: 'ws://x',
+            socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Go Live with Camera + Mic').last);
+    await tester.pumpAndSettle();
+    expect(find.text('VIDEO-LIVE'), findsOneWidget);
+    expect(builtUrl, 'ws://x');
+    expect(builtPublish, isTrue); // host publishes, not subscribes
+    // once live, the panel's publish button is gone
+    expect(find.text('Go Live with Camera + Mic'), findsNothing);
+  });
+
   testWidgets('host room renders host controls', (tester) async {
     // Tall surface: host controls + stage exceed the default 800px height.
     _tall(tester);

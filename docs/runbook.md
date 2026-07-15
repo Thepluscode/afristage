@@ -24,9 +24,14 @@
   Flipping to production needs: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
   URL/key/secret, `NODE_ENV=production`, `REQUIRE_ADMIN_MFA=true` — then
   `validate-env` enforces the rest at boot.
-- **LiveKit**: `LIVEKIT_URL` points at a placeholder — room start/gift/chat
-  APIs work (tokens sign locally); actual media streaming needs a LiveKit
-  Cloud project before creator sessions can be tested end-to-end.
+- **LiveKit**: LiveKit Cloud project `afristage-staging` is wired
+  (`LIVEKIT_URL=wss://afristage-staging-wbr2ts77.livekit.cloud`, key/secret in
+  Railway vars). Verified: API-issued tokens are accepted, the mobile app
+  connects (participant visible via `RoomServiceClient`), and demo media
+  publishes into app-created rooms (`lk room join --publish-demo <room>`).
+  KNOWN LIMIT: the Android **emulator** cannot publish its camera
+  (`setCameraEnabled` throws even with `hw.camera.front=emulated`) — camera
+  publish must be verified on a physical device before wave 1.
 - **Monitoring**: cron on the ops Mac probes both services every 5 min
   (`crontab -l`, logs in `tmp/synthetic-check.log`):
   `python3 tools/monitoring/synthetic_check.py --url .../api/health --url

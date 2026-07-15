@@ -291,6 +291,9 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 
 | **Cinematic redesign shipped through the gate** (external tool authored; gate hardened): public `/site` on staging admin-web (auth-exempt, tested), photographic mobile UI, landing product reel. Gate caught: coverage 91.95%→100% restored (site test + 5 flutter tests, 330/330 + 327/327), unignored `build/` dir, 5.4MB PNGs→958KB JPEGs, false "running site" claim | VERIFIED | live: staging `/site` 200 unauthenticated + hero jpg 200, gh-pages reel + suite jpg 200, waitlist intact, prod render zero console errors (`site-live-render.png`). **Open: imagery provenance before marketing push** | #171 |
 
+| **LiveKit Cloud wired + verified on staging**: API issues accepted tokens; the mobile app connects to LiveKit Cloud through the full product flow (login → Go Live → publish button) — participant visible server-side; real demo video publishes into app-created rooms | VERIFIED | `RoomServiceClient` shows the app participant + `demo-publisher` with 1 video track in the app's room; screenshots `tmp/lk-*.png`. Emulator camera capture fails (AVD limitation) — physical-device publish is the remaining wave-1 check | #172 |
+| **Two launch-blocking mobile bugs found by the live drive**: (1) creator dashboard red-screen crash — `as num` casts on BigInt-string money fields (swept 24 call sites → tolerant `asInt`/`asNumOr` helpers); (2) the ONLY publish affordance scaled to invisibility on short host stages — host could not go live (button now in the controls panel) | VERIFIED | crash screen now renders real staging data ($16.00/7m); publish button tapped on-device → LiveKit participant appeared; 334/334 tests, changed files 100% | #172 |
+
 Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
 project (media streaming untestable until then), `NODE_ENV=production` +
 `REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check, `RESEND_API_KEY`

@@ -5,6 +5,7 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
+import '../models/models.dart';
 
 /// Live + upcoming events (R4 §6): limited-time gifts, prize pools and the
 /// per-event supporter leaderboard. Surfaces GET /events and
@@ -73,7 +74,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Widget _tile(Map<String, dynamic> e) {
     final id = e['id'] as String;
-    final pool = (e['prizePoolCoins'] as num?)?.toInt() ?? 0;
+    final pool = asInt(e['prizePoolCoins']);
     final gifts =
         (e['gifts'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
     final expanded = _expandedId == id;
@@ -109,7 +110,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 children: gifts
                     .map((g) => AfriChip(
                         label:
-                            '${g['name']} · ${(g['coinPrice'] as num?)?.toInt() ?? 0}c'))
+                            '${g['name']} · ${asInt(g['coinPrice'])}c'))
                     .toList(),
               ),
             ],
@@ -183,7 +184,7 @@ class _EventsScreenState extends State<EventsScreen> {
                                     fontWeight: FontWeight.w700, fontSize: 14)),
                           ),
                           Text(
-                              '${(s['totalCoins'] as num?)?.toInt() ?? 0} coins',
+                              '${asInt(s['totalCoins'])} coins',
                               style: const TextStyle(
                                   color: AfriColors.secondaryText,
                                   fontSize: 13,

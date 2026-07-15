@@ -1,5 +1,18 @@
 // Plain DTOs parsed from API JSON. Money fields are strings (API serialises BigInt).
 
+/// API count/money fields arrive as num OR as BigInt-serialised strings —
+/// never cast them with `as num`; that crashed the live creator dashboard
+/// (staging, 2026-07-14) when real earnings came back as "620".
+int asInt(dynamic v, [int fallback = 0]) =>
+    v is num ? v.toInt() : int.tryParse('$v') ?? fallback;
+
+int? asIntOrNull(dynamic v) =>
+    v == null ? null : (v is num ? v.toInt() : int.tryParse('$v'));
+
+num asNumOr(dynamic v, [num fallback = 0]) =>
+    v is num ? v : num.tryParse('$v') ?? fallback;
+
+
 class LiveRoom {
   const LiveRoom({
     required this.id,
@@ -44,7 +57,7 @@ class LiveRoom {
       hostAvatarUrl: profile?['avatarUrl'] as String?,
       coverImageUrl:
           json['coverImageUrl'] as String? ?? json['thumbnailUrl'] as String?,
-      viewerCount: (json['viewerCount'] as num?)?.toInt() ?? 0,
+      viewerCount: asInt(json['viewerCount']),
     );
   }
 }
@@ -59,7 +72,7 @@ class Gift {
   factory Gift.fromJson(Map<String, dynamic> json) => Gift(
         id: json['id'] as String,
         name: json['name'] as String? ?? 'Gift',
-        coinPrice: (json['coinPrice'] as num?)?.toInt() ?? 0,
+        coinPrice: asInt(json['coinPrice']),
       );
 }
 

@@ -7,6 +7,7 @@ import '../widgets/afri_live.dart';
 import '../widgets/afri_loader.dart';
 import '../widgets/afri_ui.dart';
 import 'creator_profile_screen.dart';
+import '../models/models.dart';
 
 /// Emoji for the seeded gift set; falls back to a generic gift.
 const _giftEmoji = {
@@ -54,8 +55,8 @@ class _GiftHistoryScreenState extends State<GiftHistoryScreen> {
             itemBuilder: (context, i) {
               final g = rows[i];
               final name = '${g['giftName'] ?? 'Gift'}';
-              final qty = (g['quantity'] as num?)?.toInt() ?? 1;
-              final coins = (g['totalCoinAmount'] as num?)?.toInt() ?? 0;
+              final qty = asInt(g['quantity'], 1);
+              final coins = asInt(g['totalCoinAmount']);
               final creatorId = g['creatorId'] as String?;
               return AfriCard(
                 // Tap through to the creator you supported.

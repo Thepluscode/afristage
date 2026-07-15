@@ -842,6 +842,46 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull); // errorBuilder ate the failure
   });
+
+  // Regression (staging, 2026-07-14): on a short stage the host prompt column
+  // overflowed and CLIPPED the publish button — the host could not go live.
+  testWidgets('host publish prompt fits a short stage without overflow',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Center(
+        child: SizedBox(
+          width: 300,
+          height: 120, // shorter than the prompt's natural height
+          child: AfriVideoStage(
+            video: const SizedBox.shrink(),
+            ready: true,
+            isHost: true,
+            videoOn: false,
+            roomEnded: false,
+            onStartVideo: () {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull); // no RenderFlex overflow
+    expect(find.text('Go Live with Camera + Mic'), findsOneWidget);
+  });
+
+  test('asInt/asIntOrNull/asNumOr tolerate num, string, junk, and null', () {
+    expect(asInt(7), 7);
+    expect(asInt('620'), 620);
+    expect(asInt(null), 0);
+    expect(asInt('junk', 5), 5);
+    expect(asIntOrNull(null), isNull);
+    expect(asIntOrNull('42'), 42);
+    expect(asIntOrNull(3.9), 3);
+    expect(asIntOrNull('x'), isNull);
+    expect(asNumOr('12.5'), 12.5);
+    expect(asNumOr(8), 8);
+    expect(asNumOr(null), 0);
+    expect(asNumOr('junk', 1), 1);
+  });
 }
 
 class _ThrowingAssetBundle extends CachingAssetBundle {
