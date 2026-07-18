@@ -159,6 +159,13 @@ model User {
   passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
+  // Set when the account is soft-deleted; the 30-day retention window is measured
+  // from here, after which purgeExpired() hard-deletes the account.
+  deletedAt      DateTime?  @map("deleted_at")
+  // Set once the account has been hard-deleted (PII erased). Distinguishes a
+  // still-in-window soft delete from an already-purged tombstone so the sweep
+  // doesn't re-process (or re-audit-log) it.
+  purgedAt       DateTime?  @map("purged_at")
 
   profile        Profile?
   creatorProfile CreatorProfile?

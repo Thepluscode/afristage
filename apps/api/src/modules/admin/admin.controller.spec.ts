@@ -2,10 +2,11 @@ import { AdminController } from './admin.controller';
 describe('AdminController', () => {
   function make() {
     const admin = { betaOpsDashboard: jest.fn(), dashboard: jest.fn(), users: jest.fn(), userActivity: jest.fn(), search: jest.fn(), creators: jest.fn(), liveRooms: jest.fn(), payments: jest.fn(), ledgerTransactions: jest.fn(), auditLogs: jest.fn(), leaderboard: jest.fn() };
+    const account = { softDelete: jest.fn(), hardDelete: jest.fn(), export: jest.fn(), purgeExpired: jest.fn() };
     const creators = { approveCreator: jest.fn(), rejectCreator: jest.fn(), suspendCreator: jest.fn() };
     const ledger = { check: jest.fn() };
     const rooms = { endStaleRooms: jest.fn(), get: jest.fn(), adminEnd: jest.fn() };
-    return { c: new AdminController(admin as any, creators as any, ledger as any, rooms as any), admin, creators, ledger, rooms };
+    return { c: new AdminController(admin as any, account as any, creators as any, ledger as any, rooms as any), admin, account, creators, ledger, rooms };
   }
   const u = { sub: 'a1' };
   it('delegates the admin read endpoints', () => {
@@ -32,5 +33,13 @@ describe('AdminController', () => {
     expect(creators.rejectCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Rejected');
     expect(creators.suspendCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Suspended');
     expect(rooms.adminEnd).toHaveBeenCalledWith('a1', 'r1');
+  });
+  it('delegates account deletion endpoints with the acting admin id', () => {
+    const { c, account } = make();
+    c.softDeleteUser(u, 'x1'); c.purgeUser(u, 'x1'); c.exportUser('x1'); c.purgeExpired();
+    expect(account.softDelete).toHaveBeenCalledWith('x1', 'a1');
+    expect(account.hardDelete).toHaveBeenCalledWith('x1', 'a1');
+    expect(account.export).toHaveBeenCalledWith('x1');
+    expect(account.purgeExpired).toHaveBeenCalled();
   });
 });
