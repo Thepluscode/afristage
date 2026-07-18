@@ -83,6 +83,72 @@ export class AdminService {
     });
   }
 
+  // Per-user retention view: last meaningful activity + this-window action
+  // count, quietest habitual users first. "Meaningful action" = joined a room,
+  // sent a gift, or claimed a mission (not a bare login). Session recency counts
+  // toward last-active but not toward the action tally. This is the measurement
+  // foundation for later personal-baseline anomaly detection — the raw events
+  // already accrue; this only rolls them up per user.
+  // ponytail: in-app merge over a bounded user set (take 500). At beta scale
+  // this is 8 group-bys on small tables; move to a SQL rollup if users grow.
+  async userActivity(days = 7) {
+    const n = Math.min(Math.max(Math.trunc(days) || 7, 1), 90); // bounded 1..90
+    const windowStart = new Date(Date.now() - n * 86_400_000);
+
+    const [users, roomAll, giftAll, missionAll, sessionAll, roomWk, giftWk, missionWk] = await Promise.all([
+      this.prisma.user.findMany({
+        take: 500,
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, email: true, phone: true, role: true, status: true, createdAt: true, profile: { select: { displayName: true, username: true } } }
+      }),
+      this.prisma.roomParticipant.groupBy({ by: ['userId'], _max: { joinedAt: true } }),
+      this.prisma.giftTransaction.groupBy({ by: ['viewerId'], _max: { createdAt: true } }),
+      this.prisma.missionClaim.groupBy({ by: ['userId'], _max: { createdAt: true } }),
+      this.prisma.deviceSession.groupBy({ by: ['userId'], _max: { lastSeenAt: true } }),
+      this.prisma.roomParticipant.groupBy({ by: ['userId'], _count: { _all: true }, where: { joinedAt: { gte: windowStart } } }),
+      this.prisma.giftTransaction.groupBy({ by: ['viewerId'], _count: { _all: true }, where: { createdAt: { gte: windowStart } } }),
+      this.prisma.missionClaim.groupBy({ by: ['userId'], _count: { _all: true }, where: { createdAt: { gte: windowStart } } })
+    ]);
+
+    const roomT = new Map(roomAll.map((r) => [r.userId, r._max.joinedAt]));
+    const giftT = new Map(giftAll.map((r) => [r.viewerId, r._max.createdAt]));
+    const missionT = new Map(missionAll.map((r) => [r.userId, r._max.createdAt]));
+    const sessionT = new Map(sessionAll.map((r) => [r.userId, r._max.lastSeenAt]));
+    const roomC = new Map(roomWk.map((r) => [r.userId, r._count._all]));
+    const giftC = new Map(giftWk.map((r) => [r.viewerId, r._count._all]));
+    const missionC = new Map(missionWk.map((r) => [r.userId, r._count._all]));
+
+    const now = Date.now();
+    const rows = users.map((u) => {
+      const stamps = [roomT.get(u.id), giftT.get(u.id), missionT.get(u.id), sessionT.get(u.id)].filter(Boolean) as Date[];
+      const lastActiveAt = stamps.length ? new Date(Math.max(...stamps.map((d) => d.getTime()))) : null;
+      const rooms = roomC.get(u.id) ?? 0;
+      const gifts = giftC.get(u.id) ?? 0;
+      const missions = missionC.get(u.id) ?? 0;
+      return {
+        id: u.id,
+        displayName: u.profile?.displayName || u.profile?.username || u.email || u.phone || u.id,
+        email: u.email,
+        role: u.role,
+        status: u.status,
+        createdAt: u.createdAt,
+        lastActiveAt,
+        daysSinceActive: lastActiveAt ? Math.floor((now - lastActiveAt.getTime()) / 86_400_000) : null,
+        weekActions: rooms + gifts + missions,
+        weekBreakdown: { rooms, gifts, missions }
+      };
+    });
+
+    // Quietest habitual users first: those who WERE active, longest-ago first,
+    // then never-active accounts (an activation gap, not a retention one) by
+    // signup order. Partition instead of a branchy comparator so ordering is
+    // deterministic.
+    const active = rows.filter((r) => r.lastActiveAt).sort((a, b) => a.lastActiveAt!.getTime() - b.lastActiveAt!.getTime());
+    const neverActive = rows.filter((r) => !r.lastActiveAt).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+    return { windowDays: n, generatedAt: new Date(), users: [...active, ...neverActive] };
+  }
+
   creators(approvalStatus?: string) {
     return this.prisma.creatorProfile.findMany({
       where: approvalStatus ? { approvalStatus: approvalStatus as any } : {},
