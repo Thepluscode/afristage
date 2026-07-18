@@ -32,6 +32,7 @@ import { EventsModule } from './modules/events/events.module';
 import { FraudModule } from './modules/fraud/fraud.module';
 import { MissionsModule } from './modules/missions/missions.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { AccountModule } from './modules/account/account.module';
 
 @Module({
   imports: [
@@ -67,7 +68,8 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     EventsModule,
     FraudModule,
     MissionsModule,
-    UploadsModule
+    UploadsModule,
+    AccountModule
   ],
   controllers: [HealthController],
   providers: [

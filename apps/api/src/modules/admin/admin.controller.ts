@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { Roles } from '../../common/roles.decorator';
 import { RolesGuard } from '../../common/roles.guard';
 import { AdminService } from './admin.service';
+import { AccountService } from '../account/account.service';
 import { CreatorsService } from '../creators/creators.service';
 import { LedgerIntegrityService } from '../wallet/ledger-integrity.service';
 import { LiveRoomsService } from '../live-rooms/live-rooms.service';
@@ -16,6 +17,7 @@ import { LiveRoomsService } from '../live-rooms/live-rooms.service';
 export class AdminController {
   constructor(
     private readonly admin: AdminService,
+    private readonly account: AccountService,
     private readonly creatorsService: CreatorsService,
     private readonly ledgerIntegrity: LedgerIntegrityService,
     private readonly liveRoomsService: LiveRoomsService
@@ -115,5 +117,33 @@ export class AdminController {
   @Get('leaderboard')
   leaderboard(@Query('type') type?: string, @Query('window') window?: string, @Query('limit') limit?: string) {
     return this.admin.leaderboard(type, window, limit ? Number(limit) : undefined);
+  }
+
+  // Account deletion (ADMIN+ only — excludes MODERATOR). See docs/account-deletion.md.
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('users/:id/delete')
+  softDeleteUser(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.account.softDelete(id, user.sub);
+  }
+
+  // Immediate irreversible erasure — fulfils a GDPR erasure request within the 72h SLA.
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('users/:id/purge')
+  purgeUser(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.account.hardDelete(id, user.sub);
+  }
+
+  // GDPR Art. 15 data report for a user.
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('users/:id/export')
+  exportUser(@Param('id') id: string) {
+    return this.account.export(id);
+  }
+
+  // Run the 30-day retention sweep on demand (also runs daily via @Cron).
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('accounts/purge-expired')
+  purgeExpired() {
+    return this.account.purgeExpired();
   }
 }
