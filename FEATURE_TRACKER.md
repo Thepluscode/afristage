@@ -294,10 +294,18 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 | **LiveKit Cloud wired + verified on staging**: API issues accepted tokens; the mobile app connects to LiveKit Cloud through the full product flow (login → Go Live → publish button) — participant visible server-side; real demo video publishes into app-created rooms | VERIFIED | `RoomServiceClient` shows the app participant + `demo-publisher` with 1 video track in the app's room; screenshots `tmp/lk-*.png`. Emulator camera capture fails (AVD limitation) — physical-device publish is the remaining wave-1 check | #172 |
 | **Two launch-blocking mobile bugs found by the live drive**: (1) creator dashboard red-screen crash — `as num` casts on BigInt-string money fields (swept 24 call sites → tolerant `asInt`/`asNumOr` helpers); (2) the ONLY publish affordance scaled to invisibility on short host stages — host could not go live (button now in the controls panel) | VERIFIED | crash screen now renders real staging data ($16.00/7m); publish button tapped on-device → LiveKit participant appeared; 334/334 tests, changed files 100% | #172 |
 
-Still pending for full production: real `PAYSTACK_SECRET_KEY`, LiveKit Cloud
-project (media streaming untestable until then), `NODE_ENV=production` +
-`REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic check, `RESEND_API_KEY`
-to light up email delivery.
+| **Per-user activity view** (week-3 habit-gate step 1): `GET /admin/user-activity` (admin-gated, `?days=` 1..90 default 7) rolls up per-user last-active + windowed meaningful actions (rooms joined + gifts sent + mission claims; sessions count toward last-active only, never the tally). Admin page `/user-activity`, quietest-habitual first, QUIET/ACTIVE/NEW badges | VERIFIED | 100% cov changed files; API 682/682, admin-web 100%; live-to-the-row on compose: 1 room join + 1 gift → `weekActions:2 {rooms:1,gifts:1}` **matching SQL exactly**; clamp 100→90, unauth 401. Steps 2–3 (anomaly detection, auto re-engagement) deferred per premise gate (n≈8, email dark, no 3-week history) | #173 |
+| **Security posture** (buyer-trust, adapted B2C): public `/site/security` page + `/.well-known/security.txt` (RFC 9116) + `security@afristage.live` disclosure + `docs/security-posture.md` audit scorecard; ran `security_sweep.sh` first (gitleaks hit = false positive; lodash CVEs = devDep-only absent from runtime; Next CVEs = unused code paths, staged not force-bumped) + fixed a silently-swallowed wallet re-sync (Rule 8) | VERIFIED | admin-web 100% + mobile 335/335 + analyze clean; live on staging: `/site/security` 200 + `security.txt` 200 unauth, admin `/security` STILL gated 307→/login (no regression), all 6 control claims present, deployed browser render clean (`security-page-deployed.png`) | #174 |
+
+Reusable skill created (2026-07-18): `~/.claude/skills/retention-instrumentation/`
+— the #173 measurement pattern generalized (NestJS/Prisma reference + Django/
+Rails/raw-SQL ports), for use across other projects.
+
+Still pending for full production: real `PAYSTACK_SECRET_KEY`,
+`NODE_ENV=production` + `REQUIRE_ADMIN_MFA=true`, alert webhook on the synthetic
+check, `RESEND_API_KEY` to light up email delivery. Remaining wave-1 checks:
+physical-device camera publish (emulator can't capture; #172), and imagery
+provenance for the `/site` marketing photos before any marketing push (#171).
 
 ## Verification debt
 
