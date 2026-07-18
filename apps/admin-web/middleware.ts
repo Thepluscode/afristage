@@ -28,7 +28,14 @@ export function middleware(req: NextRequest) {
   const authed = (Boolean(access) && !isExpired(access!)) || (Boolean(refresh) && !isExpired(refresh!));
   const { pathname } = req.nextUrl;
 
-  if (pathname === '/site' || pathname.startsWith('/site/')) {
+  // Public surfaces: the marketing site (incl. /site/security) and the standard
+  // vulnerability-disclosure path bypass the auth gate. NOTE: /security stays
+  // GATED — it's the admin security screen, not the public policy page.
+  if (
+    pathname === '/site' ||
+    pathname.startsWith('/site/') ||
+    pathname.startsWith('/.well-known/')
+  ) {
     return NextResponse.next();
   }
 

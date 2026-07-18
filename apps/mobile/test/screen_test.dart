@@ -2407,6 +2407,30 @@ void main() {
     await tester.pump(const Duration(seconds: 5)); // snackbar gone
   });
 
+  // Covers the best-effort wallet re-sync catch (Rule 8): the claim POST
+  // succeeds and the reward snackbar shows even though refreshWallet throws.
+  testWidgets('MissionsScreen claim still succeeds when the wallet re-sync fails',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi(
+      maps: {
+        '/missions/me': missionBoard(),
+        '/missions/GIFT_1/claim': {'ok': true, 'rewardCoins': 10},
+      },
+      errors: {'/wallet/me'}, // refreshWallet throws -> logged, swallowed
+    );
+    await tester.pumpWidget(_wrap(api, const MissionsScreen()));
+    await tester.pumpAndSettle();
+    final enabled =
+        find.byWidgetPredicate((w) => w is FilledButton && w.onPressed != null);
+    await tester.tap(enabled.first);
+    await tester.pump();
+    await tester.pump();
+    expect(api.posts, contains('/missions/GIFT_1/claim'));
+    expect(find.text('+10 coins earned!'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('MissionsScreen shows an error snackbar when the claim fails',
       (tester) async {
     _tall(tester);

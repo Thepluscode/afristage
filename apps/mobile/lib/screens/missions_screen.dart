@@ -26,9 +26,13 @@ class _MissionsScreenState extends State<MissionsScreen> {
     try {
       await state.api.post('/missions/$key/claim');
       // Wallet refresh is best-effort; the board refresh below shows the claim.
+      // Observable, not silent (Rule 8): the claim already succeeded, so a failed
+      // wallet re-sync is logged and swallowed, never surfaced to the user.
       try {
         await state.refreshWallet();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('mission claim: wallet refresh failed (non-fatal): $e');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('+$rewardCoins coins earned!')));
