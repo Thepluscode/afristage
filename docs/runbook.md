@@ -95,7 +95,8 @@ The production gate also expects production environment variables to be present 
 4. Check Admin → Reports for Critical or High moderation work.
 5. Check Admin → Payouts and Ledger Integrity before any payout approval.
 6. Check Admin → Support and assign every open payment, payout, moderation, or creator ticket.
-7. Record Critical/High issues before approving the next invite wave.
+7. Check Admin → User Activity: personally reach out to every QUIET user (was active, now silent 3+ days with 0 meaningful actions this week) before they churn. Never-active accounts are an activation problem, not retention — handle separately.
+8. Record Critical/High issues before approving the next invite wave.
 
 ## Common failures
 

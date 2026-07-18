@@ -51,6 +51,7 @@ Invite rules:
 | Before creator sessions | Creator ops | Confirm approved creator status, scheduled room title/category/language, LiveKit config | Creator checklist |
 | During live sessions | Moderator | Watch Reports and Live Rooms queues | Action log |
 | After live sessions | Finance ops | Check wallet movement, gift volume, payout requests, ledger integrity | Admin screenshot |
+| End of day | Ops lead | Review Admin → User Activity: personally reach out to every QUIET user (was active, now 3+ days silent with 0 meaningful actions this week) before they churn — this is manual re-engagement at beta scale, not automation | Outreach note per quiet user |
 | End of day | Ops lead | Review support backlog, incidents, open Critical/High issues, next-wave decision | Daily beta note |
 
 ## Launch freeze gates
