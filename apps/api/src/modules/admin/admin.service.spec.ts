@@ -249,3 +249,107 @@ describe('AdminService.search', () => {
     expect(byId.t1).toMatchObject({ type: 'ticket', label: 'Cannot withdraw', sublabel: 'OPEN', href: '/support?id=t1' });
   });
 });
+
+describe('AdminService.userActivity', () => {
+  const now = Date.now();
+  const daysAgo = (n: number) => new Date(now - n * 86_400_000);
+
+  function build() {
+    const prisma: any = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'u_quiet', email: 'quiet@x.co', phone: null, role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(30), profile: { displayName: 'Quiet Q', username: 'quietq' } },
+          { id: 'u_active', email: 'active@x.co', phone: null, role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(30), profile: { displayName: 'Active A', username: 'activea' } },
+          { id: 'u_new', email: null, phone: '+2348000', role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(1), profile: null },
+          { id: 'u_new2', email: 'n2@x.co', phone: null, role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(2), profile: null }
+        ])
+      },
+      roomParticipant: {
+        groupBy: jest.fn()
+          .mockResolvedValueOnce([{ userId: 'u_quiet', _max: { joinedAt: daysAgo(10) } }, { userId: 'u_active', _max: { joinedAt: daysAgo(1) } }]) // all-time max
+          .mockResolvedValueOnce([{ userId: 'u_active', _count: { _all: 2 } }]) // window count
+      },
+      giftTransaction: {
+        groupBy: jest.fn()
+          .mockResolvedValueOnce([{ viewerId: 'u_active', _max: { createdAt: daysAgo(0) } }])
+          .mockResolvedValueOnce([{ viewerId: 'u_active', _count: { _all: 3 } }])
+      },
+      missionClaim: {
+        groupBy: jest.fn()
+          .mockResolvedValueOnce([{ userId: 'u_quiet', _max: { createdAt: daysAgo(9) } }])
+          .mockResolvedValueOnce([{ userId: 'u_active', _count: { _all: 1 } }]) // 1 mission claim in window
+      },
+      deviceSession: {
+        groupBy: jest.fn().mockResolvedValueOnce([{ userId: 'u_active', _max: { lastSeenAt: daysAgo(0) } }])
+      }
+    };
+    return { service: new AdminService(prisma, new AggregationService(prisma)), prisma };
+  }
+
+  it('rolls up last-active + windowed meaningful actions per user, quietest first', async () => {
+    const { service } = build();
+    const res = await service.userActivity();
+    expect(res.windowDays).toBe(7);
+    // sorted quietest-active first: u_quiet (10d) before u_active (0d), u_new (never) last
+    expect(res.users.map((u) => u.id)).toEqual(['u_quiet', 'u_active', 'u_new2', 'u_new']);
+
+    const active = res.users.find((u) => u.id === 'u_active')!;
+    expect(active.weekActions).toBe(6); // 2 rooms + 3 gifts + 1 mission
+    expect(active.weekBreakdown).toEqual({ rooms: 2, gifts: 3, missions: 1 });
+    expect(active.daysSinceActive).toBe(0);
+
+    const quiet = res.users.find((u) => u.id === 'u_quiet')!;
+    expect(quiet.weekActions).toBe(0); // active 10d ago, nothing this week
+    expect(quiet.daysSinceActive).toBe(9); // max(room 10d, mission 9d) = 9d
+
+    const fresh = res.users.find((u) => u.id === 'u_new')!;
+    expect(fresh.lastActiveAt).toBeNull(); // never did anything
+    expect(fresh.daysSinceActive).toBeNull();
+    expect(fresh.displayName).toBe('+2348000'); // falls back email -> phone
+  });
+
+  it('covers identity fallbacks and orders never-active users by signup', async () => {
+    const prisma: any = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'u_user', email: null, phone: null, role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(5), profile: { displayName: null, username: 'justuser' } },
+          { id: 'u_email', email: 'only@x.co', phone: null, role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(3), profile: null },
+          { id: 'u_idonly', email: null, phone: null, role: 'VIEWER', status: 'ACTIVE', createdAt: daysAgo(1), profile: null }
+        ])
+      },
+      roomParticipant: { groupBy: jest.fn().mockResolvedValue([]) },
+      giftTransaction: { groupBy: jest.fn().mockResolvedValue([]) },
+      missionClaim: { groupBy: jest.fn().mockResolvedValue([]) },
+      deviceSession: { groupBy: jest.fn().mockResolvedValue([]) }
+    };
+    const service = new AdminService(prisma, new AggregationService(prisma));
+    const res = await service.userActivity();
+    // all never-active -> ordered by createdAt asc (oldest signup first)
+    expect(res.users.map((u) => u.id)).toEqual(['u_user', 'u_email', 'u_idonly']);
+    expect(res.users.find((u) => u.id === 'u_user')!.displayName).toBe('justuser');   // username fallback
+    expect(res.users.find((u) => u.id === 'u_email')!.displayName).toBe('only@x.co');  // email fallback
+    expect(res.users.find((u) => u.id === 'u_idonly')!.displayName).toBe('u_idonly');  // id fallback
+    expect(res.users.every((u) => u.weekActions === 0 && u.lastActiveAt === null)).toBe(true);
+  });
+
+  it('clamps the window to 1..90 days and defaults 0/absent to 7', async () => {
+    const prisma: any = {
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      roomParticipant: { groupBy: jest.fn().mockResolvedValue([]) },
+      giftTransaction: { groupBy: jest.fn().mockResolvedValue([]) },
+      missionClaim: { groupBy: jest.fn().mockResolvedValue([]) },
+      deviceSession: { groupBy: jest.fn().mockResolvedValue([]) }
+    };
+    const service = new AdminService(prisma, new AggregationService(prisma));
+
+    expect((await service.userActivity(500)).windowDays).toBe(90); // clamped to max
+    expect((await service.userActivity(0)).windowDays).toBe(7);    // Math.trunc(0)||7 fallback
+    expect((await service.userActivity(-5)).windowDays).toBe(1);   // clamped to min
+
+    // the windowed count query filters on a gte cutoff derived from the window
+    const cutoff = prisma.roomParticipant.groupBy.mock.calls
+      .map((c: any[]) => c[0]).find((a: any) => a.where)!.where.joinedAt.gte.getTime();
+    expect(cutoff).toBeGreaterThan(now - 91 * 86_400_000);
+    expect(cutoff).toBeLessThan(now - 89 * 86_400_000);
+  });
+});

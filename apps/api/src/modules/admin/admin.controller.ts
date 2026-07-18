@@ -58,6 +58,13 @@ export class AdminController {
     return this.admin.users(q, status, role);
   }
 
+  // Per-user retention: last-active + this-window meaningful-action count,
+  // quietest habitual users first. `?days=` sets the action window (default 7).
+  @Get('user-activity')
+  userActivity(@Query('days') days?: string) {
+    return this.admin.userActivity(days ? Number(days) : undefined);
+  }
+
   @Get('search')
   search(@Query('q') q?: string) {
     return this.admin.search(q);
