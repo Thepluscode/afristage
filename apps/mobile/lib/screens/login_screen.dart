@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,8 +16,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _identifier = TextEditingController(text: 'viewer@afristage.local');
-  final _password = TextEditingController(text: 'Viewer123!');
+  // Prefill the seeded viewer only in debug builds; a shipped build starts empty.
+  final _identifier =
+      TextEditingController(text: kDebugMode ? 'viewer@afristage.local' : '');
+  final _password = TextEditingController(text: kDebugMode ? 'Viewer123!' : '');
   bool _busy = false;
 
   @override
@@ -59,12 +62,11 @@ class _LoginScreenState extends State<LoginScreen> {
               colors: [Color(0x22FFC857), AfriColors.stage],
             ),
           ),
-          child: Align(
-            alignment: Alignment.centerLeft,
+          child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 350),
+                constraints: const BoxConstraints(maxWidth: 380),
                 child: AfriCard(
                   padding: const EdgeInsets.all(22),
                   child: Column(
@@ -112,29 +114,32 @@ class _LoginScreenState extends State<LoginScreen> {
                                     CircularProgressIndicator(strokeWidth: 2))
                             : const Text('Log in to AfriStage'),
                       ),
-                      const SizedBox(height: 24),
-                      Text('Seeded test accounts',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelMedium),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        children: [
-                          OutlinedButton(
-                              onPressed: () =>
-                                  _fill('viewer@afristage.local', 'Viewer123!'),
-                              child: const Text('Viewer')),
-                          OutlinedButton(
-                              onPressed: () => _fill(
-                                  'creator@afristage.local', 'Creator123!'),
-                              child: const Text('Creator')),
-                          OutlinedButton(
-                              onPressed: () =>
-                                  _fill('admin@afristage.local', 'Admin123!'),
-                              child: const Text('Admin')),
-                        ],
-                      ),
+                      // Dev-only quick-fill; never shown in a shipped build.
+                      if (kDebugMode) ...[
+                        const SizedBox(height: 24),
+                        Text('Seeded test accounts',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.labelMedium),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          children: [
+                            OutlinedButton(
+                                onPressed: () => _fill(
+                                    'viewer@afristage.local', 'Viewer123!'),
+                                child: const Text('Viewer')),
+                            OutlinedButton(
+                                onPressed: () => _fill(
+                                    'creator@afristage.local', 'Creator123!'),
+                                child: const Text('Creator')),
+                            OutlinedButton(
+                                onPressed: () =>
+                                    _fill('admin@afristage.local', 'Admin123!'),
+                                child: const Text('Admin')),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       TextButton(
                         onPressed: () => Navigator.push(

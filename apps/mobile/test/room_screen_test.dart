@@ -78,7 +78,7 @@ class _RoomApi extends ApiClient {
   }
 
   @override
-  Future<Map<String, dynamic>> delete(String path) async {
+  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async {
     if (failFollow && path.endsWith('/follow')) {
       throw const ApiException(500, 'unfollow failed');
     }

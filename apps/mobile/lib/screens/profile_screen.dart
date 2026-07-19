@@ -9,6 +9,7 @@ import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'beta_accept_screen.dart';
 import 'blocked_users_screen.dart';
+import 'delete_account_screen.dart';
 import 'devices_screen.dart';
 import 'creator_apply_screen.dart';
 import 'history_screen.dart';
@@ -31,7 +32,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _dataSaver = false;
   String? _avatarUrl;
   bool _uploadingAvatar = false;
 
@@ -189,18 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 16),
         const AfriSectionHeader(
           title: 'Settings',
-          subtitle: 'Control safety, bandwidth, and session behaviour',
-        ),
-        const SizedBox(height: 10),
-        AfriCard(
-          child: SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _dataSaver,
-            onChanged: (value) => setState(() => _dataSaver = value),
-            title: const Text('Data saver mode'),
-            subtitle:
-                const Text('Reduce visual load for lower bandwidth rooms.'),
-          ),
+          subtitle: 'Control safety and session behaviour',
         ),
         const SizedBox(height: 10),
         AfriActionRow(
@@ -236,6 +225,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onPressed: _signOutEverywhere,
           icon: const Icon(Icons.devices_outlined),
           label: const Text('Sign out of all devices'),
+        ),
+        const SizedBox(height: 16),
+        const AfriSectionHeader(
+          title: 'Account & privacy',
+          subtitle: 'Export your data or delete your account',
+        ),
+        const SizedBox(height: 10),
+        AfriActionRow(
+          icon: Icons.delete_outline,
+          title: 'Delete account',
+          body: 'Deactivate now; permanently deleted after 30 days.',
+          accent: AfriColors.danger,
+          onTap: () => go(const DeleteAccountScreen()),
         ),
       ],
     );

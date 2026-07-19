@@ -185,6 +185,57 @@ describe('UsersPage', () => {
     resolve([]);
     await screen.findByText('No users match this search.');
   });
+
+  it('soft-deletes a user when confirmed (#175)', async () => {
+    vi.mocked(adminGet).mockResolvedValue([user({ status: 'ACTIVE' })]);
+    render(<UsersPage />);
+    await screen.findByText('Display Name');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' })); // confirm
+    await waitFor(() =>
+      expect(adminPost).toHaveBeenCalledWith('/admin/users/user-1234567890/delete')
+    );
+  });
+
+  it('purges a user (GDPR erasure) when confirmed (#175)', async () => {
+    vi.mocked(adminGet).mockResolvedValue([user({ status: 'ACTIVE' })]);
+    render(<UsersPage />);
+    await screen.findByText('Display Name');
+    fireEvent.click(screen.getByRole('button', { name: 'Purge' })); // trigger
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Purge' })); // confirm
+    await waitFor(() =>
+      expect(adminPost).toHaveBeenCalledWith('/admin/users/user-1234567890/purge')
+    );
+  });
+
+  it('exports a user\'s GDPR data report', async () => {
+    vi.mocked(adminGet).mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith('/export') ? ({ user: { id: 'user-1234567890' } } as never) : ([user()] as never)));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<UsersPage />);
+    await screen.findByText('Display Name');
+    fireEvent.click(screen.getByRole('button', { name: 'Export data (GDPR)' }));
+    await waitFor(() =>
+      expect(adminGet).toHaveBeenCalledWith('/admin/users/user-1234567890/export')
+    );
+    expect(click).toHaveBeenCalled();
+  });
+
+  it('surfaces an error when the export fails', async () => {
+    vi.mocked(adminGet).mockImplementation((path: string) =>
+      path.endsWith('/export') ? Promise.reject(new Error('export boom')) : (Promise.resolve([user()]) as never));
+    render(<UsersPage />);
+    await screen.findByText('Display Name');
+    fireEvent.click(screen.getByRole('button', { name: 'Export data (GDPR)' }));
+    expect(await screen.findByText('export boom')).toBeInTheDocument();
+  });
+
+  it('disables the delete action for an already-deleted account', async () => {
+    vi.mocked(adminGet).mockResolvedValue([user({ status: 'DELETED' })]);
+    render(<UsersPage />);
+    await screen.findByText('Display Name');
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
+  });
 });
 describe('UsersPage sessions panel', () => {
   const session = (over: Partial<any> = {}) => ({
