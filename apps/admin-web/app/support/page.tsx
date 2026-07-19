@@ -58,7 +58,7 @@ function SupportPageInner() {
       </FilterBar>
       <RowHighlightNotice missing={missing} />
       <div className="command-grid">
-        <DataTable columns={['Subject', 'Requester', 'Type', 'Priority', 'Status', 'Created', 'Assigned', 'Actions']} empty={<EmptyState>No support tickets are open.</EmptyState>}>
+        <DataTable columns={['Subject', 'Requester', 'Type', 'Priority', 'Status', 'Created', 'Actions']} empty={<EmptyState>No support tickets are open.</EmptyState>}>
             {filtered.map((t) => (
               <tr key={t.id} id={`row-${t.id}`} className={t.id === highlightId ? 'row-highlight' : undefined}>
                 <td>{t.subject}</td>
@@ -67,7 +67,6 @@ function SupportPageInner() {
                 <td><PriorityBadge priority={t.priority} /></td>
                 <td><StatusBadge status={t.status} /></td>
                 <td>{new Date(t.createdAt).toLocaleString()}</td>
-                <td>Unassigned</td>
                 <td>
                   <ActionMenu>
                   <button className="button" onClick={() => assign(t.id)}>

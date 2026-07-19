@@ -7,6 +7,7 @@ import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/screens/search_screen.dart';
 import 'package:afristage_mobile/screens/wallet_screen.dart';
 import 'package:afristage_mobile/screens/creator_profile_screen.dart';
+import 'package:afristage_mobile/screens/delete_account_screen.dart';
 import 'package:afristage_mobile/screens/gift_history_screen.dart';
 import 'package:afristage_mobile/screens/creator_rooms_screen.dart';
 import 'package:afristage_mobile/screens/creator_screen.dart';
@@ -105,7 +106,7 @@ class _FakeApi extends ApiClient {
   }
 
   @override
-  Future<Map<String, dynamic>> delete(String path) async {
+  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async {
     if (errors.contains(path)) throw const ApiException(500, 'boom');
     deletes.add(path);
     return const {};
@@ -164,7 +165,7 @@ class _AuthFakeApi extends ApiClient {
       const {};
 
   @override
-  Future<Map<String, dynamic>> delete(String path) async => const {};
+  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async => const {};
 }
 
 Widget _wrap(ApiClient api, Widget child) => ChangeNotifierProvider(
@@ -676,14 +677,6 @@ void main() {
     expect(api.posts, contains('/payouts/methods'));
   });
 
-  testWidgets('GoLiveSetup low-data toggle flips', (tester) async {
-    _tall(tester);
-    await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Low-data mode'));
-    await tester.pumpAndSettle();
-    expect(find.text('Low-data mode'), findsOneWidget); // toggled without error
-  });
 
   testWidgets('WalletScreen buying a package posts a purchase intent',
       (tester) async {
@@ -3613,5 +3606,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('2.5K'), findsOneWidget); // string view count parsed
+  });
+
+  testWidgets('DeleteAccountScreen renders the retention warning and controls',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const DeleteAccountScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Before you delete'), findsOneWidget);
+    expect(find.text('Download a copy of your data'), findsOneWidget);
+    expect(find.text('Delete my account'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget); // password field
+  });
+
+  testWidgets('DeleteAccountScreen blocks deletion until a password is entered',
+      (tester) async {
+    _tall(tester);
+    final api = _FakeApi();
+    await tester.pumpWidget(_wrap(api, const DeleteAccountScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete my account'));
+    await tester.pump();
+    expect(find.text('Enter your password to confirm deletion.'),
+        findsOneWidget);
+    expect(api.deletes, isEmpty); // no API call without a password
   });
 }

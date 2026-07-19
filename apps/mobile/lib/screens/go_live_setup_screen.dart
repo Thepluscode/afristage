@@ -24,7 +24,6 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
   String _category = 'MUSIC';
   String _country = 'NG';
   String _language = 'pidgin';
-  bool _lowData = false;
   bool _chatRules = true;
   bool _busy = false;
   String? _titleError;
@@ -269,14 +268,6 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           ),
         ]),
         const SizedBox(height: 12),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _lowData,
-          onChanged: (v) => setState(() => _lowData = v),
-          title: const Text('Low-data mode'),
-          subtitle:
-              const Text('Optimise the room for lower bandwidth viewers.'),
-        ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _chatRules,

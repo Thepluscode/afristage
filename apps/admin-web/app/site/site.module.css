@@ -585,8 +585,12 @@
 .proofRibbon {
   display: flex;
   gap: 10px;
-  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: none;
   margin-bottom: 28px;
+}
+.proofRibbon::-webkit-scrollbar {
+  display: none;
 }
 
 .proofRibbon span {
@@ -1432,7 +1436,7 @@
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
   letter-spacing: 0.14em;
-  color: #7c7160;
+  color: #98897a;
 }
 .siteFooter a {
   display: inline-flex;

@@ -18,11 +18,17 @@ class LiveKitRoomView extends StatefulWidget {
     required this.url,
     required this.token,
     required this.publish,
+    this.micEnabled = true,
+    this.cameraEnabled = true,
   });
 
   final String url;
   final String token;
   final bool publish;
+  // Host publish state. Toggling these disables/enables the actual track so a
+  // "muted" host genuinely stops broadcasting (not just a UI flag).
+  final bool micEnabled;
+  final bool cameraEnabled;
 
   @override
   State<LiveKitRoomView> createState() => _LiveKitRoomViewState();
@@ -44,8 +50,8 @@ class _LiveKitRoomViewState extends State<LiveKitRoomView> {
     try {
       await _room.connect(widget.url, widget.token);
       if (widget.publish) {
-        await _room.localParticipant?.setCameraEnabled(true);
-        await _room.localParticipant?.setMicrophoneEnabled(true);
+        await _room.localParticipant?.setCameraEnabled(widget.cameraEnabled);
+        await _room.localParticipant?.setMicrophoneEnabled(widget.micEnabled);
       }
       if (mounted) setState(() => _connected = true);
     } catch (_) {
@@ -58,6 +64,19 @@ class _LiveKitRoomViewState extends State<LiveKitRoomView> {
 
   void _onRoomChange() {
     if (mounted) setState(() {});
+  }
+
+  // React to host mic/camera toggles: flip the real published track.
+  @override
+  void didUpdateWidget(LiveKitRoomView old) {
+    super.didUpdateWidget(old);
+    if (!widget.publish || !_connected) return;
+    if (widget.micEnabled != old.micEnabled) {
+      _room.localParticipant?.setMicrophoneEnabled(widget.micEnabled);
+    }
+    if (widget.cameraEnabled != old.cameraEnabled) {
+      _room.localParticipant?.setCameraEnabled(widget.cameraEnabled);
+    }
   }
 
   /// First available video track: the host's own (publish) or any remote (viewer).

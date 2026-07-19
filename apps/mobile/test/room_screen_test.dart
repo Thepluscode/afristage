@@ -78,7 +78,7 @@ class _RoomApi extends ApiClient {
   }
 
   @override
-  Future<Map<String, dynamic>> delete(String path) async {
+  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async {
     if (failFollow && path.endsWith('/follow')) {
       throw const ApiException(500, 'unfollow failed');
     }
@@ -196,9 +196,11 @@ void main() {
     final original = debugRoomVideoBuilder;
     String? builtUrl;
     bool? builtPublish;
-    debugRoomVideoBuilder = (u, t, p) {
+    bool? builtMic;
+    debugRoomVideoBuilder = (u, t, p, m, c) {
       builtUrl = u;
       builtPublish = p;
+      builtMic = m;
       return const Text('VIDEO-LIVE');
     };
     addTearDown(() => debugRoomVideoBuilder = original);
@@ -220,8 +222,15 @@ void main() {
     expect(find.text('VIDEO-LIVE'), findsOneWidget);
     expect(builtUrl, 'ws://x');
     expect(builtPublish, isTrue); // host publishes, not subscribes
+    expect(builtMic, isTrue); // host starts with the mic live
     // once live, the panel's publish button is gone
     expect(find.text('Go Live with Camera + Mic'), findsNothing);
+
+    // Muting via the panel must reach the published track: the video builder is
+    // re-invoked with micEnabled=false (the view then disables the real track).
+    await tester.tap(find.text('Mic on'));
+    await tester.pumpAndSettle();
+    expect(builtMic, isFalse);
   });
 
   testWidgets('host room renders host controls', (tester) async {
@@ -403,7 +412,7 @@ void main() {
   testWidgets('viewer connects video (stubbed)', (tester) async {
     _tall(tester);
     final original = debugRoomVideoBuilder;
-    debugRoomVideoBuilder = (u, t, p) => const Text('VIDEO-STUB');
+    debugRoomVideoBuilder = (u, t, p, m, c) => const Text('VIDEO-STUB');
     addTearDown(() => debugRoomVideoBuilder = original);
     final socket = _FakeSocket();
     final state = AppState(api: _RoomApi())..userId = 'v1';

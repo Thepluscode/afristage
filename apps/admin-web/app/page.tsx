@@ -72,8 +72,6 @@ export default function DashboardPage() {
         kicker="Mission control for live room health, moderation pressure, payout risk, support load, and platform growth."
         action={
           <div className="header-actions">
-            <button className="button secondary" type="button">Today</button>
-            <button className="button secondary" type="button">Export</button>
             <a className="button" href="/reports">Quick action</a>
           </div>
         }

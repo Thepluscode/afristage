@@ -145,8 +145,9 @@ class ApiClient {
           [Map<String, dynamic>? body]) async =>
       (await _send('PATCH', path, body: body)) as Map<String, dynamic>;
 
-  Future<Map<String, dynamic>> delete(String path) async =>
-      (await _send('DELETE', path)) as Map<String, dynamic>;
+  Future<Map<String, dynamic>> delete(String path,
+          [Map<String, dynamic>? body]) async =>
+      (await _send('DELETE', path, body: body)) as Map<String, dynamic>;
 
   /// Raw PUT to an absolute URL (e.g. a presigned upload URL). No base URL, no
   /// bearer token — the presigned URL carries its own signature.

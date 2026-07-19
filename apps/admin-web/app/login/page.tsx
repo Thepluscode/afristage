@@ -3,8 +3,8 @@
 import { FormEvent, useState } from 'react';
 
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState('admin@afristage.local');
-  const [password, setPassword] = useState('Admin123!');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const termsUrl = process.env.NEXT_PUBLIC_TERMS_URL || 'https://www.afristage.live/terms';

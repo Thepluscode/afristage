@@ -69,6 +69,30 @@ function UsersPageInner() {
     await reload();
   }
 
+  // Account deletion (#175): soft-delete → 30-day window, purge → immediate GDPR erasure.
+  async function softDelete(id: string) {
+    await adminPost(`/admin/users/${id}/delete`);
+    await reload();
+  }
+  async function purge(id: string) {
+    await adminPost(`/admin/users/${id}/purge`);
+    await reload();
+  }
+  // GDPR Art. 15 report — download everything held on the user as JSON.
+  async function exportUser(u: User) {
+    try {
+      const data = await adminGet<unknown>(`/admin/users/${u.id}/export`);
+      const a = document.createElement("a");
+      a.href =
+        "data:application/json;charset=utf-8," +
+        encodeURIComponent(JSON.stringify(data, null, 2));
+      a.download = `user-${u.id}.json`;
+      a.click();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   if (error) return <ErrorState error={error} />;
   const filtered = rows.filter((u) => (!role || u.role === role) && (!status || u.status === status));
 
@@ -98,6 +122,7 @@ function UsersPageInner() {
           <option>ACTIVE</option>
           <option>SUSPENDED</option>
           <option>BANNED</option>
+          <option>DELETED</option>
         </select>
         <button className="button">Search</button>
       </FilterBar>
@@ -181,6 +206,11 @@ function UsersPageInner() {
                   >
                     Reactivate User
                   </button>
+                  <button className="button secondary" onClick={() => exportUser(u)}>
+                    Export data (GDPR)
+                  </button>
+                  <ConfirmDialog title="Delete account" body="Soft-delete this account? It is deactivated immediately and permanently erased after 30 days." confirmLabel="Delete" disabled={u.status === "DELETED"} onConfirm={() => softDelete(u.id)} />
+                  <ConfirmDialog title="Purge now (GDPR erase)" body="Immediately and irreversibly erase this user's personal data to fulfil a GDPR erasure request. Financial records are retained anonymised. This cannot be undone." confirmLabel="Purge" onConfirm={() => purge(u.id)} />
                   </ActionMenu>
                 </td>
               </tr>

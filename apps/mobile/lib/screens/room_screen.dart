@@ -18,10 +18,16 @@ io.Socket Function(String uri, dynamic opts) debugRoomSocketFactory = io.io;
 
 /// Builds the in-room video panel once a viewer/host connects. Production uses
 /// the real WebRTC [LiveKitRoomView]; tests override it to avoid a live session.
-Widget Function(String url, String token, bool publish) debugRoomVideoBuilder =
+Widget Function(
+        String url, String token, bool publish, bool micEnabled, bool cameraEnabled)
+    debugRoomVideoBuilder =
     // coverage:ignore-start
-    (url, token, publish) =>
-        LiveKitRoomView(url: url, token: token, publish: publish);
+    (url, token, publish, micEnabled, cameraEnabled) => LiveKitRoomView(
+        url: url,
+        token: token,
+        publish: publish,
+        micEnabled: micEnabled,
+        cameraEnabled: cameraEnabled);
 // coverage:ignore-end
 
 class RoomScreen extends StatefulWidget {
@@ -491,7 +497,10 @@ class _RoomScreenState extends State<RoomScreen> {
       );
     }
     if (_videoOn && _lkUrl != null && _lkToken != null) {
-      return debugRoomVideoBuilder(_lkUrl!, _lkToken!, widget.isHost);
+      // Host mic/camera toggles flow through here → the view enables/disables the
+      // actual published track (a "muted" host must stop broadcasting audio).
+      return debugRoomVideoBuilder(
+          _lkUrl!, _lkToken!, widget.isHost, _micOn, _cameraOn);
     }
     // Not yet publishing/subscribing: AfriVideoStage shows its own creator cover
     // and start affordance, so the video slot itself stays empty here.

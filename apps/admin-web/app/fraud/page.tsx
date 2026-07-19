@@ -53,7 +53,7 @@ export default function FraudPage() {
             </option>
           ))}
         </select>
-        <button type="submit" disabled={!selected || loading}>
+        <button className="button" type="submit" disabled={!selected || loading}>
           {loading ? "Assessing…" : "Assess risk"}
         </button>
       </FilterBar>
@@ -78,7 +78,7 @@ export default function FraudPage() {
                 {assessment.signals.map((s) => (
                   <tr key={s.key}>
                     <td>{s.key}</td>
-                    <td>{s.triggered ? "⚠️ yes" : "—"}</td>
+                    <td>{s.triggered ? <span className="pill warning">Triggered</span> : <span className="pill">—</span>}</td>
                     <td>{s.weight.toFixed(2)}</td>
                     <td>{s.detail}</td>
                   </tr>
