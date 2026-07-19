@@ -8,7 +8,6 @@ import {
   Gift,
   Heart,
   MonitorPlay,
-  Play,
   Radio,
   ShieldCheck,
   Sparkles,
@@ -109,7 +108,7 @@ export default function AfriStageSitePage() {
               <a className={styles.primaryButton} href="#offer">
                 Claim your stage <ArrowRight size={18} />
               </a>
-              <a className={styles.secondaryButton} href="#platform"><Play size={17} fill="currentColor" /> Watch the story</a>
+              <a className={styles.secondaryButton} href="#platform">See how it works <ArrowRight size={17} /></a>
             </div>
             <div className={styles.liveMeta}>
               <span><i /> Live · Lagos</span>
