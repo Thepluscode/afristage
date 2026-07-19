@@ -9,6 +9,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:3000 https:; form-action 'self'" />
 <title>AfriStage — Africa, centre stage</title>
 <meta name="description" content="AfriStage is live streaming built for African creators: perform for the whole continent and its diaspora, keep 60% of every gift, and get paid on rails that reach home." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://www.afristage.live/" />
+<meta property="og:title" content="AfriStage — Africa, centre stage" />
+<meta property="og:description" content="Live streaming built for African creators: perform for the whole continent and its diaspora, keep 60% of every gift, and get paid on rails that reach home." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="AfriStage — Africa, centre stage" />
+<meta name="twitter:description" content="Live streaming built for African creators: keep 60% of every gift and get paid on rails that reach home." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0807'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-style='italic' font-size='20' text-anchor='middle' fill='%23e9b44c'%3EA%3C/text%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -798,6 +805,10 @@
   });
   form.addEventListener("submit", function(e){
     e.preventDefault();
+    // Enter-to-submit fires no click, so read the role off the actual submitter
+    // (defaults to the primary "Apply to perform" / CREATOR button on Enter).
+    var sr = e.submitter && e.submitter.getAttribute("data-role");
+    if (sr) role = sr;
     var email = document.getElementById("w-email").value.trim();
     if (!email || email.indexOf("@") < 1) {
       msg.className = "fine err"; msg.textContent = "Enter a real email address."; return;
