@@ -32,8 +32,8 @@ describe('FraudPage', () => {
     expect(await screen.findByText('0.12')).toBeInTheDocument();
     const banner = document.querySelector('.banner-ok');
     expect(banner).toBeInTheDocument();
-    expect(screen.getByText('⚠️ yes')).toBeInTheDocument();
-    expect(screen.getByText('—')).toBeInTheDocument(); // not triggered
+    expect(screen.getAllByText('Triggered').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0); // not triggered
   });
 
   it('non-NONE action -> banner-warn', async () => {

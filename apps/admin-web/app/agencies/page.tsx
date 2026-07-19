@@ -142,7 +142,7 @@ function AgenciesPageInner() {
               {expanded.creators.map((c) => (
                 <tr key={c.creatorUserId}>
                   <td>{c.stageName ?? c.creatorUserId}</td>
-                  <td>{c.approvalStatus ?? "—"}</td>
+                  <td>{c.approvalStatus ? <StatusBadge status={c.approvalStatus} /> : "—"}</td>
                   <td>{new Date(c.addedAt).toLocaleDateString()}</td>
                   <td>
                     <ConfirmDialog

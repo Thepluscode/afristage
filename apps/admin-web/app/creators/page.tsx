@@ -66,7 +66,7 @@ function CreatorsPageInner() {
                 <td><UserCell name={c.stageName || c.user?.email} sub={c.userId} /></td>
                 <td>{c.country || '—'}</td>
                 <td>{c.category || '—'}</td>
-                <td><StatusBadge status={c.approvalStatus} /> <span className="pill">{c.kycStatus}</span></td>
+                <td><StatusBadge status={c.approvalStatus} /> <StatusBadge status={c.kycStatus} /></td>
                 <td>{c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}</td>
                 <td>{c.earnings ?? '—'}</td>
                 <td>{c.totalRooms ?? '—'}</td>

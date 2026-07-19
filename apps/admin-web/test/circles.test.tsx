@@ -73,7 +73,7 @@ describe('CirclesPage', () => {
     expect(await screen.findByText('MANUAL_REVIEW')).toBeInTheDocument();
     expect(screen.getAllByText('0.35').length).toBeGreaterThan(0); // risk score + groupSpike weight
     expect(screen.getByText('7.0x baseline')).toBeInTheDocument();
-    expect(screen.getByText('⚠️ yes')).toBeInTheDocument(); // triggered
+    expect(screen.getAllByText('Triggered').length).toBeGreaterThan(0); // triggered
     expect(screen.getByText('—')).toBeInTheDocument(); // untriggered marker (city is 'Lagos' here)
   });
 

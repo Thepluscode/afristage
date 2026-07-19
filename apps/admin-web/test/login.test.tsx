@@ -69,8 +69,8 @@ describe('LoginPage', () => {
     vi.stubGlobal('fetch', vi.fn());
     render(<LoginPage />);
 
-    const identifier = screen.getByDisplayValue('admin@afristage.local') as HTMLInputElement;
-    const password = screen.getByDisplayValue('Admin123!') as HTMLInputElement;
+    const identifier = screen.getByLabelText('Email or phone') as HTMLInputElement;
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
 
     fireEvent.change(identifier, { target: { value: 'me@example.com' } });
     fireEvent.change(password, { target: { value: 'secret' } });
