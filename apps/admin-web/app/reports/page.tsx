@@ -61,7 +61,7 @@ function ReportsPageInner() {
         <input placeholder="Reason / target / country" value={reason} onChange={(e) => setReason(e.target.value)} />
       </FilterBar>
       <RowHighlightNotice missing={missing} />
-      <DataTable columns={['Priority', 'Reason', 'Target', 'Reporter', 'Room', 'Status', 'Created', 'Reviewer', 'Actions']} empty={<EmptyState>No reports in the moderation queue.</EmptyState>}>
+      <DataTable columns={['Priority', 'Reason', 'Target', 'Reporter', 'Room', 'Status', 'Created', 'Actions']} empty={<EmptyState>No reports in the moderation queue.</EmptyState>}>
             {filtered.map((r) => (
               <tr key={r.id} id={`row-${r.id}`} className={r.id === highlightId ? 'row-highlight' : undefined}>
                 <td><PriorityBadge priority={r.priority} /></td>
@@ -71,7 +71,6 @@ function ReportsPageInner() {
                 <td><RoomCell title={r.room?.title || '—'} /></td>
                 <td><StatusBadge status={r.status} /></td>
                 <td>{new Date(r.createdAt).toLocaleString()}</td>
-                <td>Unassigned</td>
                 <td>
                   <ActionMenu>
                   <PromptDialog triggerLabel="Review" triggerClassName="button" title="Review report" inputLabel="Reason" placeholder="Optional note" confirmLabel="Review" onSubmit={(reason) => act(r.id, 'REVIEWING', reason)} />

@@ -76,7 +76,7 @@ function PayoutsPageInner() {
       <RowHighlightNotice missing={missing} />
       <div className="command-grid">
         <section>
-          <DataTable columns={['Creator', 'Coins', 'Fiat', 'Status', 'Requested', 'Method', 'Risk flags', 'Hold', 'Reviewer', 'Actions']} empty={<EmptyState>No payout requests yet.</EmptyState>}>
+          <DataTable columns={['Creator', 'Coins', 'Fiat', 'Status', 'Requested', 'Method', 'Risk flags', 'Actions']} empty={<EmptyState>No payout requests yet.</EmptyState>}>
             {rows.map((p) => (
               <tr key={p.id} id={`row-${p.id}`} className={p.id === highlightId ? 'row-highlight' : undefined}>
                 <td><UserCell name={p.creator?.creatorProfile?.stageName || p.creator?.profile?.displayName || p.creator?.email} sub={p.creatorUserId} /></td>
@@ -109,8 +109,6 @@ function PayoutsPageInner() {
                     <span className="pill balanced">NORMAL</span>
                   )}
                 </td>
-                <td>0</td>
-                <td>Unassigned</td>
                 <td>
                   <ActionMenu>
                   {p.status === 'HELD' ? (
