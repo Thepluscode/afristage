@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
@@ -75,8 +75,6 @@ describe('PaymentsService.createIntent (package pricing)', () => {
 describe('PaymentsService.createIntent (paystack)', () => {
   it('records a PENDING intent and returns the checkout URL on success', async () => {
     const { service, prisma } = build();
-    // Paystack echoes our reference (no `reference` override), so the intent's
-    // providerReference is unchanged and no update fires.
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       status: 200,
@@ -90,8 +88,14 @@ describe('PaymentsService.createIntent (paystack)', () => {
     expect(prisma.paymentIntent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ provider: 'paystack', status: 'PENDING' }) })
     );
-    // never auto-credits — only the verified webhook does that
-    expect(prisma.paymentIntent.update).not.toHaveBeenCalled();
+    // Persists the checkout URL (so a retry can resume it) but stays PENDING —
+    // only the verified webhook/reconcile credits.
+    expect(prisma.paymentIntent.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pi1' }, data: expect.objectContaining({ checkoutUrl: 'https://checkout.paystack.com/abc' }) })
+    );
+    expect(prisma.paymentIntent.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'SUCCEEDED' }) })
+    );
   });
 
   it('marks the intent FAILED when the provider rejects', async () => {
@@ -397,7 +401,7 @@ describe('PaymentsService currency routing (Stripe vs Paystack)', () => {
     );
     // Stripe's session id differs from our reference, so the intent is updated to it.
     expect(prisma.paymentIntent.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'pi1' }, data: { providerReference: 'cs_test_xyz' } })
+      expect.objectContaining({ where: { id: 'pi1' }, data: expect.objectContaining({ providerReference: 'cs_test_xyz' }) })
     );
   });
 
@@ -468,5 +472,141 @@ describe('PaymentsService.handleWebhook (Stripe boundary)', () => {
   it('rejects an unknown payment provider name', async () => {
     const { service } = build();
     await expect(service.handleWebhook('venmo', Buffer.from('{}'), 'x')).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('PaymentsService double-charge guard', () => {
+  it('resumes an existing pending checkout instead of opening a second charge', async () => {
+    const existing = { ...paystackIntent, id: 'piExisting', status: 'PENDING', checkoutUrl: 'https://checkout.paystack.com/existing' };
+    const { service, prisma, paystack } = build({ intent: existing }); // findFirst returns existing
+    const initSpy = jest.spyOn(paystack, 'initialize');
+    const res: any = await service.createIntent('owner-1', dto);
+    expect(res.id).toBe('piExisting');
+    expect(res.checkoutUrl).toBe('https://checkout.paystack.com/existing');
+    expect(initSpy).not.toHaveBeenCalled(); // no second provider checkout = no second charge
+    expect(prisma.paymentIntent.create).not.toHaveBeenCalled(); // no new intent
+  });
+
+  it('queries the dedupe window when no recent pending checkout exists', async () => {
+    const { service, prisma } = build(); // findFirst → undefined
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ status: true, data: { authorization_url: 'https://checkout.paystack.com/new' } })
+    } as any);
+    await service.createIntent('user-1234-5678', dto);
+    expect(prisma.paymentIntent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'PENDING', checkoutUrl: { not: null } }) })
+    );
+    expect(prisma.paymentIntent.create).toHaveBeenCalled(); // proceeds to a fresh checkout
+  });
+});
+
+describe('PaymentsService.reconcilePending (lost-webhook safety net)', () => {
+  const stale = (over: any = {}) => ({ ...paystackIntent, status: 'PENDING', createdAt: new Date('2026-07-19T00:00:00Z'), ...over });
+  const now = new Date('2026-07-19T00:10:00Z'); // 10 min after the sample intent
+
+  it('credits a stale intent the provider confirms as paid', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([stale()]);
+    okVerify(500000, 'NGN', 'success');
+    const r = await service.reconcilePending(now);
+    expect(r.credited).toBe(1);
+    expect(ledger.postTransaction).toHaveBeenCalledTimes(1); // credited exactly once
+  });
+
+  it('marks a long-abandoned unpaid intent FAILED so it stops being re-checked', async () => {
+    const { service, prisma } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([stale({ id: 'piOld', createdAt: new Date('2026-07-01T00:00:00Z') })]);
+    okVerify(500000, 'NGN', 'failed'); // provider: not paid
+    const r = await service.reconcilePending(now);
+    expect(r.failed).toBe(1);
+    expect(prisma.paymentIntent.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'piOld' }, data: { status: 'FAILED' } }));
+  });
+
+  it('leaves a recent still-unpaid intent alone (no credit, no fail)', async () => {
+    const { service, prisma } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([stale()]); // 10 min old < 24h abandon cutoff
+    okVerify(500000, 'NGN', 'failed');
+    const r = await service.reconcilePending(now);
+    expect(r).toEqual({ checked: 1, credited: 0, failed: 0 });
+    expect(prisma.paymentIntent.update).not.toHaveBeenCalled();
+  });
+
+  it('scans only stale pending card intents (past the grace window)', async () => {
+    const { service, prisma } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([]);
+    await service.reconcilePending(now);
+    expect(prisma.paymentIntent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'PENDING', provider: { in: ['paystack', 'stripe'] } }) })
+    );
+  });
+
+  it('continues the sweep past an intent that throws', async () => {
+    const { service, prisma } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([
+      stale({ id: 'bad', provider: 'mock' }), // not a card provider → reconcileIntent throws
+      stale({ id: 'good' }) // paystack → credited
+    ]);
+    okVerify(500000, 'NGN', 'success');
+    const r = await service.reconcilePending(now);
+    expect(r.checked).toBe(2);
+    expect(r.credited).toBe(1); // the throw didn't abort the sweep
+  });
+});
+
+describe('PaymentsService.scheduledReconcile', () => {
+  it('logs when the sweep credited or failed something', async () => {
+    const { service } = build();
+    jest.spyOn(service, 'reconcilePending').mockResolvedValue({ checked: 3, credited: 2, failed: 1 });
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    await service.scheduledReconcile();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('credited 2'));
+    log.mockRestore();
+  });
+
+  it('stays quiet when nothing changed', async () => {
+    const { service } = build();
+    jest.spyOn(service, 'reconcilePending').mockResolvedValue({ checked: 0, credited: 0, failed: 0 });
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    await service.scheduledReconcile();
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it('logs an error when the sweep throws', async () => {
+    const { service } = build();
+    jest.spyOn(service, 'reconcilePending').mockRejectedValue(new Error('db down'));
+    const err = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    await service.scheduledReconcile();
+    expect(err).toHaveBeenCalledWith(expect.stringContaining('db down'));
+    err.mockRestore();
+  });
+});
+
+describe('PaymentsService reconcile — defensive branches', () => {
+  it('defaults the clock to now when called with no argument', async () => {
+    const { service, prisma } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([]);
+    expect(await service.reconcilePending()).toEqual({ checked: 0, credited: 0, failed: 0 });
+  });
+
+  it('stringifies a non-Error thrown mid-sweep', async () => {
+    const { service, prisma, paystack } = build();
+    prisma.paymentIntent.findMany = jest.fn().mockResolvedValue([{ ...paystackIntent, status: 'PENDING', createdAt: new Date('2026-07-19T00:00:00Z') }]);
+    jest.spyOn(paystack, 'verify').mockRejectedValue('provider exploded'); // non-Error
+    const err = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const r = await service.reconcilePending(new Date('2026-07-19T00:10:00Z'));
+    expect(r).toEqual({ checked: 1, credited: 0, failed: 0 });
+    expect(err).toHaveBeenCalledWith(expect.stringContaining('provider exploded'));
+    err.mockRestore();
+  });
+
+  it('stringifies a non-Error sweep failure in the cron', async () => {
+    const { service } = build();
+    jest.spyOn(service, 'reconcilePending').mockRejectedValue('boom');
+    const err = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    await service.scheduledReconcile();
+    expect(err).toHaveBeenCalledWith(expect.stringContaining('boom'));
+    err.mockRestore();
   });
 });
