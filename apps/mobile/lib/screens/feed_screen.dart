@@ -556,7 +556,7 @@ class _HomeWalletPanel extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [Color(0xFFB87905), Color(0xFF4D3004)],
             ),
-            border: Border.all(color: const Color(0x66FFC857)),
+            border: Border.all(color: AfriColors.gold.withValues(alpha: 0.4)),
           ),
           child: Row(children: [
             Container(
@@ -709,7 +709,7 @@ class _WarmingUp extends StatelessWidget {
                       color: Colors.white)),
               const SizedBox(height: 6),
               const Text('Be the first on stage — refresh the live feed.',
-                  style: TextStyle(color: Color(0xFFD4D4D8))),
+                  style: TextStyle(color: AfriColors.secondaryText)),
               const SizedBox(height: 16),
               FilledButton.icon(
                   onPressed: onRefresh,

@@ -146,6 +146,7 @@ class _SupportTicketScreenState extends State<SupportTicketScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton.filled(
+                    tooltip: 'Send reply',
                     onPressed: _sending ? null : _send,
                     icon: const Icon(Icons.send),
                   ),
