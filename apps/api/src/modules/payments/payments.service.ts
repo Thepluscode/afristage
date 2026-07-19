@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentStatus, PaymentIntent } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { MoneyService } from '../money/money.service';
@@ -12,6 +13,15 @@ import { StripeProvider } from './providers/stripe.provider';
 // other currency (USD today, more later) routes to Stripe. Adding a market is a
 // package (coin-packages.ts) + an entry here.
 const AFRICAN_CURRENCIES = new Set(['NGN', 'GHS', 'KES', 'ZAR']);
+
+// A repeat buy for the same package within this window resumes the existing
+// pending checkout instead of opening a second charge.
+const DEDUPE_WINDOW_MIN = 10;
+// The reconcile sweep leaves very-new intents alone (give the webhook a chance),
+// and marks intents still unpaid after the abandon cutoff FAILED so they stop
+// being re-checked (the hosted checkout has long expired).
+const RECONCILE_GRACE_MIN = 2;
+const ABANDON_AFTER_HOURS = 24;
 
 @Injectable()
 export class PaymentsService {
@@ -65,6 +75,26 @@ export class PaymentsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!user?.email) throw new BadRequestException('A verified email is required for card payments');
 
+    // Double-charge guard: a customer who hit a blank screen and retried resumes
+    // the SAME pending checkout instead of opening a second charge.
+    const dedupeSince = new Date(Date.now() - DEDUPE_WINDOW_MIN * 60_000);
+    const existing = await this.prisma.paymentIntent.findFirst({
+      where: {
+        userId,
+        provider: provider.name.toLowerCase(),
+        coinAmount: pkg.coinAmount,
+        currency: pkg.currency,
+        status: PaymentStatus.PENDING,
+        checkoutUrl: { not: null },
+        createdAt: { gte: dedupeSince }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (existing) {
+      this.logger.log(`Resuming pending checkout ${existing.id} for user ${userId} (no second charge)`);
+      return { ...existing, checkoutUrl: existing.checkoutUrl! };
+    }
+
     const reference = `${provider.name.toLowerCase()}_${userId.slice(0, 8)}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
     const intent = await this.prisma.paymentIntent.create({
       data: {
@@ -85,14 +115,17 @@ export class PaymentsService {
         currency: pkg.currency,
         reference
       });
-      // Stripe returns its session id as the canonical reference; persist it so
-      // the webhook + pull-verify find this intent. Paystack echoes our own ref.
-      const finalIntent =
-        init.providerReference === reference
-          ? intent
-          : await this.prisma.paymentIntent.update({ where: { id: intent.id }, data: { providerReference: init.providerReference } });
+      // Persist the checkout URL (so a retry can resume it) and, for Stripe,
+      // its session id as the canonical reference the webhook + pull-verify use.
+      const finalIntent = await this.prisma.paymentIntent.update({
+        where: { id: intent.id },
+        data: {
+          checkoutUrl: init.checkoutUrl,
+          ...(init.providerReference === reference ? {} : { providerReference: init.providerReference })
+        }
+      });
       this.logger.log(`${provider.name} checkout initialized for intent ${intent.id} (ref ${init.providerReference})`);
-      return { ...finalIntent, checkoutUrl: init.checkoutUrl };
+      return { ...intent, ...finalIntent, checkoutUrl: init.checkoutUrl };
     } catch (err) {
       // Don't leave a stranded PENDING intent if the provider call fails.
       await this.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: PaymentStatus.FAILED } });
@@ -141,11 +174,18 @@ export class PaymentsService {
     const intent = await this.prisma.paymentIntent.findUnique({ where: { id: intentId } });
     if (!intent) throw new NotFoundException('Payment intent not found');
     if (intent.userId !== userId) throw new ForbiddenException('Cannot verify another user payment intent');
+    return this.reconcileIntent(intent);
+  }
+
+  // Verify one intent against its provider and credit if genuinely paid. Shared
+  // by the client pull-verify and the reconcile sweep — both converge on the
+  // idempotent creditCoins, so webhook + verify + sweep can never double-credit.
+  private async reconcileIntent(intent: PaymentIntent) {
     const provider = this.providers[intent.provider];
     if (!provider) throw new BadRequestException('Not a card intent');
     if (intent.status === PaymentStatus.SUCCEEDED) return { credited: false, status: 'already_credited' as const };
 
-    const v = await provider.verify(intent.providerReference || intentId);
+    const v = await provider.verify(intent.providerReference || intent.id);
     if (!v.success) return { credited: false, status: 'pending' as const };
 
     if (BigInt(v.amountMinor) !== BigInt(intent.amountMinor) || v.currency !== intent.currency) {
@@ -157,6 +197,53 @@ export class PaymentsService {
 
     await this.creditCoins(intent);
     return { credited: true, status: 'succeeded' as const };
+  }
+
+  // Safety net for lost webhooks: a customer charged by the provider whose webhook
+  // never arrived (and who never returned to pull-verify) would otherwise sit
+  // PENDING forever — paid, no coins. This sweep verifies stale PENDING card
+  // intents against the provider and credits any that actually paid; ones still
+  // unpaid past the abandon cutoff are marked FAILED so they stop being re-checked.
+  // ponytail: in-app @Cron over the installed scheduler; bounded batch.
+  async reconcilePending(now = new Date()) {
+    const grace = new Date(now.getTime() - RECONCILE_GRACE_MIN * 60_000);
+    const abandonCutoff = new Date(now.getTime() - ABANDON_AFTER_HOURS * 3_600_000);
+    const pending = await this.prisma.paymentIntent.findMany({
+      where: {
+        status: PaymentStatus.PENDING,
+        provider: { in: Object.keys(this.providers) },
+        createdAt: { lt: grace }
+      },
+      take: 200
+    });
+    let credited = 0;
+    let failed = 0;
+    for (const intent of pending) {
+      try {
+        const r = await this.reconcileIntent(intent);
+        if (r.credited) {
+          credited++;
+        } else if (intent.createdAt < abandonCutoff) {
+          await this.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: PaymentStatus.FAILED } });
+          failed++;
+        }
+      } catch (e) {
+        this.logger.error(`reconcile intent ${intent.id} failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return { checked: pending.length, credited, failed };
+  }
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async scheduledReconcile() {
+    try {
+      const r = await this.reconcilePending();
+      if (r.credited || r.failed) {
+        this.logger.log(`payment reconcile: credited ${r.credited}, failed ${r.failed} of ${r.checked} stale pending`);
+      }
+    } catch (e) {
+      this.logger.error(`payment reconcile sweep failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   // Verified provider webhook. Never trusts the body until the provider's HMAC

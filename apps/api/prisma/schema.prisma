@@ -442,9 +442,13 @@ model PaymentIntent {
   coinAmount        Int           @map("coin_amount")
   status            PaymentStatus @default(PENDING)
   providerReference String?       @unique @map("provider_reference")
+  // Hosted-checkout URL, persisted so a repeat buy for the same package can
+  // resume the same checkout instead of opening a second charge.
+  checkoutUrl       String?       @map("checkout_url")
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
+  @@index([status, createdAt])
   @@map("payment_intents")
 }
 
