@@ -308,6 +308,8 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 
 | **API data-exposure regression guard + contract** (against "API returns everything / sequential IDs / no versioning"): audit found the opposite — all 37 ids are UUIDs (no enumeration), credentials stripped by a global Prisma `omit`, cross-user reads whitelist public profile fields, no raw `include:{user:true}`, email/phone only on `/users/me`. Locked it in: extracted `GLOBAL_USER_OMIT`, `api-exposure.guard.spec.ts` (fails on credential drop / PUBLIC_HOST_INCLUDE leak / profilesFor PII / cross-user endpoint email leak), `docs/api-exposure.md` contract. Versioning deferred (Rule 0 — first-party lockstep clients; trigger = first external integrator) | VERIFIED | negative-tested (email:true in PUBLIC_HOST_INCLUDE → guard fails); 722 tests (+4), prisma.service.ts 100% | #180 |
 
+| **Disaster-recovery runbook + runnable restore verification** (the one ops layer not written down; hit a real DB-wipe this session): `docs/disaster-recovery.md` (verify Railway managed backups ON — CLI only shows redis-volume so don't assume; restore paths for snapshot/total-loss/corruption; the `railway ssh --service api` DB-routing gotcha) + `scripts/verify-restore.sh` (health→ready→ledger-integrity→login; a restore isn't done until it passes) | VERIFIED | verify-restore green on compose (all 4) + staging (health/ready); negative-tested exit-1 on down service | #181 |
+
 Reusable skill created (2026-07-18): `~/.claude/skills/retention-instrumentation/`
 — the #173 measurement pattern generalized (NestJS/Prisma reference + Django/
 Rails/raw-SQL ports), for use across other projects.
