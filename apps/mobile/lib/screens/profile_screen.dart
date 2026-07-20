@@ -11,6 +11,7 @@ import 'beta_accept_screen.dart';
 import 'blocked_users_screen.dart';
 import 'delete_account_screen.dart';
 import 'devices_screen.dart';
+import 'gift_history_screen.dart';
 import 'creator_apply_screen.dart';
 import 'history_screen.dart';
 import 'support_screen.dart';
@@ -177,6 +178,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           body: 'Review coin purchases, gifts, and payout movements.',
           accent: AfriColors.success,
           onTap: () => go(const HistoryScreen()),
+        ),
+        const SizedBox(height: 10),
+        AfriActionRow(
+          icon: Icons.card_giftcard,
+          title: 'Gifts sent',
+          body: 'See the gifts you sent in live rooms, with creator and room.',
+          accent: AfriColors.purple,
+          onTap: () => go(const GiftHistoryScreen()),
         ),
         const SizedBox(height: 10),
         AfriActionRow(
