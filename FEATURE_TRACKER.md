@@ -9,6 +9,39 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-07-21 — session timeout: return-to-path on re-auth
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Admin re-auth returns operators to where they were, not the dashboard: `middleware` appends `?next=<path+query>` on the login redirect (omitted for root); `login` redirects there after success via a `safeNext()` open-redirect guard (same-origin relative paths only — blocks `//host`, `/\host`, absolute URLs, `/login` loops). Audit found the "15-min kick-out" premise false (both surfaces silently refresh the 15m access token — mobile `_refresh`-on-401, admin-proxy refresh-before-401) and a 60s warning low-value for a 30d-refresh model; only the return-path was a real gap. | VERIFIED | Live on `admin-web-production-803b`: unauthed `/users?status=OPEN` → `/login?next=%2Fusers%3Fstatus%3DOPEN` (path+query preserved), `/payouts` → `?next=%2Fpayouts`, `/` → `/login` (no `next`), `/site` 200 + `/login` 200 (no regression). admin-web 353 tests; the 3 changed files 100% incl. every open-redirect rejection case. PR #182. |
+
+---
+
+## Session 2026-07-21 — admin login placement
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Responsive admin-login placement: horizontally centered, top-safe on tall browser viewports, fully visible on standard screens, and vertically scrollable on compact screens | DEPLOYED | Supplied crop reproduced at 856×1336 with the card starting at `y=452`; corrected browser render starts at `y=96` with the complete form visible. Checks at 390×844, 390×568, and 390×480 show zero horizontal overflow and a reachable scroll fallback. Focused login tests and optimized admin build passed. Production verification pending. |
+
+---
+
+## Session 2026-07-20 — user-facing interface refinement
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Viewer + creator shared visual system aligned to the supplied five-screen goal interface: editorial typography, cinematic stage atmosphere, sculpted brand mark, elevated cards/stats, refined controls/dialogs/sheets, premium gold/purple role-aware bottom navigation, and redesigned authentication entry | IN PROGRESS | Reference: `Generated image 1 (4).png`; `flutter analyze` clean; 338/338 tests; four 390×844 rendered states compared. Second-pass QA compacted the creator overview/earnings/supporters into the target first viewport, matched the wallet header and density, preserved refresh with pull-to-refresh, and enabled configured gift artwork. Populated live-room and viewer-home photo rendering still require device evidence; see `design-qa.md`. |
+| Public landing page aligned to the supplied cinematic goal interface: exact stage photography, black/gold editorial hero, live-room overlay, one consistent serif campaign type system, restrained editorial motion, four cinematic feature-card images, three offer-card story images, and conversion CTAs | DEPLOYED | References: `Generated image 1 (5).png` plus the supplied typography, feature-card, and offer-card crops; browser comparison confirms Georgia display type across every landing `h1`/`h2`/`h3`, all seven responsive card images load with deliberate focal crops, 856×1336 and 390×844 layouts have no horizontal overflow, offer actions anchor to the card base, scroll reveals and the process transition work, focused site tests pass, and the optimized Next.js build passes. Production verification still pending. |
+
+---
+
+## Session 2026-07-20 — admin interface refinement
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Mission-control visual polish: stronger hierarchy, four-column operational metrics, refined alert/panel surfaces, active-navigation treatment, atmospheric texture, compact mobile header, and reduced-motion coverage. Browser QA caught and fixed a cascade-order regression that hid the mobile navigation trigger. | DEPLOYED | local authenticated browser: desktop dark/light, dashboard, users table/filter surface, 390px layout and drawer interaction clean with zero horizontal overflow; admin-web 342/342 tests; optimized Next.js build passed. Staging deployment pending explicit `EXECUTE`. |
+
+---
+
 ## Session 2026-06-30 — apps/admin-web to 100% coverage
 
 Stood up a test harness for the Next.js admin dashboard and took it to
@@ -309,6 +342,8 @@ Closes the two auth gaps documented in the support playbook (PR #163):
 | **API data-exposure regression guard + contract** (against "API returns everything / sequential IDs / no versioning"): audit found the opposite — all 37 ids are UUIDs (no enumeration), credentials stripped by a global Prisma `omit`, cross-user reads whitelist public profile fields, no raw `include:{user:true}`, email/phone only on `/users/me`. Locked it in: extracted `GLOBAL_USER_OMIT`, `api-exposure.guard.spec.ts` (fails on credential drop / PUBLIC_HOST_INCLUDE leak / profilesFor PII / cross-user endpoint email leak), `docs/api-exposure.md` contract. Versioning deferred (Rule 0 — first-party lockstep clients; trigger = first external integrator) | VERIFIED | negative-tested (email:true in PUBLIC_HOST_INCLUDE → guard fails); 722 tests (+4), prisma.service.ts 100% | #180 |
 
 | **Disaster-recovery runbook + runnable restore verification** (the one ops layer not written down; hit a real DB-wipe this session): `docs/disaster-recovery.md` (verify Railway managed backups ON — CLI only shows redis-volume so don't assume; restore paths for snapshot/total-loss/corruption; the `railway ssh --service api` DB-routing gotcha) + `scripts/verify-restore.sh` (health→ready→ledger-integrity→login; a restore isn't done until it passes) | VERIFIED | verify-restore green on compose (all 4) + staging (health/ready); negative-tested exit-1 on down service | #181 |
+
+| **Goal-interface fidelity pass**: landing hero exposure/composition now matches the supplied warm, luminous stage direction; mobile replaces missing glyphs with bundled Cupertino icons, tightens shared type/radii/navigation density, maps creator navigation to Home/Analytics/Go Live/Earn/Profile, adds distinct Go Live studio artwork, and introduces deterministic 390×844 captures for home, live room + gift drawer, Go Live, creator dashboard, and wallet | DEPLOYED (local) | landing test 2/2 + optimized admin-web build; mobile analyze clean + full suite baseline 339 passed (1 capture-only test skipped by default); final focused navigation/live/widget/capture suite 127/127; matched source/current review recorded in `design-qa.md`. Not `VERIFIED` until deployed/device evidence exists | — |
 
 Reusable skill created (2026-07-18): `~/.claude/skills/retention-instrumentation/`
 — the #173 measurement pattern generalized (NestJS/Prisma reference + Django/
