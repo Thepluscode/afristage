@@ -43,6 +43,18 @@ describe('admin middleware', () => {
     expect(res.headers.get('location')).toContain('/login');
   });
 
+  it('preserves the origin path (with query) as ?next= so re-auth returns there', () => {
+    const loc = middleware(req('/payouts?status=HELD')).headers.get('location')!;
+    expect(loc).toContain('/login');
+    expect(new URL(loc).searchParams.get('next')).toBe('/payouts?status=HELD');
+  });
+
+  it('omits ?next= when the origin is the dashboard root', () => {
+    const loc = middleware(req('/')).headers.get('location')!;
+    expect(loc).toContain('/login');
+    expect(new URL(loc).searchParams.has('next')).toBe(false);
+  });
+
   it('lets public marketing pages through without cookies', () => {
     const res = middleware(req('/site'));
     expect(res.headers.get('location')).toBeNull();

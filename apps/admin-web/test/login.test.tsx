@@ -22,6 +22,22 @@ describe('LoginPage', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({ method: 'POST' }));
   });
 
+  it('returns to a safe ?next= path after login instead of the dashboard', async () => {
+    (window.location as any).search = '?next=%2Fpayouts%3Fstatus%3DHELD';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    render(<LoginPage />);
+    fireEvent.submit(screen.getByRole('button', { name: 'Sign in' }).closest('form')!);
+    await waitFor(() => expect(window.location.href).toBe('/payouts?status=HELD'));
+  });
+
+  it('ignores an unsafe ?next= (open redirect) and falls back to /', async () => {
+    (window.location as any).search = '?next=https%3A%2F%2Fevil.com';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    render(<LoginPage />);
+    fireEvent.submit(screen.getByRole('button', { name: 'Sign in' }).closest('form')!);
+    await waitFor(() => expect(window.location.href).toBe('/'));
+  });
+
   it('shows the server message when login fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
