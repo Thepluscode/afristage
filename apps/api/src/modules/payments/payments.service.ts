@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentStatus, PaymentIntent } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
 import { COIN_PACKAGES, CoinPackage, findCoinPackage } from './coin-packages';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
@@ -33,7 +34,8 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly money: MoneyService,
     private readonly paystack: PaystackProvider,
-    private readonly stripe: StripeProvider
+    private readonly stripe: StripeProvider,
+    private readonly metrics: MetricsService
   ) {
     this.providers = { paystack, stripe };
   }
@@ -257,28 +259,62 @@ export class PaymentsService {
       throw new UnauthorizedException('Invalid signature');
     }
 
-    const charge = provider.parseWebhook(rawBody!);
-    if (!charge || !charge.success) {
-      return { received: true, ignored: true };
-    }
-    if (!charge.providerReference) throw new BadRequestException('Missing reference');
+    const event = provider.parseWebhook(rawBody!);
+    if (!event) return { received: true, ignored: true };
+    if (event.kind === 'dispute') return this.handleDispute(provider, event.providerReference);
+    if (!event.success) return { received: true, ignored: true };
+    if (!event.providerReference) throw new BadRequestException('Missing reference');
 
-    const intent = await this.prisma.paymentIntent.findFirst({ where: { providerReference: charge.providerReference } });
+    const intent = await this.prisma.paymentIntent.findFirst({ where: { providerReference: event.providerReference } });
     if (!intent) {
-      this.logger.warn(`${provider.name} webhook for unknown reference ${charge.providerReference}`);
+      this.logger.warn(`${provider.name} webhook for unknown reference ${event.providerReference}`);
       return { received: true, matched: false };
     }
 
     // Doctrine: amount and currency must match the expected package before crediting.
-    if (BigInt(charge.amountMinor) !== BigInt(intent.amountMinor) || charge.currency !== intent.currency) {
+    if (BigInt(event.amountMinor) !== BigInt(intent.amountMinor) || event.currency !== intent.currency) {
       this.logger.error(
-        `${provider.name} amount/currency mismatch for ${charge.providerReference}: paid ${charge.amountMinor} ${charge.currency}, expected ${intent.amountMinor} ${intent.currency}`
+        `${provider.name} amount/currency mismatch for ${event.providerReference}: paid ${event.amountMinor} ${event.currency}, expected ${intent.amountMinor} ${intent.currency}`
       );
       throw new BadRequestException('Amount or currency mismatch');
     }
 
     await this.creditCoins(intent);
     return { received: true, matched: true };
+  }
+
+  // A dispute/chargeback fired. The dispute object references the charge or
+  // payment-intent, which for Stripe is NOT the checkout-session id we stored —
+  // so a match is best-effort. Matched: mark the intent DISPUTED and post the
+  // CHARGEBACK ledger reversal (idempotent). Unmatched: we STILL log at ERROR
+  // and increment the metric so a human reconciles it — never silently drop a
+  // clawback (Rule 8). The response runbook is docs/dispute-response.md.
+  private async handleDispute(provider: PaymentProvider, providerReference: string) {
+    // providerReference is always non-empty here — parseWebhook returns null for a
+    // reference-less dispute, so we never reach this with a blank reference.
+    const key = provider.name.toLowerCase();
+    const intent = await this.prisma.paymentIntent.findFirst({ where: { providerReference } });
+    if (!intent) {
+      this.logger.error(
+        `${provider.name} DISPUTE for reference ${providerReference} — no matching intent (session-id vs dispute-id mismatch or stale). Reconcile manually: docs/dispute-response.md`
+      );
+      this.metrics.disputes.inc({ provider: key, outcome: 'unmatched' });
+      return { received: true, dispute: true, matched: false };
+    }
+
+    const result = await this.money.chargeback({
+      userId: intent.userId,
+      intentId: intent.id,
+      coinAmount: intent.coinAmount,
+      provider: intent.provider,
+      providerReference
+    });
+    await this.prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: PaymentStatus.DISPUTED } });
+    this.metrics.disputes.inc({ provider: key, outcome: result.replayed ? 'replayed' : 'reversed' });
+    this.logger.error(
+      `${provider.name} DISPUTE on intent ${intent.id} (user ${intent.userId}): reversed ${intent.coinAmount} coins${result.replayed ? ' (replay)' : ''}. Respond with evidence: docs/dispute-response.md`
+    );
+    return { received: true, dispute: true, matched: true, replayed: result.replayed };
   }
 
   mine(userId: string) {

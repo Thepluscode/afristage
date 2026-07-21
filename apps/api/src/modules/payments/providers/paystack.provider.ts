@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { CheckoutInit, ChargeVerification, PaymentProvider, WebhookCharge } from './payment-provider';
+import { CheckoutInit, ChargeVerification, PaymentProvider, WebhookEvent } from './payment-provider';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 const INIT_TIMEOUT_MS = 10_000;
@@ -142,21 +142,29 @@ export class PaystackProvider extends PaymentProvider {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
-  parseWebhook(rawBody: Buffer): WebhookCharge | null {
+  parseWebhook(rawBody: Buffer): WebhookEvent | null {
     let event: any;
     try {
       event = JSON.parse(rawBody.toString('utf8'));
     } catch {
       return null;
     }
-    if (event?.event !== 'charge.success') return null;
-    const reference = event.data?.reference;
-    return {
-      // Keep an absent reference falsy so handleWebhook's Missing-reference 400 fires.
-      providerReference: reference ? String(reference) : '',
-      amountMinor: Number(event.data?.amount ?? -1),
-      currency: String(event.data?.currency ?? '').toUpperCase(),
-      success: true
-    };
+    if (event?.event === 'charge.success') {
+      const reference = event.data?.reference;
+      return {
+        kind: 'charge',
+        // Keep an absent reference falsy so handleWebhook's Missing-reference 400 fires.
+        providerReference: reference ? String(reference) : '',
+        amountMinor: Number(event.data?.amount ?? -1),
+        currency: String(event.data?.currency ?? '').toUpperCase(),
+        success: true
+      };
+    }
+    if (event?.event === 'charge.dispute.create' || event?.event === 'charge.dispute.remind') {
+      // Paystack's dispute payload references the disputed transaction directly.
+      const reference = event.data?.transaction?.reference ?? event.data?.reference;
+      return reference ? { kind: 'dispute', providerReference: String(reference) } : null;
+    }
+    return null;
   }
 }

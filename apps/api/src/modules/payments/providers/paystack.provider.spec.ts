@@ -201,11 +201,26 @@ describe('PaystackProvider.parseWebhook', () => {
 
   it('extracts reference/amount/currency (uppercased) on charge.success', () => {
     const out = p().parseWebhook(Buffer.from(JSON.stringify({ event: 'charge.success', data: { reference: 'psk_1', amount: 5000, currency: 'ngn' } })));
-    expect(out).toEqual({ providerReference: 'psk_1', amountMinor: 5000, currency: 'NGN', success: true });
+    expect(out).toEqual({ kind: 'charge', providerReference: 'psk_1', amountMinor: 5000, currency: 'NGN', success: true });
   });
 
   it('keeps an absent reference falsy and coerces a missing amount to -1', () => {
     const out = p().parseWebhook(Buffer.from(JSON.stringify({ event: 'charge.success', data: {} })));
-    expect(out).toEqual({ providerReference: '', amountMinor: -1, currency: '', success: true });
+    expect(out).toEqual({ kind: 'charge', providerReference: '', amountMinor: -1, currency: '', success: true });
+  });
+
+  it('parses a dispute from the disputed transaction reference', () => {
+    const out = p().parseWebhook(Buffer.from(JSON.stringify({ event: 'charge.dispute.create', data: { transaction: { reference: 'psk_9' } } })));
+    expect(out).toEqual({ kind: 'dispute', providerReference: 'psk_9' });
+  });
+
+  it('parses a dispute reminder, falling back to data.reference', () => {
+    const out = p().parseWebhook(Buffer.from(JSON.stringify({ event: 'charge.dispute.remind', data: { reference: 'psk_10' } })));
+    expect(out).toEqual({ kind: 'dispute', providerReference: 'psk_10' });
+  });
+
+  it('returns null for a dispute with no reference', () => {
+    const out = p().parseWebhook(Buffer.from(JSON.stringify({ event: 'charge.dispute.create', data: {} })));
+    expect(out).toBeNull();
   });
 });

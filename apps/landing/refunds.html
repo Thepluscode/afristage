@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Same defense-in-depth CSP as index.html: self-contained page, no user HTML. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https:; form-action 'self'" />
+<title>AfriStage — Refund &amp; Purchase Policy</title>
+<meta name="description" content="AfriStage refund and purchase policy: how coin purchases, gifts, refunds, chargebacks, and payout reversals work." />
+<meta name="robots" content="index" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0807'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-style='italic' font-size='20' text-anchor='middle' fill='%23e9b44c'%3EA%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --stage:#0a0807; --soot:#141010; --bone:#f2ead9; --bone-dim:#cfc4ad;
+    --gold:#e9b44c; --gold-hot:#ffc857; --ash:#95886f; --line:rgba(233,180,76,.16);
+    --serif:"Fraunces",Didot,"Bodoni MT",Georgia,"Times New Roman",serif;
+    --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --pad:clamp(20px,5vw,84px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{background:var(--stage);color:var(--bone);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--gold);color:var(--stage)}
+  a{color:var(--gold-hot);text-decoration:none;border-bottom:1px solid var(--line)}
+  a:hover{border-bottom-color:var(--gold-hot)}
+  header{padding:var(--pad) var(--pad) 0}
+  .home{font-family:var(--serif);font-size:20px;letter-spacing:.3em;color:var(--bone);border:0}
+  .home i{color:var(--gold);font-style:italic}
+  main{max-width:760px;margin:0 auto;padding:clamp(32px,6vw,72px) var(--pad) 96px}
+  h1{font-family:var(--serif);font-weight:400;font-size:clamp(34px,6vw,58px);line-height:1.05;margin-bottom:12px}
+  .sub{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ash);margin-bottom:40px}
+  h2{font-family:var(--serif);font-weight:500;font-size:clamp(21px,3vw,27px);color:var(--gold);margin:44px 0 12px}
+  p{margin:0 0 16px;color:var(--bone-dim)}
+  ul{margin:0 0 16px;padding-left:22px;color:var(--bone-dim)}
+  li{margin-bottom:8px}
+  strong{color:var(--bone);font-weight:600}
+  .box{border:1px solid var(--line);border-radius:12px;padding:clamp(18px,3vw,26px);background:var(--soot);margin:26px 0}
+  .contact{font-family:var(--mono);font-size:13px;letter-spacing:.04em}
+  footer{padding:32px var(--pad);border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center}
+  footer span{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--ash)}
+</style>
+</head>
+<body>
+<header>
+  <a class="home" href="/">AFRI<i>STAGE</i></a>
+</header>
+
+<main>
+  <h1>Refund &amp; Purchase Policy</h1>
+  <p class="sub">Last updated 21 July 2026</p>
+
+  <p>AfriStage sells <strong>coins</strong> — a digital currency you buy to send gifts to creators during live streams. This policy explains what you are buying, when a purchase can be refunded, and how we handle disputes and chargebacks. It applies to every coin purchase made through the AfriStage app.</p>
+
+  <h2>What you are buying</h2>
+  <ul>
+    <li>Coins are a <strong>digital good</strong>, credited to your wallet immediately after your payment is confirmed.</li>
+    <li>Prices are shown in your local currency at checkout and are <strong>final at the moment of purchase</strong>.</li>
+    <li>Coins have no cash value, are not a deposit, and cannot be exchanged back into money by users.</li>
+  </ul>
+
+  <h2>Refunds on coin purchases</h2>
+  <p>Because coins are delivered instantly, purchases are generally <strong>non-refundable once the coins are credited</strong>. We will, however, refund a purchase in these cases:</p>
+  <ul>
+    <li><strong>Unauthorised or duplicate charge</strong> — you were charged for a purchase you did not make, or charged twice for the same order.</li>
+    <li><strong>Coins not delivered</strong> — your payment succeeded but the coins never appeared in your wallet, and our records confirm the charge.</li>
+    <li><strong>Provable technical error</strong> — a bug on our side caused the wrong amount to be charged.</li>
+  </ul>
+  <p>Refund requests must be made within <strong>14 days</strong> of the charge. Approved refunds are returned to your original payment method and any coins from that purchase that are still unspent are removed from your wallet.</p>
+
+  <h2>Gifts to creators</h2>
+  <p>Coins <strong>spent as gifts are final</strong>. Once you send a gift to a creator, the coins are transferred and cannot be refunded — the creator has earned them. If you believe a gift was sent in error or through account misuse, contact us and we will investigate.</p>
+
+  <h2>Disputes &amp; chargebacks</h2>
+  <p>If you do not recognise a charge, please <strong>contact us first</strong> — we can usually resolve it faster than your bank. If you open a chargeback with your bank or card provider:</p>
+  <ul>
+    <li>The disputed purchase is marked <strong>disputed</strong> and the corresponding coins are reversed from your wallet on our ledger, even if they have already been spent.</li>
+    <li>We may temporarily restrict purchases on the account while the dispute is resolved.</li>
+    <li>We respond to card-network and processor disputes with our transaction records as evidence.</li>
+  </ul>
+  <p>Payments are processed by <strong>Paystack</strong> (African currencies) and <strong>Stripe</strong> (international cards). AfriStage never sees or stores your full card details.</p>
+
+  <h2>Creator payouts</h2>
+  <p>Earnings withdrawn by creators follow the payout terms in the creator agreement. A payout that fails or is rejected is returned to the creator's earnings balance; it is never silently lost.</p>
+
+  <div class="box">
+    <h2 style="margin-top:0">Contact us</h2>
+    <p>For any refund request, unrecognised charge, or billing question, reach us with the email on your account and the approximate date and amount of the charge:</p>
+    <p class="contact"><a href="mailto:support@afristage.live">support@afristage.live</a></p>
+    <p style="margin-bottom:0">We aim to respond within two business days.</p>
+  </div>
+</main>
+
+<footer>
+  <a class="home" href="/">AFRI<i>STAGE</i></a>
+  <span>© 2026 AfriStage — every coin on the ledger</span>
+</footer>
+</body>
+</html>

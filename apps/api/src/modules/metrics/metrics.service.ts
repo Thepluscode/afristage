@@ -35,6 +35,17 @@ export class MetricsService {
     registers: [this.registry]
   });
 
+  // Every dispute/chargeback webhook we act on, by provider and outcome.
+  // 'unmatched' is the one to alert on: the provider clawed funds for a charge
+  // we can't tie to an intent (session-id vs dispute PI-id mismatch, or a stale
+  // event) — a human must reconcile it (see docs/dispute-response.md).
+  readonly disputes = new Counter({
+    name: 'afristage_payment_disputes_total',
+    help: 'Dispute/chargeback webhooks received',
+    labelNames: ['provider', 'outcome'] as const, // outcome: reversed | replayed | unmatched
+    registers: [this.registry]
+  });
+
   // The ledger-integrity cron's verdict, scrapeable for alerting: ok flips to
   // 0 the moment debits != credits, a transaction is imbalanced, or a
   // materialised balance drifts from its entries.
