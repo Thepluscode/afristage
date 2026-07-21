@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { safeNext } from '../../lib/safe-next';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
@@ -25,7 +26,9 @@ export default function LoginPage() {
       setError(body.message || 'Login failed');
       return;
     }
-    window.location.href = '/';
+    // Return to where they were before the session ended (validated), not the dashboard.
+    const next = new URLSearchParams(window.location.search).get('next');
+    window.location.href = safeNext(next);
   }
 
   return (

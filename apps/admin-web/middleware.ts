@@ -51,7 +51,11 @@ export function middleware(req: NextRequest) {
   }
 
   if (!authed) {
-    return clearStale(NextResponse.redirect(new URL('/login', req.url)));
+    // Preserve where they were so re-auth returns them here, not the dashboard.
+    const login = new URL('/login', req.url);
+    const dest = pathname + req.nextUrl.search;
+    if (dest !== '/') login.searchParams.set('next', dest);
+    return clearStale(NextResponse.redirect(login));
   }
   return NextResponse.next();
 }
