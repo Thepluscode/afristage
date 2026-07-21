@@ -46,6 +46,20 @@ export class MetricsService {
     registers: [this.registry]
   });
 
+  // ---------- business metrics (the revenue conversation, distinct from infra) ----------
+  // Infra says "server healthy"; these say "money is/ isn't flowing". The
+  // revenue-drop cron alerts when customers are checking out but nothing settles.
+  readonly signups = new Counter({
+    name: 'afristage_signups_total',
+    help: 'User registrations',
+    registers: [this.registry]
+  });
+  readonly checkoutIntents = new Counter({
+    name: 'afristage_checkout_intents_total',
+    help: 'Card checkout sessions started (a customer began paying)',
+    registers: [this.registry]
+  });
+
   // The ledger-integrity cron's verdict, scrapeable for alerting: ok flips to
   // 0 the moment debits != credits, a transaction is imbalanced, or a
   // materialised balance drifts from its entries.
@@ -67,6 +81,36 @@ export class MetricsService {
   readonly ledgerLastCheck = new Gauge({
     name: 'afristage_ledger_integrity_last_check_timestamp_seconds',
     help: 'Unix time of the last integrity sweep (stale = the cron is dead)',
+    registers: [this.registry]
+  });
+
+  // The revenue-drop cron's verdict, scrapeable for alerting: flips to 1 when
+  // customers started checkouts in the window but ZERO payments settled — the
+  // "payments silently stopped while the server looks healthy" signal. The
+  // windowed counts are exposed too so a dashboard can chart them.
+  readonly revenueAlert = new Gauge({
+    name: 'afristage_revenue_alert',
+    help: '1 when checkouts are happening but no payments are settling, 0 otherwise',
+    registers: [this.registry]
+  });
+  readonly signupsRecent = new Gauge({
+    name: 'afristage_signups_recent',
+    help: 'Registrations in the last revenue-check window',
+    registers: [this.registry]
+  });
+  readonly checkoutsRecent = new Gauge({
+    name: 'afristage_checkouts_recent',
+    help: 'Card checkouts started in the last revenue-check window',
+    registers: [this.registry]
+  });
+  readonly paymentsRecent = new Gauge({
+    name: 'afristage_payments_recent',
+    help: 'Payments settled in the last revenue-check window',
+    registers: [this.registry]
+  });
+  readonly revenueLastCheck = new Gauge({
+    name: 'afristage_revenue_last_check_timestamp_seconds',
+    help: 'Unix time of the last revenue check (stale = the cron is dead)',
     registers: [this.registry]
   });
 
@@ -97,6 +141,16 @@ export class MetricsService {
       this.ledgerUnbalanced.set(report.unbalancedTransactions);
       this.ledgerDrifted.set(report.driftedAccounts.length);
       this.ledgerLastCheck.set(Date.now() / 1000);
+    });
+  }
+
+  recordRevenue(report: { alerting: boolean; signups: number; checkouts: number; payments: number }) {
+    this.safeRecord(() => {
+      this.revenueAlert.set(report.alerting ? 1 : 0);
+      this.signupsRecent.set(report.signups);
+      this.checkoutsRecent.set(report.checkouts);
+      this.paymentsRecent.set(report.payments);
+      this.revenueLastCheck.set(Date.now() / 1000);
     });
   }
 

@@ -50,6 +50,29 @@ describe('MetricsService.recordIntegrity', () => {
     expect((await metricLine(m, 'ledger_drifted_accounts'))[0]).toContain('3');
     m.recordIntegrity({ ok: true, unbalancedTransactions: 0, driftedAccounts: [] });
     expect((await metricLine(m, 'ledger_integrity_ok'))[0]).toContain('1');
-    expect((await metricLine(m, 'last_check_timestamp_seconds'))[0]).not.toContain(' 0');
+    expect((await metricLine(m, 'ledger_integrity_last_check_timestamp_seconds'))[0]).not.toContain(' 0');
+  });
+});
+
+describe('MetricsService business metrics + recordRevenue', () => {
+  it('increments signup / checkout counters', async () => {
+    const m = new MetricsService();
+    m.signups.inc();
+    m.checkoutIntents.inc();
+    m.checkoutIntents.inc();
+    expect((await metricLine(m, 'afristage_signups_total'))[0]).toContain('1');
+    expect((await metricLine(m, 'afristage_checkout_intents_total'))[0]).toContain('2');
+  });
+
+  it('records the revenue verdict + windowed counts as gauges', async () => {
+    const m = new MetricsService();
+    m.recordRevenue({ alerting: true, signups: 8, checkouts: 5, payments: 0 });
+    expect((await metricLine(m, 'afristage_revenue_alert'))[0]).toContain('1');
+    expect((await metricLine(m, 'afristage_signups_recent'))[0]).toContain('8');
+    expect((await metricLine(m, 'afristage_checkouts_recent'))[0]).toContain('5');
+    expect((await metricLine(m, 'afristage_payments_recent'))[0]).toContain('0');
+    m.recordRevenue({ alerting: false, signups: 3, checkouts: 3, payments: 3 });
+    expect((await metricLine(m, 'afristage_revenue_alert'))[0]).toContain('0');
+    expect((await metricLine(m, 'afristage_revenue_last_check_timestamp_seconds'))[0]).not.toContain(' 0');
   });
 });

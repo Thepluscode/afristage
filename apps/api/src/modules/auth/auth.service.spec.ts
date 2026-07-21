@@ -27,8 +27,9 @@ function buildAuth() {
   const jwt: any = { sign: jest.fn().mockReturnValue('signed.jwt.token'), verify: jest.fn() };
   const wallet: any = { ensureUserWallets: jest.fn().mockResolvedValue(undefined) };
   const email: any = { send: jest.fn().mockResolvedValue(true), isConfigured: jest.fn().mockReturnValue(true) };
-  const service = new AuthService(prisma, jwt, wallet, email);
-  return { service, prisma, jwt, wallet, email };
+  const metrics: any = { signups: { inc: jest.fn() } };
+  const service = new AuthService(prisma, jwt, wallet, email, metrics);
+  return { service, prisma, jwt, wallet, email, metrics };
 }
 
 // Freeze otplib's clock to a fixed epoch for the duration of `fn`, so a live
@@ -62,13 +63,14 @@ describe('AuthService.register (guards)', () => {
   });
 
   it('creates the user, provisions wallets, and issues tokens on success', async () => {
-    const { service, prisma, wallet } = buildAuth();
+    const { service, prisma, wallet, metrics } = buildAuth();
     prisma.user.create.mockResolvedValue({ id: 'u1', role: 'VIEWER', email: 'a@b.c', tokenVersion: 0 });
     const res = await service.register({
       email: 'a@b.c', ageConfirmed: true, password: 'pw',
       username: 'u', displayName: 'U', country: 'NG', language: 'pidgin'
     } as any);
     expect(wallet.ensureUserWallets).toHaveBeenCalledWith('u1', 'COIN');
+    expect(metrics.signups.inc).toHaveBeenCalledTimes(1); // business metric: a signup happened
     expect(res).toMatchObject({ userId: 'u1', role: 'VIEWER' });
   });
 });
@@ -189,7 +191,9 @@ function build(user: any = { id: 'u1', role: 'VIEWER', status: 'ACTIVE', email: 
     verify: jest.fn().mockReturnValue({ sub: 'u1', role: 'VIEWER', email: 'v@a.live', tv: 0 }),
     sign: jest.fn().mockReturnValue('signed.jwt.token')
   };
-  const service = new AuthService(prisma, jwt, {} as any, { send: jest.fn().mockResolvedValue(false) } as any);
+  const service = new AuthService(prisma, jwt, {} as any, { send: jest.fn().mockResolvedValue(false) } as any, {
+    signups: { inc: jest.fn() }
+  } as any);
   return { service, prisma, jwt };
 }
 

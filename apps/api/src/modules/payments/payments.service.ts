@@ -127,6 +127,9 @@ export class PaymentsService {
         }
       });
       this.logger.log(`${provider.name} checkout initialized for intent ${intent.id} (ref ${init.providerReference})`);
+      // A customer just started paying — the business signal the revenue-drop
+      // monitor compares against settled payments (checkouts up, payments 0 = alarm).
+      this.metrics.checkoutIntents.inc();
       return { ...intent, ...finalIntent, checkoutUrl: init.checkoutUrl };
     } catch (err) {
       // Don't leave a stranded PENDING intent if the provider call fails.

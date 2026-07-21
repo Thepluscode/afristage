@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { authenticator } from 'otplib';
 import { EmailService } from '../../common/email.service';
 import { PrismaService } from '../../database/prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -33,7 +34,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly wallet: WalletService,
-    private readonly email: EmailService
+    private readonly email: EmailService,
+    private readonly metrics: MetricsService
   ) {}
 
   async register(dto: RegisterDto, meta: SessionMeta = {}) {
@@ -61,6 +63,7 @@ export class AuthService {
     });
 
     await this.wallet.ensureUserWallets(user.id, 'COIN');
+    this.metrics.signups.inc();
     return this.issueTokens(user, await this.openSession(user.id, dto.device, meta));
   }
 
