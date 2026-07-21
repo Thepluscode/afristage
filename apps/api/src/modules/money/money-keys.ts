@@ -15,5 +15,6 @@ export const MoneyKey = {
   payoutHold: (requestKey: string) => key(`payout_request:${requestKey}`),
   payoutReject: (payoutId: string) => key(`payout_reject:${payoutId}`),
   payoutPaid: (payoutId: string) => key(`payout_paid:${payoutId}`),
-  coinPurchase: (intentId: string) => key(`coin_purchase:${intentId}`)
+  coinPurchase: (intentId: string) => key(`coin_purchase:${intentId}`),
+  chargeback: (intentId: string) => key(`chargeback:${intentId}`)
 } as const;

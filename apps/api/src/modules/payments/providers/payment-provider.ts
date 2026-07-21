@@ -20,11 +20,21 @@ export interface ChargeVerification {
 // What a provider extracts from its own webhook event shape, normalized so the
 // service can validate + credit uniformly regardless of processor.
 export interface WebhookCharge {
+  kind: 'charge';
   providerReference: string; // matches PaymentIntent.providerReference
   amountMinor: number;
   currency: string; // UPPERCASE
   success: boolean;
 }
+
+// A dispute/chargeback opened against a prior charge. The provider is clawing the
+// funds back; we mark the intent DISPUTED and post a CHARGEBACK ledger reversal.
+export interface WebhookDispute {
+  kind: 'dispute';
+  providerReference: string; // matches PaymentIntent.providerReference
+}
+
+export type WebhookEvent = WebhookCharge | WebhookDispute;
 
 export abstract class PaymentProvider {
   abstract readonly name: string; // 'PAYSTACK' | 'STRIPE'
@@ -32,7 +42,7 @@ export abstract class PaymentProvider {
   abstract initialize(params: { email: string; amountMinor: number; currency: string; reference: string }): Promise<CheckoutInit>;
   abstract verify(reference: string): Promise<ChargeVerification>;
   abstract verifySignature(rawBody: Buffer | undefined, signature?: string): boolean;
-  // Parse a signature-verified raw webhook body into a normalized charge, or
-  // null if the event isn't a completed payment we act on.
-  abstract parseWebhook(rawBody: Buffer): WebhookCharge | null;
+  // Parse a signature-verified raw webhook body into a normalized event — a
+  // completed charge or a dispute — or null if it isn't one we act on.
+  abstract parseWebhook(rawBody: Buffer): WebhookEvent | null;
 }

@@ -14,7 +14,8 @@ function build(opts: { configured?: boolean; intent?: any } = {}) {
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pi1', ...data })),
       findUnique: jest.fn().mockResolvedValue(opts.intent),
       findFirst: jest.fn().mockResolvedValue(opts.intent)
-    }
+    },
+    ledgerTransaction: { findUnique: jest.fn().mockResolvedValue(null) }
   };
   process.env.PAYSTACK_SECRET_KEY = opts.configured === false ? '' : 'sk_test_xyz';
   process.env.STRIPE_SECRET_KEY = opts.configured === false ? '' : 'sk_test_stripe';
@@ -27,9 +28,17 @@ function build(opts: { configured?: boolean; intent?: any } = {}) {
     ensureSystemAccount: jest.fn().mockResolvedValue({ id: 'sys' }),
     account: jest.fn().mockResolvedValue({ id: 'coin' })
   };
-  const ledger: any = { postTransaction: jest.fn() };
-  const service = new PaymentsService(prisma, new MoneyService(prisma, ledger, wallet, new MetricsService()), paystack, stripe);
-  return { service, prisma, paystack, stripe, wallet, ledger };
+  const ledger: any = { postTransaction: jest.fn().mockResolvedValue({ id: 'tx' }) };
+  const metrics = new MetricsService();
+  const service = new PaymentsService(prisma, new MoneyService(prisma, ledger, wallet, metrics), paystack, stripe, metrics);
+  return { service, prisma, paystack, stripe, wallet, ledger, metrics };
+}
+
+// A count from the disputes counter, by label — for asserting the alerting path.
+function disputeCount(metrics: MetricsService, provider: string, outcome: string): number {
+  const m: any = (metrics.disputes as any).hashMap;
+  const entry = Object.values(m).find((e: any) => e.labels.provider === provider && e.labels.outcome === outcome) as any;
+  return entry?.value ?? 0;
 }
 
 const paystackIntent = {
@@ -229,6 +238,52 @@ describe('PaymentsService.handleWebhook (Paystack boundary)', () => {
     const res = await service.handleWebhook('paystack',raw, signature);
     expect(res).toEqual({ received: true, matched: true });
     expect(ledger.postTransaction).not.toHaveBeenCalled(); // creditCoins short-circuits on SUCCEEDED
+  });
+});
+
+const dispute = (over: any = {}) => ({ event: 'charge.dispute.create', data: { transaction: { reference: 'psk_ref' }, ...over } });
+
+describe('PaymentsService.handleWebhook (dispute / chargeback capture)', () => {
+  it('matched dispute: reverses coins, marks intent DISPUTED, counts reversed', async () => {
+    const { service, ledger, prisma, metrics } = build({ intent: { ...paystackIntent } });
+    const { raw, signature } = signed(dispute());
+    const res = await service.handleWebhook('paystack', raw, signature);
+    expect(res).toEqual({ received: true, dispute: true, matched: true, replayed: false });
+    expect(ledger.postTransaction).toHaveBeenCalledTimes(1); // the CHARGEBACK reversal
+    expect(ledger.postTransaction.mock.calls[0][0].type).toBe('CHARGEBACK');
+    expect(prisma.paymentIntent.update).toHaveBeenCalledWith({ where: { id: 'pi1' }, data: { status: 'DISPUTED' } });
+    expect(disputeCount(metrics, 'paystack', 'reversed')).toBe(1);
+  });
+
+  it('replayed dispute (chargeback already posted): counts replayed, still marks DISPUTED', async () => {
+    const { service, prisma, metrics } = build({ intent: { ...paystackIntent } });
+    prisma.ledgerTransaction = { findUnique: jest.fn().mockResolvedValue({ id: 'txPrior' }) };
+    const { raw, signature } = signed(dispute());
+    const res = await service.handleWebhook('paystack', raw, signature);
+    expect(res).toEqual({ received: true, dispute: true, matched: true, replayed: true });
+    expect(disputeCount(metrics, 'paystack', 'replayed')).toBe(1);
+  });
+
+  it('unmatched dispute (no intent): logs ERROR, counts unmatched, no ledger post', async () => {
+    const { service, ledger, prisma, metrics } = build({ intent: { ...paystackIntent } });
+    prisma.paymentIntent.findFirst.mockResolvedValue(null);
+    const errSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const { raw, signature } = signed(dispute());
+    const res = await service.handleWebhook('paystack', raw, signature);
+    expect(res).toEqual({ received: true, dispute: true, matched: false });
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalled();
+    expect(disputeCount(metrics, 'paystack', 'unmatched')).toBe(1);
+  });
+
+  it('dispute with no usable reference (null parse via reference-less create) is ignored', async () => {
+    // A dispute event whose payload yields no reference parses to null → ignored,
+    // never reaches handleDispute (which is why handleDispute needs no blank-ref guard).
+    const { service, ledger } = build({ intent: { ...paystackIntent } });
+    const { raw, signature } = signed({ event: 'charge.dispute.create', data: {} });
+    const res = await service.handleWebhook('paystack', raw, signature);
+    expect(res).toEqual({ received: true, ignored: true });
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 });
 
@@ -466,6 +521,14 @@ describe('PaymentsService.handleWebhook (Stripe boundary)', () => {
     const { service, ledger } = build({ intent: { ...stripeIntent } });
     const { raw, signature } = stripeSigned(stripeCompleted({ amount_total: 999 }));
     await expect(service.handleWebhook('stripe', raw, signature)).rejects.toBeInstanceOf(BadRequestException);
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+
+  it('ignores a completed-but-unpaid session (success:false) without crediting', async () => {
+    const { service, ledger } = build({ intent: { ...stripeIntent } });
+    const { raw, signature } = stripeSigned(stripeCompleted({ payment_status: 'unpaid' }));
+    const res = await service.handleWebhook('stripe', raw, signature);
+    expect(res).toEqual({ received: true, ignored: true });
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 

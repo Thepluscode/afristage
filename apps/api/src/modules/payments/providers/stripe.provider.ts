@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { CheckoutInit, ChargeVerification, PaymentProvider, WebhookCharge } from './payment-provider';
+import { CheckoutInit, ChargeVerification, PaymentProvider, WebhookEvent } from './payment-provider';
 
 const STRIPE_BASE = 'https://api.stripe.com/v1';
 const TIMEOUT_MS = 10_000;
@@ -152,20 +152,31 @@ export class StripeProvider extends PaymentProvider {
     return hmacOk && fresh;
   }
 
-  parseWebhook(rawBody: Buffer): WebhookCharge | null {
+  parseWebhook(rawBody: Buffer): WebhookEvent | null {
     let event: any;
     try {
       event = JSON.parse(rawBody.toString('utf8'));
     } catch {
       return null;
     }
-    if (event?.type !== 'checkout.session.completed') return null;
-    const s = event.data?.object ?? {};
-    return {
-      providerReference: String(s.id ?? ''),
-      amountMinor: Number(s.amount_total ?? -1),
-      currency: String(s.currency ?? '').toUpperCase(),
-      success: s.payment_status === 'paid'
-    };
+    if (event?.type === 'checkout.session.completed') {
+      const s = event.data?.object ?? {};
+      return {
+        kind: 'charge',
+        providerReference: String(s.id ?? ''),
+        amountMinor: Number(s.amount_total ?? -1),
+        currency: String(s.currency ?? '').toUpperCase(),
+        success: s.payment_status === 'paid'
+      };
+    }
+    if (event?.type === 'charge.dispute.created' || event?.type === 'charge.dispute.funds_withdrawn') {
+      // The dispute object references the charge/payment_intent, not the checkout
+      // session we stored — so it may not auto-match; handleWebhook still captures
+      // + alerts on an unmatched dispute (see docs/dispute-response.md).
+      const d = event.data?.object ?? {};
+      const ref = String(d.payment_intent ?? d.charge ?? d.id ?? '');
+      return ref ? { kind: 'dispute', providerReference: ref } : null;
+    }
+    return null;
   }
 }

@@ -225,13 +225,34 @@ describe('StripeProvider.parseWebhook', () => {
     expect(p().parseWebhook(Buffer.from(JSON.stringify({ type: 'payment_intent.created', data: { object: {} } })))).toBeNull();
   });
 
+  it('returns null when the parsed body is a bare null (no type)', () => {
+    expect(p().parseWebhook(Buffer.from('null'))).toBeNull();
+  });
+
   it('extracts session id/amount/currency (uppercased) and paid state', () => {
     const raw = Buffer.from(JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_1', amount_total: 500, currency: 'usd', payment_status: 'paid' } } }));
-    expect(p().parseWebhook(raw)).toEqual({ providerReference: 'cs_1', amountMinor: 500, currency: 'USD', success: true });
+    expect(p().parseWebhook(raw)).toEqual({ kind: 'charge', providerReference: 'cs_1', amountMinor: 500, currency: 'USD', success: true });
   });
 
   it('marks success false for an unpaid completed session and defaults missing fields', () => {
     const raw = Buffer.from(JSON.stringify({ type: 'checkout.session.completed', data: {} }));
-    expect(p().parseWebhook(raw)).toEqual({ providerReference: '', amountMinor: -1, currency: '', success: false });
+    expect(p().parseWebhook(raw)).toEqual({ kind: 'charge', providerReference: '', amountMinor: -1, currency: '', success: false });
+  });
+
+  it('parses a dispute (created) referencing the payment_intent', () => {
+    const raw = Buffer.from(JSON.stringify({ type: 'charge.dispute.created', data: { object: { id: 'dp_1', payment_intent: 'pi_9', charge: 'ch_9' } } }));
+    expect(p().parseWebhook(raw)).toEqual({ kind: 'dispute', providerReference: 'pi_9' });
+  });
+
+  it('parses a dispute (funds_withdrawn), falling back to charge then dispute id', () => {
+    const withCharge = Buffer.from(JSON.stringify({ type: 'charge.dispute.funds_withdrawn', data: { object: { id: 'dp_2', charge: 'ch_2' } } }));
+    expect(p().parseWebhook(withCharge)).toEqual({ kind: 'dispute', providerReference: 'ch_2' });
+    const onlyId = Buffer.from(JSON.stringify({ type: 'charge.dispute.funds_withdrawn', data: { object: { id: 'dp_3' } } }));
+    expect(p().parseWebhook(onlyId)).toEqual({ kind: 'dispute', providerReference: 'dp_3' });
+  });
+
+  it('returns null for a dispute with no usable reference (empty object or absent data)', () => {
+    expect(p().parseWebhook(Buffer.from(JSON.stringify({ type: 'charge.dispute.created', data: { object: {} } })))).toBeNull();
+    expect(p().parseWebhook(Buffer.from(JSON.stringify({ type: 'charge.dispute.created' })))).toBeNull();
   });
 });

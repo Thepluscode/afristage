@@ -31,6 +31,30 @@ describe('MoneyKey factories (the on-disk migration contract)', () => {
     expect(MoneyKey.payoutReject('p1')).toBe('payout_reject:p1');
     expect(MoneyKey.payoutPaid('p1')).toBe('payout_paid:p1');
     expect(MoneyKey.coinPurchase('i1')).toBe('coin_purchase:i1');
+    expect(MoneyKey.chargeback('i1')).toBe('chargeback:i1');
+  });
+});
+
+describe('MoneyService.chargeback (the coinPurchase reversal)', () => {
+  it('drains the user COIN back to clearing, type CHARGEBACK, unguarded, ref recorded', async () => {
+    const { money, ledger, prisma } = build();
+    await money.chargeback({ userId: 'u1', intentId: 'i1', coinAmount: 250, provider: 'stripe', providerReference: 'pi_9' });
+    expect(prisma.ledgerTransaction.findUnique).toHaveBeenCalledWith({ where: { idempotencyKey: 'chargeback:i1' } });
+    const post = ledger.postTransaction.mock.calls[0][0];
+    expect(post.type).toBe('CHARGEBACK');
+    expect(post.idempotencyKey).toBe('chargeback:i1');
+    expect(post.externalReference).toBe('pi_9');
+    expect(post.entries[0]).toMatchObject({ direction: 'DEBIT', amountMinor: 250 }); // user coin drained
+    expect(post.entries[1]).toMatchObject({ direction: 'CREDIT', amountMinor: 250 }); // -> clearing
+    expect(post.guardNonNegative).toBeUndefined(); // drain: balance may go negative (already-spent coins)
+  });
+
+  it('is idempotent — a replayed dispute short-circuits on the prior transaction', async () => {
+    const { money, ledger, prisma } = build();
+    prisma.ledgerTransaction.findUnique.mockResolvedValueOnce({ id: 'txPrior' });
+    const r = await money.chargeback({ userId: 'u1', intentId: 'i1', coinAmount: 250, provider: 'stripe', providerReference: 'pi_9' });
+    expect(r).toEqual({ transaction: { id: 'txPrior' }, replayed: true });
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 });
 

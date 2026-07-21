@@ -285,6 +285,34 @@ export class MoneyService {
     return { transaction, replayed: false };
   }
 
+  // user COIN -> PAYMENT_CLEARING: the exact reversal of coinPurchase when the
+  // processor claws a charge back. Source is 'drain' NOT 'spend' — a chargeback
+  // MUST post even if the user already spent the coins (their balance goes
+  // negative, which is the correct debt). Idempotent on the intent, so a
+  // provider re-sending the dispute event (or created + funds_withdrawn) is safe.
+  chargeback(input: { userId: string; intentId: string; coinAmount: number | bigint; provider: string; providerReference: string }): Promise<MoveResult> {
+    return this.metrics.trackMove('chargeback', () => Number(input.coinAmount), () => this.chargebackImpl(input));
+  }
+
+  private async chargebackImpl(input: { userId: string; intentId: string; coinAmount: number | bigint; provider: string; providerReference: string }): Promise<MoveResult> {
+    const key = MoneyKey.chargeback(input.intentId);
+    const prior = await this.prisma.ledgerTransaction.findUnique({ where: { idempotencyKey: key } });
+    if (prior) return { transaction: prior as any, replayed: true };
+
+    await this.wallet.ensureUserWallets(input.userId, CURRENCY);
+    const clearing = await this.wallet.ensureSystemAccount(WalletAccountType.PAYMENT_CLEARING, CURRENCY);
+    const coin = await this.wallet.account(input.userId, WalletAccountType.COIN, CURRENCY);
+    const transaction = await this.postMove({
+      type: LedgerTransactionType.CHARGEBACK,
+      key,
+      source: { kind: 'drain', accountId: coin.id },
+      sinks: [{ accountId: clearing.id, amountMinor: input.coinAmount }],
+      externalReference: input.providerReference,
+      metadata: { provider: input.provider, intentId: input.intentId, providerReference: input.providerReference }
+    });
+    return { transaction, replayed: false };
+  }
+
   // ---------- the private primitive ----------
 
   // The one place a money move becomes ledger entries. The debit total is
