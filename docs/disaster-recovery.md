@@ -58,10 +58,23 @@ DATABASE_URL=postgresql://afristage:afristage@localhost:5440/afristage npx prism
 - The app's database is named **`railway`** on `postgres.railway.internal`, **not**
   `afristage`. `railway connect postgres` may drop you in a *different* database
   (or a stale instance) whose writes never reach the app.
-- The reliable way to run a mutation/migration against the app's real DB is from
-  **inside the api container**: `railway ssh --service api` then run
-  `npx prisma ...` (the internal host + `railway` db resolve there). This is how
-  the DB name mismatch was finally resolved.
+- **DO NOT use `railway ssh --service api` to run `npx prisma ...` — it is a
+  separate ephemeral exec container whose Prisma writes HANG and never commit**
+  (verified across the 2026-07-22 session: every ssh write silently no-op'd). In a
+  real DR this makes a "restore" appear to run while nothing lands. Two reliable
+  paths instead:
+  - **Schema (migrations):** let the api's `preDeployCommand` run
+    `prisma migrate deploy` on deploy — redeploy the api (`railway up --service
+    api --detach`) and confirm `All migrations successfully applied` in
+    `railway logs`. Do not run migrations by hand over ssh.
+  - **Data (mutations against the app's real `railway` db):** the Postgres
+    service's **`DATABASE_PUBLIC_URL`** public TCP proxy + **local** Prisma with a
+    datasource override, run from `apps/api` on your machine (not ssh):
+    `new PrismaClient({ datasources: { db: { url: PUB } } })`. Same `railway` db
+    (unlike `railway connect`). Grab the URL without printing it (it holds the
+    password): `PUB=$(railway variables --service Postgres --json | python3 -c
+    "import sys,json;print(json.load(sys.stdin)['DATABASE_PUBLIC_URL'])")`.
+    Prove every write count-before → mutate → count-after in the same script.
 
 ## Verify the restore (proven, not assumed)
 ```bash
