@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { CreateLiveRoomDto } from './dto/create-live-room.dto';
@@ -52,6 +53,15 @@ export class LiveRoomsController {
   @Post(':id/join-token')
   join(@CurrentUser() user: any, @Param('id') id: string) {
     return this.rooms.joinToken(user.sub, id);
+  }
+
+  // PUBLIC (no guard) so a shared link plays for a signed-out visitor. Throttled —
+  // it's an unauthenticated token mint; view-only tokens are cheap but must not be
+  // farmed.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post(':id/guest-token')
+  guestToken(@Param('id') id: string) {
+    return this.rooms.guestToken(id);
   }
 
   @UseGuards(JwtAuthGuard)

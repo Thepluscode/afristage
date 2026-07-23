@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { RoomBroadcast, RoomPresence } from '../chat/room-events';
@@ -137,6 +138,30 @@ export class LiveRoomsService {
       livekitUrl: this.livekit.url(),
       roomStatus: room.status,
       chatSocketPath: '/chat'
+    };
+  }
+
+  // PUBLIC, view-only token so a signed-OUT visitor can watch a live room from a
+  // shared link — the "watch free, no card required" the landing already promises.
+  // Security: canPublish:false (a guest can NEVER publish/hijack a stream), and a
+  // token is minted ONLY for a LIVE room (nothing leaks for scheduled/ended ids).
+  // A fresh random identity per call keeps LiveKit participants distinct. No
+  // participant row is written (guests aren't tracked users); sign-up is gated at
+  // the gift/buy action, not at watching.
+  async guestToken(roomId: string) {
+    const room = await this.prisma.liveRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.status !== RoomStatus.LIVE || !room.livekitRoomName) {
+      throw new BadRequestException('Room is not live');
+    }
+    return {
+      roomId,
+      viewerToken: await this.livekit.createToken({
+        roomName: room.livekitRoomName,
+        identity: `guest_${randomUUID()}`,
+        canPublish: false
+      }),
+      livekitUrl: this.livekit.url(),
+      roomStatus: room.status
     };
   }
 
