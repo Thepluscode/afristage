@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, type RemoteTrack } from 'livekit-client';
 import { apiBase, resolveLiveRoomId, fetchGuestToken } from '../lib/live';
+import GiftDrawer from './GiftDrawer';
 
 // Thin integration shell: resolve a live room → fetch a guest token → connect and
 // attach tracks. All decision logic lives in lib/live.ts (unit-tested); this wires
@@ -11,6 +12,8 @@ export default function Viewer({ room }: { room?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<string>('Finding a live stage…');
   const [unmute, setUnmute] = useState<(() => void) | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [giftOpen, setGiftOpen] = useState(false);
 
   useEffect(() => {
     let lkRoom: Room | null = null;
@@ -18,9 +21,11 @@ export default function Viewer({ room }: { room?: string }) {
 
     (async () => {
       const base = apiBase();
-      const roomId = await resolveLiveRoomId(base, room);
+      const resolved = await resolveLiveRoomId(base, room);
       if (cancelled) return;
-      if (!roomId) return setStatus('No stages are live right now — check back soon.');
+      if (!resolved) return setStatus('No stages are live right now — check back soon.');
+      setRoomId(resolved);
+      const roomId = resolved;
 
       const token = await fetchGuestToken(base, roomId);
       if (cancelled) return;
@@ -69,6 +74,12 @@ export default function Viewer({ room }: { room?: string }) {
           Tap for sound
         </button>
       ) : null}
+      {roomId ? (
+        <button className="gift-btn" onClick={() => setGiftOpen(true)} type="button">
+          🎁 Send a gift
+        </button>
+      ) : null}
+      {roomId && giftOpen ? <GiftDrawer roomId={roomId} onClose={() => setGiftOpen(false)} /> : null}
     </div>
   );
 }
