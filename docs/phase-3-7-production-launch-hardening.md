@@ -100,6 +100,24 @@ Minimum alert rules for launch:
 `outcome="rejected"` (insufficient balance, business guards) is normal traffic —
 alert on rate anomalies only, never on presence.
 
+The payment-path synthetic (`PaymentSyntheticService`, hourly, gated by
+`PAYMENT_SYNTHETIC_ENABLED=true` — staging/mock only) runs the real money loop
+end-to-end and exposes its verdict as a gauge. Unlike the revenue-drop alert
+(which needs real checkouts to fire), this catches a broken pipeline in a quiet
+window — before the first real customer:
+
+```yaml
+# The money loop itself failed — a mock purchase didn't credit, reverse, or the
+# ledger came out unbalanced. The payment pipeline is broken; page.
+- alert: PaymentSyntheticFailing
+  expr: afristage_payment_synthetic_ok == 0
+  for: 10m
+# The probe stopped running (cron dead / flag flipped off) — we're blind to
+# payment breakage. Runs hourly, so >2h stale is dead.
+- alert: PaymentSyntheticStale
+  expr: time() - afristage_payment_synthetic_last_run_timestamp_seconds > 7200
+```
+
 ## Deploy & Rollback
 
 Deploy (any Docker host):
