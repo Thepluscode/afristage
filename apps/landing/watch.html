@@ -1,0 +1,89 @@
+<!doctype html>
+<!--
+  Phase-0 spike: the destination for the landing's "watch free, no card required"
+  promise. A signed-OUT visitor gets a public view-only LiveKit token
+  (POST /live-rooms/:id/guest-token) and watches in the browser — no app install.
+
+  SPIKE ONLY: livekit-client is loaded from a CDN here to avoid a build step. The
+  Phase-1 MVP (apps/web, Next.js) bundles it and self-hosts (CSP-clean). Do not
+  ship this file to production as-is.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AfriStage — Watch Live</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.8.0/dist/livekit-client.umd.min.js"
+        integrity="sha384-Tsrw3CSgLUvzxU7jl9TlHNWZJzwbnysTNJ/bjUUxuCQC9i5SIamJZ0Ztm4caFUgY"
+        crossorigin="anonymous"></script>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0a0807; color: #e9b44c;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; }
+  video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #status { position: absolute; padding: 1rem 1.4rem; font-size: 1.1rem; letter-spacing: .02em;
+    text-align: center; }
+  #unmute { position: absolute; bottom: 2rem; padding: .8rem 1.4rem; border: 1px solid #e9b44c;
+    background: rgba(10,8,7,.7); color: #e9b44c; border-radius: 999px; font: inherit; cursor: pointer; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="v" playsinline autoplay muted></video>
+  <div id="status">Finding a live stage…</div>
+  <button id="unmute" hidden>Tap for sound</button>
+</div>
+<script>
+  const API_DEFAULT = 'https://api-production-e12f.up.railway.app/api';
+  const params = new URLSearchParams(location.search);
+  const api = (params.get('api') || API_DEFAULT).replace(/\/$/, '');
+  const statusEl = document.getElementById('status');
+  const videoEl = document.getElementById('v');
+  const unmuteBtn = document.getElementById('unmute');
+  const say = (t) => { statusEl.hidden = false; statusEl.textContent = t; };
+
+  // If no explicit ?room=, discover a live one from the public listing.
+  async function resolveRoomId() {
+    const explicit = params.get('room');
+    if (explicit) return explicit;
+    const res = await fetch(`${api}/live-rooms`);
+    if (!res.ok) return null;
+    const rooms = await res.json();
+    const list = Array.isArray(rooms) ? rooms : (rooms.data || rooms.rooms || []);
+    const live = list.find((r) => r.status === 'LIVE' && (r.livekitRoomName || r.id));
+    return live ? live.id : null;
+  }
+
+  (async () => {
+    let roomId;
+    try { roomId = await resolveRoomId(); }
+    catch { return say('Cannot reach AfriStage right now.'); }
+    if (!roomId) return say('No stages are live right now — check back soon.');
+
+    let data;
+    try {
+      const res = await fetch(`${api}/live-rooms/${roomId}/guest-token`, { method: 'POST' });
+      if (!res.ok) return say("That stage isn't live.");
+      data = await res.json();
+    } catch { return say('Cannot reach AfriStage right now.'); }
+
+    const { Room, RoomEvent } = window.LivekitClient;
+    const room = new Room();
+    room.on(RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind === 'video') { track.attach(videoEl); statusEl.hidden = true; }
+      if (track.kind === 'audio') {
+        // Browsers block autoplay-with-sound → attach muted, offer a tap-to-unmute.
+        const el = track.attach(); el.muted = true; document.body.appendChild(el);
+        unmuteBtn.hidden = false;
+        unmuteBtn.onclick = () => { el.muted = false; videoEl.muted = false; unmuteBtn.hidden = true; };
+      }
+    });
+    room.on(RoomEvent.Disconnected, () => say('The stage has ended.'));
+    try { await room.connect(data.livekitUrl, data.viewerToken); say('Waiting for the stage…'); }
+    catch { say('Could not join the stage.'); }
+  })();
+</script>
+</body>
+</html>

@@ -203,6 +203,32 @@ describe('LiveRoomsService.joinToken (guards)', () => {
   });
 });
 
+describe('LiveRoomsService.guestToken (public, view-only)', () => {
+  it.each([
+    ['missing room', null],
+    ['scheduled room', { id: 'r1', status: 'SCHEDULED', livekitRoomName: null }],
+    ['ended room', { id: 'r1', status: 'ENDED', livekitRoomName: 'afristage-r1' }],
+    ['live but no livekit room name', { id: 'r1', status: 'LIVE', livekitRoomName: null }]
+  ])('rejects a non-live room (%s) so no token leaks', async (_label, room) => {
+    const { service, prisma, livekit } = build();
+    prisma.liveRoom.findUnique.mockResolvedValue(room as any);
+    await expect(service.guestToken('r1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(livekit.createToken).not.toHaveBeenCalled();
+  });
+
+  it('mints a view-only (canPublish:false) token with a fresh guest identity for a LIVE room, no auth, no participant row', async () => {
+    const { service, prisma, livekit } = build();
+    prisma.liveRoom.findUnique.mockResolvedValue({ id: 'r1', status: 'LIVE', livekitRoomName: 'afristage-r1' });
+    const res = await service.guestToken('r1');
+    expect(res).toMatchObject({ roomId: 'r1', viewerToken: 'tok', livekitUrl: 'ws://lk', roomStatus: 'LIVE' });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled(); // guest — no user lookup
+    expect(prisma.roomParticipant.upsert).not.toHaveBeenCalled(); // guests aren't tracked
+    const arg = livekit.createToken.mock.calls[0][0];
+    expect(arg).toMatchObject({ roomName: 'afristage-r1', canPublish: false });
+    expect(arg.identity).toMatch(/^guest_[0-9a-f-]{36}$/); // random anonymous identity
+  });
+});
+
 describe('LiveRoomsService.adminEnd', () => {
   it('throws NotFound for a missing room', async () => {
     const { service, prisma } = build();
