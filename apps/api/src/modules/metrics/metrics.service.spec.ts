@@ -75,4 +75,13 @@ describe('MetricsService business metrics + recordRevenue', () => {
     expect((await metricLine(m, 'afristage_revenue_alert'))[0]).toContain('0');
     expect((await metricLine(m, 'afristage_revenue_last_check_timestamp_seconds'))[0]).not.toContain(' 0');
   });
+
+  it('records the payment-synthetic verdict as a gauge with a fresh timestamp', async () => {
+    const m = new MetricsService();
+    m.recordPaymentSynthetic(true);
+    expect((await metricLine(m, 'afristage_payment_synthetic_ok'))[0]).toContain('1');
+    m.recordPaymentSynthetic(false);
+    expect((await metricLine(m, 'afristage_payment_synthetic_ok'))[0]).toContain('0');
+    expect((await metricLine(m, 'afristage_payment_synthetic_last_run_timestamp_seconds'))[0]).not.toContain(' 0');
+  });
 });

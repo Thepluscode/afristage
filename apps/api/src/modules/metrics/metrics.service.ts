@@ -114,6 +114,22 @@ export class MetricsService {
     registers: [this.registry]
   });
 
+  // The payment-path synthetic's verdict: 1 when a full mock purchase→credit→
+  // reverse loop just ran end-to-end with the ledger still balanced, 0 when it
+  // failed. This is PROACTIVE — it exercises the money path on a schedule even
+  // with zero real traffic, catching a broken pipeline before the first real
+  // customer (the reactive revenue-drop alert needs real checkouts to fire).
+  readonly paymentSyntheticOk = new Gauge({
+    name: 'afristage_payment_synthetic_ok',
+    help: '1 when the synthetic mock purchase→credit→reverse loop last passed, 0 on failure',
+    registers: [this.registry]
+  });
+  readonly paymentSyntheticLastRun = new Gauge({
+    name: 'afristage_payment_synthetic_last_run_timestamp_seconds',
+    help: 'Unix time of the last payment synthetic (stale = the probe is not running)',
+    registers: [this.registry]
+  });
+
   // Wraps one money move with timing + outcome accounting. Metrics failures
   // must never fail money — the record calls are try/caught.
   async trackMove<T extends { replayed: boolean }>(move: string, coins: () => number, run: () => Promise<T>): Promise<T> {
@@ -151,6 +167,13 @@ export class MetricsService {
       this.checkoutsRecent.set(report.checkouts);
       this.paymentsRecent.set(report.payments);
       this.revenueLastCheck.set(Date.now() / 1000);
+    });
+  }
+
+  recordPaymentSynthetic(ok: boolean) {
+    this.safeRecord(() => {
+      this.paymentSyntheticOk.set(ok ? 1 : 0);
+      this.paymentSyntheticLastRun.set(Date.now() / 1000);
     });
   }
 
