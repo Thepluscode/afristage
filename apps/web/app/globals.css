@@ -76,3 +76,65 @@ html, body {
   font: inherit;
   cursor: pointer;
 }
+
+/* Auth / wallet / buy */
+.auth {
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1.1rem;
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.auth h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); font-weight: 400; margin: 0; }
+.auth form { display: grid; gap: 0.8rem; width: 100%; }
+.auth input[type='email'],
+.auth input[type='password'],
+.auth input:not([type]) {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: rgba(233, 180, 76, 0.06);
+  border: 1px solid rgba(233, 180, 76, 0.35);
+  border-radius: 10px;
+  color: var(--stage-gold);
+  font: inherit;
+}
+.auth .check { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; opacity: 0.85; text-align: left; }
+.auth button[type='submit'],
+.auth .cta {
+  padding: 0.85rem 1.4rem;
+  border: 1px solid var(--stage-gold);
+  border-radius: 999px;
+  background: var(--stage-gold);
+  color: var(--stage-bg);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.auth button[disabled] { opacity: 0.5; cursor: default; }
+.auth .err { color: #ff9b8a; font-size: 0.9rem; margin: 0; }
+.auth .alt { font-size: 0.9rem; opacity: 0.8; }
+.auth .alt a, .auth .link { color: var(--stage-gold); }
+.auth .link { background: none; border: none; font: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
+.auth .balance { font-size: clamp(2.4rem, 10vw, 3.6rem); margin: 0.5rem 0; }
+.auth .balance span { font-size: 1rem; opacity: 0.6; letter-spacing: 0.08em; text-transform: uppercase; }
+.packages { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.7rem; width: 100%; }
+.packages button {
+  width: 100%;
+  display: grid;
+  gap: 0.15rem;
+  padding: 1rem 1.2rem;
+  background: rgba(233, 180, 76, 0.06);
+  border: 1px solid rgba(233, 180, 76, 0.35);
+  border-radius: 12px;
+  color: var(--stage-gold);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.packages strong { font-size: 1.25rem; }
+.packages span { opacity: 0.75; font-size: 0.9rem; }
+.packages em { opacity: 0.6; font-size: 0.8rem; font-style: normal; }
