@@ -12,6 +12,7 @@ COPY package*.json ./
 WORKDIR /app/apps/web
 RUN npm run build
 EXPOSE 3002
+# Railway injects $PORT and probes it; bind it (fall back to 3002 locally).
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget -qO- http://localhost:3002/api/health || exit 1
+  CMD wget -qO- "http://localhost:${PORT:-3002}/api/health" || exit 1
 CMD ["npm", "run", "start"]
