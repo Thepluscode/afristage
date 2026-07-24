@@ -58,6 +58,21 @@ describe('resolveLiveRoomId', () => {
   });
 });
 
+describe('fetchRoom', () => {
+  it('returns room metadata (host + viewer count) for the header', async () => {
+    const room = { id: 'r1', title: 'Live', status: 'LIVE', viewerCount: 42, host: { id: 'h1', profile: { displayName: 'Ada', avatarUrl: null } } };
+    const doFetch = vi.fn().mockResolvedValue(ok(room));
+    const { fetchRoom } = await import('../lib/live');
+    expect(await fetchRoom('http://b', 'r1', doFetch as never)).toEqual(room);
+    expect(doFetch).toHaveBeenCalledWith('http://b/live-rooms/r1');
+  });
+  it('returns null when the room is unreachable', async () => {
+    const doFetch = vi.fn().mockResolvedValue(notOk(404));
+    const { fetchRoom } = await import('../lib/live');
+    expect(await fetchRoom('http://b', 'r1', doFetch as never)).toBeNull();
+  });
+});
+
 describe('fetchGuestToken', () => {
   it('POSTs and returns the token payload for a live room', async () => {
     const payload = { viewerToken: 'tok', livekitUrl: 'wss://lk', roomStatus: 'LIVE' };
