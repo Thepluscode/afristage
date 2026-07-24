@@ -195,3 +195,111 @@ html, body {
 }
 .gift-grid strong { font-size: 0.95rem; }
 .gift-grid span { opacity: 0.7; font-size: 0.8rem; }
+
+/* ── BIGO-class live overlays ─────────────────────────────────── */
+/* Streamer header (top) */
+.sh {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  background: linear-gradient(rgba(10, 8, 7, 0.75), transparent);
+  pointer-events: none;
+}
+.sh-id { display: flex; align-items: center; gap: 0.6rem; pointer-events: auto; }
+.sh-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1.5px solid var(--stage-gold);
+  display: grid;
+  place-items: center;
+  background: rgba(233, 180, 76, 0.15);
+  font-weight: 600;
+}
+.sh-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.sh-meta { display: flex; flex-direction: column; line-height: 1.1; }
+.sh-meta strong { font-size: 0.95rem; }
+.sh-live {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: #ff5a5a;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+}
+.sh-count {
+  pointer-events: auto;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(10, 8, 7, 0.55);
+  font-size: 0.85rem;
+  font-family: system-ui, sans-serif;
+}
+
+/* Chat feed (bottom-left, over the video) */
+.chat {
+  position: absolute;
+  left: 0.8rem;
+  bottom: 5.2rem;
+  width: min(70%, 22rem);
+  max-height: 42dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  mask-image: linear-gradient(transparent, #000 2rem);
+  -webkit-mask-image: linear-gradient(transparent, #000 2rem);
+  scrollbar-width: none;
+}
+.chat::-webkit-scrollbar { display: none; }
+.chat-line {
+  font-family: system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  background: rgba(10, 8, 7, 0.45);
+  border-radius: 12px;
+  padding: 0.3rem 0.6rem;
+  width: fit-content;
+  max-width: 100%;
+}
+.chat-who { color: var(--stage-gold); font-weight: 600; margin-right: 0.4rem; }
+.chat-msg { color: #f4ead4; }
+
+/* Flying gifts (bottom-right) */
+.gifts-fly {
+  position: absolute;
+  right: 1rem;
+  bottom: 5rem;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+.gift-fly {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  background: rgba(233, 180, 76, 0.14);
+  border: 1px solid rgba(233, 180, 76, 0.4);
+  border-radius: 999px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  animation: giftFloat 3.2s ease-out forwards;
+}
+.gift-fly img { width: 28px; height: 28px; object-fit: contain; }
+.gift-emoji { font-size: 1.3rem; }
+.gift-fly-label { color: var(--stage-gold); font-weight: 600; }
+@keyframes giftFloat {
+  0% { opacity: 0; transform: translateY(12px) scale(0.9); }
+  12% { opacity: 1; transform: translateY(0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}

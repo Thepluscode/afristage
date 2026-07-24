@@ -42,3 +42,18 @@ export async function fetchGuestToken(base: string, roomId: string, doFetch: Fet
   if (!res.ok) return null;
   return (await res.json()) as GuestToken;
 }
+
+export interface RoomInfo {
+  id: string;
+  title: string;
+  status: string;
+  viewerCount: number;
+  host?: { id: string; profile?: { displayName?: string; avatarUrl?: string | null } | null } | null;
+}
+
+/** Public room metadata for the streamer header (host, title, initial viewer count). */
+export async function fetchRoom(base: string, roomId: string, doFetch: Fetch = fetch): Promise<RoomInfo | null> {
+  const res = await doFetch(`${base}/live-rooms/${roomId}`);
+  if (!res.ok) return null;
+  return (await res.json()) as RoomInfo;
+}

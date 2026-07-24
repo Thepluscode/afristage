@@ -2,8 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, type RemoteTrack } from 'livekit-client';
-import { apiBase, resolveLiveRoomId, fetchGuestToken } from '../lib/live';
+import { apiBase, resolveLiveRoomId, fetchGuestToken, fetchRoom, type RoomInfo } from '../lib/live';
 import GiftDrawer from './GiftDrawer';
+import StreamerHeader from './StreamerHeader';
+import ChatFeed from './ChatFeed';
+import GiftOverlay from './GiftOverlay';
+import { useRoomLive } from './useRoomLive';
 
 // Thin integration shell: resolve a live room → fetch a guest token → connect and
 // attach tracks. All decision logic lives in lib/live.ts (unit-tested); this wires
@@ -14,6 +18,9 @@ export default function Viewer({ room }: { room?: string }) {
   const [unmute, setUnmute] = useState<(() => void) | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [giftOpen, setGiftOpen] = useState(false);
+  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
+  // Live room layer (viewer count, chat, gifts) — connects once roomId is known.
+  const { viewerCount, messages, gifts } = useRoomLive(roomId);
 
   useEffect(() => {
     let lkRoom: Room | null = null;
@@ -26,6 +33,7 @@ export default function Viewer({ room }: { room?: string }) {
       if (!resolved) return setStatus('No stages are live right now — check back soon.');
       setRoomId(resolved);
       const roomId = resolved;
+      fetchRoom(base, roomId).then(setRoomInfo).catch(() => {});
 
       const token = await fetchGuestToken(base, roomId);
       if (cancelled) return;
@@ -69,6 +77,9 @@ export default function Viewer({ room }: { room?: string }) {
     <div className="stage">
       <video ref={videoRef} playsInline autoPlay muted />
       {status ? <div className="status">{status}</div> : null}
+      {roomId ? <StreamerHeader room={roomInfo} liveCount={viewerCount} /> : null}
+      <GiftOverlay gifts={gifts} />
+      <ChatFeed messages={messages} />
       {unmute ? (
         <button className="unmute" onClick={unmute} type="button">
           Tap for sound
