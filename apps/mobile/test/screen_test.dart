@@ -3048,6 +3048,28 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  testWidgets('GoLive clear-schedule reverts a scheduled room to go-live-now',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Schedule room'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK')); // date picker
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK')); // time picker
+    await tester.pumpAndSettle();
+    // Scheduled: the chip (with its clear button) + the 'Schedule Room' action appear.
+    expect(find.byTooltip('Clear schedule'), findsOneWidget);
+    expect(find.text('Schedule Room'), findsOneWidget);
+    // Clear it → back to go-live-now.
+    await tester.tap(find.byTooltip('Clear schedule'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Clear schedule'), findsNothing);
+    expect(find.text('GO LIVE'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+  });
+
   testWidgets(
       'CreatorProfile renders avatar + bio + reminder-set, cancels reminder',
       (tester) async {
