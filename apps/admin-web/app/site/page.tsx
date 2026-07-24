@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import {
   ArrowRight,
@@ -8,6 +8,7 @@ import {
   Gift,
   Heart,
   MonitorPlay,
+  Play,
   Radio,
   ShieldCheck,
   Sparkles,
@@ -15,30 +16,42 @@ import {
 } from 'lucide-react';
 import styles from './site.module.css';
 
+// The public web viewer (apps/web) — where "watch live, free, no card" actually
+// happens. Overridable per environment; defaults to the deployed staging service.
+const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'https://web-production-4ee7e.up.railway.app';
+
 const features = [
   {
     kicker: 'Live rooms',
     title: 'A stage that feels alive before the stream even starts.',
     body: 'Cinematic discovery, creator-led rooms, chat, reactions, gifts, and safety controls share one native-feeling flow.',
-    icon: MonitorPlay
+    icon: MonitorPlay,
+    image: '/site/feature-live-rooms.jpg',
+    imageAlt: 'A singer performing for a live camera in a warmly lit home studio.'
   },
   {
     kicker: 'Creator economy',
     title: 'Gifts, wallets, payouts, and ledgers built as one money spine.',
     body: 'Every coin movement is traceable from purchase to gift split to payout hold, review, approval, and paid confirmation.',
-    icon: CircleDollarSign
+    icon: CircleDollarSign,
+    image: '/site/feature-creator-economy.jpg',
+    imageAlt: 'A music creator reviewing earnings on a phone backstage after a performance.'
   },
   {
     kicker: 'Trust operations',
     title: 'Moderation and payout pressure sit where operators decide.',
     body: 'Reports, fraud holds, support tickets, audit logs, and ledger integrity are surfaced as launch-day command signals.',
-    icon: ShieldCheck
+    icon: ShieldCheck,
+    image: '/site/feature-trust-operations.jpg',
+    imageAlt: 'A live-event operator monitoring a broadcast from a dark control room.'
   },
   {
     kicker: 'Creator control',
     title: 'The performer sees the room, the audience, and the money clearly.',
     body: 'Go-live setup, audience controls, creator analytics, supporter context, and payout readiness live in one coherent mobile workflow.',
-    icon: Sparkles
+    icon: Sparkles,
+    image: '/site/feature-creator-control.jpg',
+    imageAlt: 'A musician preparing a camera, microphone, and tablet before going live.'
   }
 ];
 
@@ -73,21 +86,61 @@ const steps = [
 ];
 
 const offers = [
-  ['Closed beta launch', 'For first creator cohorts', 'Invite gates, creator approvals, support desk, moderation workflow, and launch-day runbook.'],
-  ['Live economy', 'For monetised rooms', 'Gift catalogue, wallet ledger, Paystack payments, payout review, fraud holds, and reconciliation evidence.'],
-  ['Operating system', 'For scale-up control', 'Admin mission control, audit logs, analytics, SLA queues, incidents, and owner-led daily rhythm.']
+  {
+    title: 'Closed beta launch',
+    subtitle: 'For first creator cohorts',
+    body: 'Invite gates, creator approvals, support desk, moderation workflow, and launch-day runbook.',
+    image: '/site/offer-closed-beta.jpg',
+    imageAlt: 'Three creators preparing a closed beta stream together in a production studio.'
+  },
+  {
+    title: 'Live economy',
+    subtitle: 'For monetised rooms',
+    body: 'Gift catalogue, wallet ledger, Paystack payments, payout review, fraud holds, and reconciliation evidence.',
+    image: '/site/offer-live-economy.jpg',
+    imageAlt: 'A creator reviewing her phone backstage while an audience waits beyond the curtain.'
+  },
+  {
+    title: 'Operating system',
+    subtitle: 'For scale-up control',
+    body: 'Admin mission control, audit logs, analytics, SLA queues, incidents, and owner-led daily rhythm.',
+    image: '/site/offer-operating-system.jpg',
+    imageAlt: 'Two live-platform operators coordinating a broadcast from mission control.'
+  }
 ];
 
 export default function AfriStageSitePage() {
   const [activeStep, setActiveStep] = useState(0);
+  const [motionReady, setMotionReady] = useState(false);
   const CurrentIcon = features[activeStep % features.length].icon;
 
+  useEffect(() => {
+    setMotionReady(true);
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+    if (!('IntersectionObserver' in window)) {
+      sections.forEach((section) => section.classList.add(styles.revealed));
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add(styles.revealed);
+          observer.unobserve(entry.target);
+        });
+      },
+      { rootMargin: '0px 0px -12% 0px', threshold: 0.12 }
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <main className={styles.siteShell}>
+    <main className={`${styles.siteShell} ${motionReady ? styles.motionReady : ''}`}>
       <section className={styles.hero} id="top">
         <nav className={styles.nav} aria-label="AfriStage public navigation">
           <a className={styles.brand} href="#top">
-            <span>A</span>
+            <span><Radio aria-hidden="true" size={21} strokeWidth={2.2} /></span>
             AFRISTAGE
           </a>
           <div className={styles.navLinks}>
@@ -108,7 +161,7 @@ export default function AfriStageSitePage() {
               <a className={styles.primaryButton} href="#offer">
                 Claim your stage <ArrowRight size={18} />
               </a>
-              <a className={styles.secondaryButton} href="#platform">See how it works <ArrowRight size={17} /></a>
+              <a className={styles.secondaryButton} href={`${WEB_URL}/watch`}><Play aria-hidden="true" size={16} fill="currentColor" /> Watch live now</a>
             </div>
             <div className={styles.liveMeta}>
               <span><i /> Live · Lagos</span>
@@ -141,7 +194,7 @@ export default function AfriStageSitePage() {
         </a>
       </section>
 
-      <section className={styles.problemSection} id="why">
+      <section className={styles.problemSection} id="why" data-reveal="editorial">
         <div className={styles.sectionNumber}>01</div>
         <div>
           <p className={styles.eyebrow}>01 · Why AfriStage</p>
@@ -154,7 +207,7 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.featureSection} id="platform">
+      <section className={styles.featureSection} id="platform" data-reveal="editorial">
         <div className={styles.sectionIntro}>
           <p className={styles.eyebrow}>Platform architecture</p>
           <h2>Every side of live, designed as one experience.</h2>
@@ -186,6 +239,13 @@ export default function AfriStageSitePage() {
             const Icon = feature.icon;
             return (
               <article className={styles.featurePanel} key={feature.title}>
+                <Image
+                  className={styles.featureImage}
+                  src={feature.image}
+                  alt={feature.imageAlt}
+                  fill
+                  sizes="(max-width: 760px) calc(100vw - 28px), (max-width: 1080px) 50vw, 58vw"
+                />
                 <span className={styles.panelIndex}>0{index + 1}</span>
                 <Icon size={28} />
                 <p>{feature.kicker}</p>
@@ -197,7 +257,7 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.proofSection}>
+      <section className={styles.proofSection} data-reveal="editorial">
         <div className={styles.proofRibbon}>
           <span>Closed beta ready</span>
           <span>Ledger-first money</span>
@@ -215,7 +275,7 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.processSection} id="process">
+      <section className={styles.processSection} id="process" data-reveal="editorial">
         <div className={styles.processCopy}>
           <p className={styles.eyebrow}>Interactive process</p>
           <h2>From curated invite to accountable payout.</h2>
@@ -237,7 +297,7 @@ export default function AfriStageSitePage() {
               </button>
             ))}
           </div>
-          <article className={styles.stepDetail}>
+          <article className={styles.stepDetail} key={activeStep}>
             <CurrentIcon size={34} />
             <h3>{steps[activeStep].title}</h3>
             <p>{steps[activeStep].body}</p>
@@ -245,14 +305,21 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.offerSection} id="offer">
+      <section className={styles.offerSection} id="offer" data-reveal="editorial">
         <div className={styles.sectionIntro}>
           <p className={styles.eyebrow}>Premium offer</p>
           <h2>Launch AfriStage as a beta people can trust, not just a demo they can click.</h2>
         </div>
         <div className={styles.offerGrid}>
-          {offers.map(([title, subtitle, body], index) => (
+          {offers.map(({ title, subtitle, body, image, imageAlt }, index) => (
             <article key={title} className={index === 1 ? styles.featuredOffer : ''}>
+              <Image
+                className={styles.offerImage}
+                src={image}
+                alt={imageAlt}
+                fill
+                sizes="(max-width: 760px) calc(100vw - 28px), (max-width: 1080px) 50vw, 33vw"
+              />
               <span>{subtitle}</span>
               <h3>{title}</h3>
               <p>{body}</p>
@@ -264,7 +331,7 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.ctaSection}>
+      <section className={styles.ctaSection} data-reveal="editorial">
         <div>
           <p className={styles.eyebrow}>Final call</p>
           <h2>Build the stage. Govern the economy. Launch with evidence.</h2>
