@@ -138,13 +138,19 @@ export class ChatGateway
     return this.countFor(roomId);
   }
 
+  // Auth is OPTIONAL. A guest (no/expired token) connects READ-ONLY — they can
+  // join a room, be counted as a viewer, and RECEIVE chat/gift/reaction events,
+  // but the write handlers (chat.message, reaction.sent) reject them. This is what
+  // lets the landing's "watch free, no sign-up" room still feel alive. A valid
+  // token attaches the user and unlocks sending.
   handleConnection(client: Socket) {
     const token = client.handshake.auth?.token || client.handshake.query?.token;
+    if (!token) return; // guest — read-only, no user attached
     try {
-      const payload = this.jwt.verify(String(token), { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET') });
-      client.data.user = payload;
+      client.data.user = this.jwt.verify(String(token), { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET') });
     } catch {
-      client.disconnect(true);
+      // An expired/invalid token must not kick a viewer off the stream — degrade
+      // to guest (read-only) rather than disconnecting.
     }
   }
 
@@ -184,6 +190,7 @@ export class ChatGateway
 
   @SubscribeMessage('chat.message')
   async message(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId: string; message: string; clientMessageId?: string }) {
+    if (!client.data.user) return { ok: false, error: 'Sign in to chat' }; // guests are read-only
     const saved = await this.chat.createMessage(client.data.user.sub, body.roomId, body.message);
     this.server.to(body.roomId).emit('chat.message_created', saved);
     return { ok: true, messageId: saved.id, clientMessageId: body.clientMessageId };
@@ -191,6 +198,7 @@ export class ChatGateway
 
   @SubscribeMessage('reaction.sent')
   async reaction(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId: string; reactionType: string }) {
+    if (!client.data.user) return { ok: false, error: 'Sign in to react' }; // guests are read-only
     this.server.to(body.roomId).emit('reaction.sent', { roomId: body.roomId, userId: client.data.user.sub, reactionType: body.reactionType });
     return { ok: true };
   }

@@ -107,11 +107,37 @@ describe('ChatGateway messaging + auth + resilience', () => {
     expect(client.disconnect).not.toHaveBeenCalled();
   });
 
-  it('handleConnection disconnects on an invalid token', () => {
+  it('handleConnection degrades an invalid token to a read-only guest (no disconnect)', () => {
     const { gateway } = rich({ verify: jest.fn(() => { throw new Error('bad'); }) });
     const client: any = { handshake: { auth: {}, query: { token: 'bad' } }, data: {}, disconnect: jest.fn() };
     gateway.handleConnection(client);
-    expect(client.disconnect).toHaveBeenCalledWith(true);
+    expect(client.data.user).toBeUndefined();
+    expect(client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('handleConnection lets a tokenless guest connect read-only (no verify, no disconnect)', () => {
+    const { gateway, jwt } = rich();
+    const client: any = { handshake: { auth: {}, query: {} }, data: {}, disconnect: jest.fn() };
+    gateway.handleConnection(client);
+    expect(client.data.user).toBeUndefined();
+    expect(jwt.verify).not.toHaveBeenCalled();
+    expect(client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('chat.message rejects a guest and never persists', async () => {
+    const { gateway, chat } = rich();
+    const guest: any = { id: 's1', data: {}, join: async () => {}, leave: async () => {} };
+    const res = await gateway.message(guest, { roomId: 'A', message: 'hi' });
+    expect(res).toEqual({ ok: false, error: 'Sign in to chat' });
+    expect(chat.createMessage).not.toHaveBeenCalled();
+  });
+
+  it('reaction rejects a guest and never broadcasts', async () => {
+    const { gateway, emits } = rich();
+    const guest: any = { id: 's1', data: {}, join: async () => {}, leave: async () => {} };
+    const res = await gateway.reaction(guest, { roomId: 'A', reactionType: 'heart' });
+    expect(res).toEqual({ ok: false, error: 'Sign in to react' });
+    expect(emits).toHaveLength(0);
   });
 
   it('join tolerates a peakViewers DB failure', async () => {
