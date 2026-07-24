@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../core/afri_theme.dart';
@@ -196,13 +197,13 @@ class _FeedScreenState extends State<FeedScreen> {
             icon: Badge.count(
                 count: _unread,
                 isLabelVisible: _unread > 0,
-                child: const Icon(Icons.notifications_none)),
+                child: const Icon(CupertinoIcons.bell)),
           ),
           IconButton(
             tooltip: 'Search',
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const SearchScreen())),
-            icon: const Icon(Icons.search),
+            icon: const Icon(CupertinoIcons.search),
           ),
           const SizedBox(width: 6),
         ],
@@ -219,7 +220,7 @@ class _FeedScreenState extends State<FeedScreen> {
               return ListView(padding: const EdgeInsets.all(16), children: [
                 const SizedBox(height: 80),
                 AfriEmptyState(
-                  icon: Icons.wifi_off,
+                  icon: CupertinoIcons.wifi_slash,
                   title: 'Could not load live rooms',
                   body: 'Check your connection and retry.',
                   action: FilledButton(
@@ -256,21 +257,23 @@ class _FeedScreenState extends State<FeedScreen> {
                   )
                 else
                   _WarmingUp(onRefresh: _refresh),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 // Live now rail, scoped All Stages / Local (viewer's region).
                 _SectionHeader(
                     title: _scope == 'Local' ? 'Live near you' : 'Live now',
                     trailing: '${live.length} live'),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 AfriCategoryChips(
                     items: _scopes,
                     selected: _scope,
                     onSelected: (v) => setState(() => _scope = v)),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 if (rail.isEmpty)
                   AfriEmptyState(
-                    icon: _scope == 'Local' ? Icons.place : Icons.live_tv,
+                    icon: _scope == 'Local'
+                        ? CupertinoIcons.location_fill
+                        : CupertinoIcons.video_camera_solid,
                     title: _scope == 'Local'
                         ? 'No local rooms live'
                         : _category == 'For You'
@@ -284,7 +287,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   )
                 else
                   SizedBox(
-                    height: 190,
+                    height: 146,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: rail.length,
@@ -297,7 +300,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         imageUrl:
                             rail[i].coverImageUrl ?? rail[i].hostAvatarUrl,
                         viewerCount: rail[i].viewerCount,
-                        width: 122,
+                        width: 108,
                         onTap: () => _openRoom(rail[i]),
                       ),
                     ),
@@ -311,20 +314,20 @@ class _FeedScreenState extends State<FeedScreen> {
                   ..._upcoming.map(_upcomingTile),
                 ],
 
-                const SizedBox(height: 22),
+                const SizedBox(height: 16),
                 const _SectionHeader(title: 'Browse by category'),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 AfriCategoryChips(
                     items: _categories,
                     selected: _category,
                     onSelected: (v) => setState(() => _category = v)),
 
                 if (creators.isNotEmpty) ...[
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   const _SectionHeader(title: 'Creators to watch'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   SizedBox(
-                    height: 116,
+                    height: 102,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: creators.length,
@@ -387,7 +390,7 @@ class _FeedScreenState extends State<FeedScreen> {
       padding: const EdgeInsets.only(bottom: 10),
       child: AfriCard(
         child: Row(children: [
-          const Icon(Icons.event_outlined, color: AfriColors.gold),
+          const Icon(CupertinoIcons.calendar, color: AfriColors.gold),
           const SizedBox(width: 12),
           Expanded(
             child:
@@ -444,7 +447,7 @@ class _FeatureDock extends StatelessWidget {
         child: Row(children: [
           _FeatureAction(
             tooltip: isCreator ? 'Go Live' : 'Apply to Go Live',
-            icon: Icons.videocam_rounded,
+            icon: CupertinoIcons.video_camera,
             label: isCreator ? 'Go Live' : 'Become a creator',
             accent: AfriColors.purple,
             onTap: onCreate,
@@ -452,7 +455,7 @@ class _FeatureDock extends StatelessWidget {
           const SizedBox(width: 10),
           _FeatureAction(
             tooltip: 'Events',
-            icon: Icons.emoji_events_outlined,
+            icon: CupertinoIcons.star,
             label: 'Live events',
             accent: AfriColors.orange,
             onTap: onEvents,
@@ -460,7 +463,7 @@ class _FeatureDock extends StatelessWidget {
           const SizedBox(width: 10),
           _FeatureAction(
             tooltip: 'Circles',
-            icon: Icons.groups_outlined,
+            icon: CupertinoIcons.group,
             label: 'Circles',
             accent: AfriColors.teal,
             onTap: onCircles,
@@ -468,7 +471,7 @@ class _FeatureDock extends StatelessWidget {
           const SizedBox(width: 10),
           _FeatureAction(
             tooltip: 'Daily missions',
-            icon: Icons.task_alt,
+            icon: CupertinoIcons.checkmark_seal,
             label: 'Daily missions',
             accent: AfriColors.gold,
             onTap: onMissions,
@@ -566,7 +569,7 @@ class _HomeWalletPanel extends StatelessWidget {
                 color: const Color(0x22FFFFFF),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.card_giftcard,
+              child: const Icon(CupertinoIcons.gift_fill,
                   color: AfriColors.gold, size: 30),
             ),
             const SizedBox(width: 14),
@@ -586,7 +589,7 @@ class _HomeWalletPanel extends StatelessWidget {
                             fontWeight: FontWeight.w900)),
                   ]),
             ),
-            const Icon(Icons.chevron_right, color: AfriColors.gold),
+            const Icon(CupertinoIcons.chevron_right, color: AfriColors.gold),
           ]),
         ),
       ),
@@ -594,19 +597,21 @@ class _HomeWalletPanel extends StatelessWidget {
       Row(children: [
         Expanded(
             child: _WalletActionTile(
-                icon: Icons.card_giftcard,
+                icon: CupertinoIcons.gift_fill,
                 label: 'Send Gift',
                 onTap: onSendGift)),
         const SizedBox(width: 10),
         Expanded(
             child: _WalletActionTile(
-                icon: Icons.account_balance_wallet_outlined,
+                icon: CupertinoIcons.creditcard_fill,
                 label: 'Top Up',
                 onTap: onWallet)),
         const SizedBox(width: 10),
         Expanded(
             child: _WalletActionTile(
-                icon: Icons.history, label: 'History', onTap: onWallet)),
+                icon: CupertinoIcons.clock_fill,
+                label: 'History',
+                onTap: onWallet)),
       ]),
     ]);
   }
@@ -672,7 +677,7 @@ class _SectionHeader extends StatelessWidget {
     return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(title,
           style: const TextStyle(
-              fontSize: 18,
+              fontSize: 17,
               fontWeight: FontWeight.w800,
               color: AfriColors.text)),
       if (trailing != null)
@@ -713,7 +718,7 @@ class _WarmingUp extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton.icon(
                   onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(CupertinoIcons.refresh),
                   label: const Text('Refresh')),
             ]),
       ),

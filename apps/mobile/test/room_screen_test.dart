@@ -4,6 +4,7 @@ import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/screens/report_screen.dart';
 import 'package:afristage_mobile/screens/room_screen.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -182,7 +183,7 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done); // onSend
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.card_giftcard)); // onGift -> sheet
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill)); // onGift -> sheet
     await tester.pumpAndSettle();
     expect(find.byType(AfriGiftDrawer), findsOneWidget);
   });
@@ -325,7 +326,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.tap(find.byIcon(Icons.card_giftcard)); // open gift sheet
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill)); // open gift sheet
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rose').first); // ensure the gift is selected
     await tester.pumpAndSettle();
@@ -367,7 +368,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rose').first);
     await tester.pumpAndSettle();
@@ -420,7 +421,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.play_arrow_rounded)); // viewer start
+    await tester.tap(find.byIcon(CupertinoIcons.play_arrow_solid));
     await tester.pumpAndSettle();
     expect(find.text('VIDEO-STUB'), findsOneWidget);
   });
@@ -561,7 +562,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('gift list down'), findsOneWidget);
@@ -582,7 +583,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Buy coins'));
     await tester.pump();
@@ -608,7 +609,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rose').first);
     await tester.pumpAndSettle();
@@ -633,7 +634,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rose').first);
     await tester.pumpAndSettle();
@@ -658,7 +659,7 @@ void main() {
         state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rose').first);
     await tester.pumpAndSettle();
@@ -768,7 +769,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     socket.fire('room.suspended', null); // blocked
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.card_giftcard));
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Gifts are closed for this room.'), findsOneWidget);

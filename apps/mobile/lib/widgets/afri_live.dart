@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../core/afri_theme.dart';
 
@@ -16,6 +17,7 @@ const _stageFallbacks = <String>[
   'assets/stage/kofi-live.jpg',
   'assets/stage/nandi-live.jpg',
   'assets/stage/tflow-live.jpg',
+  'assets/stage/creator-control.jpg',
 ];
 
 String stageFallback(String? seed) {
@@ -25,6 +27,7 @@ String stageFallback(String? seed) {
   if (value.contains('ama') || value.contains('nandi')) {
     return _stageFallbacks[2];
   }
+  if (value.contains('studio')) return _stageFallbacks[4];
   final hash = value.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
   return _stageFallbacks[hash % _stageFallbacks.length];
 }
@@ -94,8 +97,10 @@ class AfriCover extends StatelessWidget {
           _gradient(grad),
           Image.asset(stageFallback(initial),
               fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+              alignment: Alignment.topCenter, errorBuilder: (_, error, __) {
+            debugPrint('Stage artwork failed to load: $error');
+            return const SizedBox.shrink();
+          }),
         ],
       );
 
@@ -128,7 +133,7 @@ class AfriLivePill extends StatelessWidget {
       decoration: BoxDecoration(
           color: AfriColors.teal, borderRadius: BorderRadius.circular(8)),
       child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.circle, size: 7, color: Colors.white),
+        Icon(CupertinoIcons.circle_fill, size: 7, color: Colors.white),
         SizedBox(width: 5),
         Text('LIVE',
             style: TextStyle(
@@ -151,7 +156,7 @@ class AfriViewerPill extends StatelessWidget {
           color: const Color(0x66000000),
           borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.person, size: 13, color: Colors.white),
+        const Icon(CupertinoIcons.person, size: 13, color: Colors.white),
         const SizedBox(width: 4),
         Text(formatCount(count),
             style: const TextStyle(
@@ -173,7 +178,7 @@ class AfriLiveNowPill extends StatelessWidget {
       decoration: BoxDecoration(
           color: AfriColors.danger, borderRadius: BorderRadius.circular(8)),
       child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.circle, size: 7, color: Colors.white),
+        Icon(CupertinoIcons.circle_fill, size: 7, color: Colors.white),
         SizedBox(width: 5),
         Text('Live now',
             style: TextStyle(
@@ -216,7 +221,7 @@ class AfriHeroLive extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: SizedBox(
-          height: 248,
+          height: 232,
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -238,7 +243,7 @@ class AfriHeroLive extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 24,
+                            fontSize: 22,
                             fontWeight: FontWeight.w900,
                             color: Colors.white)),
                     if (creator != null) ...[
@@ -256,7 +261,7 @@ class AfriHeroLive extends StatelessWidget {
                         style: FilledButton.styleFrom(
                           backgroundColor: AfriColors.gold,
                           foregroundColor: const Color(0xFF170B02),
-                          minimumSize: const Size(0, 42),
+                          minimumSize: const Size(0, 38),
                           padding: const EdgeInsets.symmetric(horizontal: 22),
                         ),
                         child: const Row(
@@ -266,7 +271,7 @@ class AfriHeroLive extends StatelessWidget {
                                   style:
                                       TextStyle(fontWeight: FontWeight.w800)),
                               SizedBox(width: 6),
-                              Icon(Icons.arrow_forward, size: 16),
+                              Icon(CupertinoIcons.arrow_right, size: 15),
                             ]),
                       ),
                       const Spacer(),
@@ -315,7 +320,7 @@ class AfriLiveCard extends StatelessWidget {
       this.imageUrl,
       this.viewerCount = 0,
       this.onTap,
-      this.width = 168});
+      this.width = 156});
 
   final String title;
   final String category;
@@ -328,7 +333,7 @@ class AfriLiveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final flag = countryFlag(country);
+    final countryLabel = country?.trim().toUpperCase() ?? '';
     return Semantics(
       // Only a button when it actually navigates — a non-interactive preview
       // (e.g. the go-live feed preview) is described but not announced tappable.
@@ -343,7 +348,7 @@ class AfriLiveCard extends StatelessWidget {
         child: SizedBox(
           width: width,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
             child: AspectRatio(
               aspectRatio: 0.78,
               child: Stack(
@@ -377,17 +382,17 @@ class AfriLiveCard extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 14,
                                   height: 1.12,
                                   fontWeight: FontWeight.w900,
                                   color: Colors.white)),
                           const SizedBox(height: 5),
                           Text(
-                              '${creator ?? 'Creator'}${flag.isNotEmpty ? '  $flag ${country!.toUpperCase()}' : ''}',
+                              '${creator ?? 'Creator'}${countryLabel.isNotEmpty ? ' · $countryLabel' : ''}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFFD4D4D8))),
                         ],
@@ -499,7 +504,8 @@ class AfriCoinPill extends StatelessWidget {
           border: Border.all(color: const Color(0x55FFC857)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.monetization_on, size: 16, color: AfriColors.gold),
+          const Icon(CupertinoIcons.money_dollar_circle_fill,
+              size: 16, color: AfriColors.gold),
           const SizedBox(width: 5),
           Text(formatCount(coins),
               style: const TextStyle(
@@ -520,7 +526,7 @@ class AfriBalanceCard extends StatelessWidget {
     required this.value,
     required this.primaryLabel,
     required this.secondaryLabel,
-    this.primaryIcon = Icons.north_east,
+    this.primaryIcon = CupertinoIcons.arrow_up_right,
     this.onPrimary,
     this.onSecondary,
     this.currencyLabel,
@@ -537,7 +543,7 @@ class AfriBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         gradient: const LinearGradient(
@@ -564,18 +570,18 @@ class AfriBalanceCard extends StatelessWidget {
                         color: AfriColors.gold,
                         fontWeight: FontWeight.w700,
                         fontSize: 12)),
-                const Icon(Icons.keyboard_arrow_down,
+                const Icon(CupertinoIcons.chevron_down,
                     size: 16, color: AfriColors.gold),
               ]),
             ),
         ]),
-        const SizedBox(height: 6),
+        const SizedBox(height: 3),
         Text(value,
             style: const TextStyle(
-                fontSize: 40,
+                fontSize: 30,
                 fontWeight: FontWeight.w900,
                 color: AfriColors.gold)),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
         Row(children: [
           Expanded(
               child: FilledButton.icon(
@@ -583,7 +589,7 @@ class AfriBalanceCard extends StatelessWidget {
                   style: FilledButton.styleFrom(
                       backgroundColor: AfriColors.gold,
                       foregroundColor: const Color(0xFF170B02),
-                      minimumSize: const Size.fromHeight(46),
+                      minimumSize: const Size.fromHeight(38),
                       padding: const EdgeInsets.symmetric(horizontal: 12)),
                   icon: Icon(primaryIcon, size: 18),
                   label: Text(primaryLabel,
@@ -595,7 +601,7 @@ class AfriBalanceCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                       foregroundColor: AfriColors.gold,
                       side: const BorderSide(color: Color(0x55FFC857)),
-                      minimumSize: const Size.fromHeight(46),
+                      minimumSize: const Size.fromHeight(38),
                       padding: const EdgeInsets.symmetric(horizontal: 10)),
                   child: Text(secondaryLabel,
                       maxLines: 1, overflow: TextOverflow.ellipsis))),
@@ -606,7 +612,14 @@ class AfriBalanceCard extends StatelessWidget {
 }
 
 /// USD display from coins (1 coin ≈ \$1 at the platform payout rate).
-String usd(num coins) => '\$${coins.toStringAsFixed(2)}';
+String usd(num coins) {
+  final fixed = coins.abs().toStringAsFixed(2);
+  final parts = fixed.split('.');
+  final whole = parts.first;
+  final grouped =
+      whole.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+  return '\$${coins < 0 ? '-' : ''}$grouped.${parts.last}';
+}
 
 /// Ledger amount display. COIN has no minor subdivision (whole coins); fiat
 /// `amountMinor` is in minor units (kobo/cents) and divides by 100.
@@ -651,45 +664,84 @@ class AfriStatTile extends StatelessWidget {
       required this.label,
       required this.value,
       required this.icon,
-      required this.accent});
+      required this.accent,
+      this.compact = false});
   final String label;
   final String value;
   final IconData icon;
   final Color accent;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(compact ? 8 : 14),
       decoration: BoxDecoration(
-          color: AfriColors.elevated,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AfriColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, size: 19, color: accent),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value,
-                maxLines: 1,
-                style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AfriColors.text)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AfriColors.elevated,
+              accent.withValues(alpha: 0.055),
+            ],
           ),
-        ),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: AfriColors.mutedText)),
-      ]),
+          borderRadius: BorderRadius.circular(compact ? 14 : 18),
+          border: Border.all(color: accent.withValues(alpha: 0.22)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ]),
+      child: compact
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 10, color: AfriColors.mutedText)),
+              const SizedBox(height: 2),
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(value,
+                      maxLines: 1,
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: AfriColors.text)),
+                ),
+              ),
+            ])
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, size: 19, color: accent),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(value,
+                      maxLines: 1,
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: AfriColors.text)),
+                ),
+              ),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AfriColors.mutedText)),
+            ]),
     );
   }
 }
@@ -714,15 +766,15 @@ class AfriMenuRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: Row(children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(11)),
-            child: Icon(icon, size: 19, color: accent),
+            child: Icon(icon, size: 18, color: accent),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -731,15 +783,16 @@ class AfriMenuRow extends StatelessWidget {
                   children: [
                 Text(title,
                     style: const TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AfriColors.text)),
                 if (subtitle != null)
                   Text(subtitle!,
                       style: const TextStyle(
-                          fontSize: 12, color: AfriColors.mutedText)),
+                          fontSize: 11, color: AfriColors.mutedText)),
               ])),
-          const Icon(Icons.chevron_right, color: AfriColors.mutedText),
+          const Icon(CupertinoIcons.chevron_right,
+              size: 17, color: AfriColors.mutedText),
         ]),
       ),
     );
@@ -754,12 +807,12 @@ class AfriGiftBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const icons = [
-      Icons.local_florist,
-      Icons.favorite,
-      Icons.mic,
-      Icons.emoji_events,
-      Icons.diamond,
-      Icons.celebration
+      CupertinoIcons.heart_fill,
+      CupertinoIcons.flame_fill,
+      CupertinoIcons.mic_fill,
+      CupertinoIcons.star_fill,
+      CupertinoIcons.sparkles,
+      CupertinoIcons.gift_fill,
     ];
     const tints = [
       Color(0xFFEC4899),
@@ -800,7 +853,7 @@ class AfriGiftBar extends StatelessWidget {
                             color: AfriColors.text)),
                     const SizedBox(height: 3),
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      const Icon(Icons.monetization_on,
+                      const Icon(CupertinoIcons.money_dollar_circle_fill,
                           size: 12, color: AfriColors.gold),
                       const SizedBox(width: 3),
                       Text('${g['coinPrice'] ?? 0}',

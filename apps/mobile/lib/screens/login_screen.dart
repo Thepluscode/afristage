@@ -67,19 +67,39 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.all(20),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 380),
-                child: AfriCard(
-                  padding: const EdgeInsets.all(22),
+                child: AfriGradientPanel(
+                  colors: const [Color(0xFF24170D), Color(0xFF121218)],
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: EdgeInsets.only(bottom: 18),
-                          child: AfriBrandMark(size: 74),
-                        ),
+                      const Row(
+                        children: [
+                          AfriBrandMark(size: 68),
+                          SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('AFRISTAGE',
+                                    style: TextStyle(
+                                        color: AfriColors.gold,
+                                        fontSize: 12,
+                                        letterSpacing: 2.1,
+                                        fontWeight: FontWeight.w900)),
+                                SizedBox(height: 4),
+                                Text("Africa's live stage",
+                                    style: TextStyle(
+                                        color: AfriColors.mutedText,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 28),
                       Text('Welcome back to AfriStage',
                           style: Theme.of(context).textTheme.headlineMedium),
                       const SizedBox(height: 8),

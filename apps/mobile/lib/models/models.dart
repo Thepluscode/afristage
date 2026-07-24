@@ -63,16 +63,23 @@ class LiveRoom {
 }
 
 class Gift {
-  const Gift({required this.id, required this.name, required this.coinPrice});
+  const Gift({
+    required this.id,
+    required this.name,
+    required this.coinPrice,
+    this.artworkUrl,
+  });
 
   final String id;
   final String name;
   final int coinPrice;
+  final String? artworkUrl;
 
   factory Gift.fromJson(Map<String, dynamic> json) => Gift(
         id: json['id'] as String,
         name: json['name'] as String? ?? 'Gift',
         coinPrice: asInt(json['coinPrice']),
+        artworkUrl: json['animationUrl'] as String?,
       );
 }
 

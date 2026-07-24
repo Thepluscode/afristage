@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -137,16 +138,12 @@ class _WalletScreenState extends State<WalletScreen> {
     final wallet = context.watch<AppState>().wallet;
     return AfriScaffold(
       title: 'Wallet',
+      onRefresh: () => context.read<AppState>().refreshWallet(),
       actions: [
         TextButton(
           onPressed: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const SupportScreen())),
           child: const Text('Support'),
-        ),
-        IconButton(
-          tooltip: 'Refresh wallet',
-          onPressed: () => context.read<AppState>().refreshWallet(),
-          icon: const Icon(Icons.refresh),
         ),
       ],
       children: [
@@ -156,25 +153,25 @@ class _WalletScreenState extends State<WalletScreen> {
           value: usd(wallet.earningBalance),
           currencyLabel: 'USD',
           primaryLabel: 'Payout',
-          primaryIcon: Icons.north_east,
+          primaryIcon: CupertinoIcons.arrow_up_right,
           secondaryLabel: 'Transactions',
           onPrimary: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const PayoutMethodsScreen())),
           onSecondary: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const HistoryScreen())),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 14),
         _EarningsSummaryCard(
           earnings: wallet.earningBalance,
           payoutHold: wallet.payoutHoldBalance,
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 14),
         // Settings/menu list (mockup #4).
         AfriCard(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Column(children: [
             AfriMenuRow(
-                icon: Icons.person,
+                icon: CupertinoIcons.person_crop_circle,
                 title: 'Profile',
                 subtitle: 'Manage your account',
                 accent: AfriColors.purple,
@@ -183,7 +180,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         content: Text(
                             'Use the Profile tab to manage your account.')))),
             AfriMenuRow(
-                icon: Icons.account_balance,
+                icon: CupertinoIcons.creditcard,
                 title: 'Payout methods',
                 subtitle: 'Bank or mobile money',
                 accent: AfriColors.teal,
@@ -192,21 +189,21 @@ class _WalletScreenState extends State<WalletScreen> {
                     MaterialPageRoute(
                         builder: (_) => const PayoutMethodsScreen()))),
             AfriMenuRow(
-                icon: Icons.history,
+                icon: CupertinoIcons.clock,
                 title: 'Live history',
                 subtitle: 'View your past live sessions',
                 accent: AfriColors.purple,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const HistoryScreen()))),
             AfriMenuRow(
-                icon: Icons.support_agent,
+                icon: CupertinoIcons.question_circle,
                 title: 'Support',
                 subtitle: 'Help center & contact us',
                 accent: AfriColors.teal,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const SupportScreen()))),
             AfriMenuRow(
-                icon: Icons.report_outlined,
+                icon: CupertinoIcons.exclamationmark_shield,
                 title: 'Safety Center',
                 subtitle: 'Report and content safety',
                 accent: AfriColors.warning,
@@ -215,7 +212,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         content: Text(
                             'Open a live room or profile to report specific content.')))),
             AfriMenuRow(
-                icon: Icons.settings,
+                icon: CupertinoIcons.gear,
                 title: 'Settings',
                 subtitle: 'Notifications, privacy, and more',
                 accent: AfriColors.purple,
@@ -224,7 +221,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         content:
                             Text('Settings are available from Profile.')))),
             AfriMenuRow(
-                icon: Icons.add_circle_outline,
+                icon: CupertinoIcons.plus_circle,
                 title: 'Buy coins',
                 subtitle: 'Top up to send gifts',
                 accent: AfriColors.gold,
@@ -235,7 +232,7 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(height: 12),
           FilledButton.tonalIcon(
             onPressed: _busy ? null : _confirmCard,
-            icon: const Icon(Icons.check_circle_outline),
+            icon: const Icon(CupertinoIcons.check_mark_circled),
             label: const Text("I've paid — confirm"),
           ),
         ],
@@ -313,22 +310,28 @@ class _EarningsSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AfriCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Text('Earnings summary',
+            const Expanded(
+              child: Text(
+                'Earnings summary',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: AfriColors.text)),
-            const Spacer(),
+                    color: AfriColors.text),
+              ),
+            ),
+            const SizedBox(width: 8),
             Text('This month', style: Theme.of(context).textTheme.labelMedium),
-            const Icon(Icons.keyboard_arrow_down,
+            const Icon(CupertinoIcons.chevron_down,
                 size: 17, color: AfriColors.mutedText),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Row(children: [
             Expanded(
               child: _SummaryMetric(
@@ -338,7 +341,7 @@ class _EarningsSummaryCard extends StatelessWidget {
               ),
             ),
             const SizedBox(
-              height: 54,
+              height: 42,
               child: VerticalDivider(color: AfriColors.border),
             ),
             Expanded(
@@ -348,7 +351,7 @@ class _EarningsSummaryCard extends StatelessWidget {
               ),
             ),
           ]),
-          const Divider(height: 24, color: AfriColors.border),
+          const Divider(height: 14, color: AfriColors.border),
           Row(children: [
             Expanded(
               child: _SummaryMetric(
@@ -357,7 +360,7 @@ class _EarningsSummaryCard extends StatelessWidget {
               ),
             ),
             const SizedBox(
-              height: 54,
+              height: 42,
               child: VerticalDivider(color: AfriColors.border),
             ),
             Expanded(
@@ -387,20 +390,20 @@ class _SummaryMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
               style:
                   const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
-          const SizedBox(height: 5),
+          const SizedBox(height: 3),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(value,
                 style: TextStyle(
-                    color: accent, fontSize: 17, fontWeight: FontWeight.w800)),
+                    color: accent, fontSize: 15, fontWeight: FontWeight.w800)),
           ),
         ],
       ),

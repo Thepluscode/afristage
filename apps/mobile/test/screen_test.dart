@@ -106,7 +106,8 @@ class _FakeApi extends ApiClient {
   }
 
   @override
-  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> delete(String path,
+      [Map<String, dynamic>? body]) async {
     if (errors.contains(path)) throw const ApiException(500, 'boom');
     deletes.add(path);
     return const {};
@@ -165,7 +166,9 @@ class _AuthFakeApi extends ApiClient {
       const {};
 
   @override
-  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async => const {};
+  Future<Map<String, dynamic>> delete(String path,
+          [Map<String, dynamic>? body]) async =>
+      const {};
 }
 
 Widget _wrap(ApiClient api, Widget child) => ChangeNotifierProvider(
@@ -676,7 +679,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.posts, contains('/payouts/methods'));
   });
-
 
   testWidgets('WalletScreen buying a package posts a purchase intent',
       (tester) async {
@@ -2001,11 +2003,7 @@ void main() {
           coinBalance: 10, earningBalance: 5, payoutHoldBalance: 0);
     await tester.pumpWidget(_wrapState(state, const WalletScreen()));
     await tester.pumpAndSettle();
-    for (final row in [
-      'Payout methods',
-      'Live history',
-      'Support'
-    ]) {
+    for (final row in ['Payout methods', 'Live history', 'Support']) {
       await tester.scrollUntilVisible(find.text(row).first, 200,
           scrollable: find.byType(Scrollable).first);
       await tester.tap(find.text(row).first);
@@ -2402,7 +2400,8 @@ void main() {
 
   // Covers the best-effort wallet re-sync catch (Rule 8): the claim POST
   // succeeds and the reward snackbar shows even though refreshWallet throws.
-  testWidgets('MissionsScreen claim still succeeds when the wallet re-sync fails',
+  testWidgets(
+      'MissionsScreen claim still succeeds when the wallet re-sync fails',
       (tester) async {
     _tall(tester);
     final api = _FakeApi(
@@ -3021,7 +3020,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('COMEDY').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Show chat rules'));
+    await tester.tap(find.text('Chat')); // redesign: chat-rules toggle tile
     await tester.pumpAndSettle();
   });
 
@@ -3033,9 +3032,7 @@ void main() {
     });
     await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Set time'), 200,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Set time'));
+    await tester.tap(find.byTooltip('Schedule room'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK')); // date picker
     await tester.pumpAndSettle();
@@ -3304,9 +3301,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
-    // Refresh wallet icon (129).
-    await tester.tap(find.byTooltip('Refresh wallet'));
-    await tester.pumpAndSettle();
+    expect(find.byTooltip('Refresh wallet'), findsNothing);
     // Balance-card Payout (onPrimary, 142-143) -> PayoutMethodsScreen.
     await tester.tap(find.text('Payout'));
     await tester.pumpAndSettle();
@@ -3326,13 +3321,23 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
+  testWidgets('WalletScreen refreshes with the goal-aligned pull gesture',
+      (tester) async {
+    final state = AppState(api: _FakeApi())
+      ..wallet = const Wallet(
+          coinBalance: 10, earningBalance: 5, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const WalletScreen()));
+    await tester.pumpAndSettle();
+    await tester.fling(find.byType(ListView).first, const Offset(0, 320), 1000);
+    await tester.pumpAndSettle();
+    expect(state.wallet.earningBalance, 0);
+  });
+
   testWidgets('GoLive picking a past time is rejected', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_wrap(_FakeApi(), const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Set time'), 200,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Set time'));
+    await tester.tap(find.byTooltip('Schedule room'));
     await tester.pumpAndSettle();
     // Pin the DATE to today deterministically (the default is now+1h, which rolls
     // to tomorrow late at night). firstDate is `now`, so today is selectable.
@@ -3370,9 +3375,7 @@ void main() {
     final api = _FakeApi(postErrors: {'/live-rooms'});
     await tester.pumpWidget(_wrap(api, const GoLiveSetupScreen()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Set time'), 200,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(find.text('Set time'));
+    await tester.tap(find.byTooltip('Schedule room'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK')); // date
     await tester.pumpAndSettle();
@@ -3385,9 +3388,7 @@ void main() {
           .tap(find.text('Schedule Room')); // _scheduleRoom -> error (84-85)
       await tester.pumpAndSettle();
       expect(find.text('boom'), findsOneWidget);
-      // Clear schedule via the X button (259).
-      await tester.tap(find.byTooltip('Clear schedule'));
-      await tester.pumpAndSettle();
+      // (redesign dropped the explicit "clear schedule" control — re-pick instead)
     }
     await tester.pump(const Duration(seconds: 6));
   });
@@ -3571,13 +3572,14 @@ void main() {
     expect(find.byType(GoLiveSetupScreen), findsOneWidget);
   });
 
-  testWidgets('WalletScreen buy sheet shows the loading state on an empty catalog',
+  testWidgets(
+      'WalletScreen buy sheet shows the loading state on an empty catalog',
       (tester) async {
     _tall(tester);
-    final state = AppState(
-        api: _FakeApi(lists: {'/payments/coin-packages': []}))
-      ..wallet = const Wallet(
-          coinBalance: 100, earningBalance: 0, payoutHoldBalance: 0);
+    final state =
+        AppState(api: _FakeApi(lists: {'/payments/coin-packages': []}))
+          ..wallet = const Wallet(
+              coinBalance: 100, earningBalance: 0, payoutHoldBalance: 0);
     await tester.pumpWidget(_wrapState(state, const WalletScreen()));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Buy coins'));
@@ -3588,7 +3590,8 @@ void main() {
   // Regression (staging, 2026-07-14): the live creator dashboard crashed with
   // "type 'String' is not a subtype of type 'num?'" — the REAL API serialises
   // BigInt money/count fields as strings; test fixtures had used bare nums.
-  testWidgets('CreatorScreen renders when the API returns money/counts as STRINGS',
+  testWidgets(
+      'CreatorScreen renders when the API returns money/counts as STRINGS',
       (tester) async {
     _tall(tester);
     final api = _FakeApi(maps: {
@@ -3627,8 +3630,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete my account'));
     await tester.pump();
-    expect(find.text('Enter your password to confirm deletion.'),
-        findsOneWidget);
+    expect(
+        find.text('Enter your password to confirm deletion.'), findsOneWidget);
     expect(api.deletes, isEmpty); // no API call without a password
   });
 }

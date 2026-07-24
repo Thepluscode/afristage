@@ -8,7 +8,7 @@ Studied screen-by-screen from `feed, room, profile.png`, `GoLive$missionControl.
 - orange `#FF8A1F` · gold `#FFC857` · purple `#7C3AED` · teal `#14B8A6`
 - success `#22C55E` · danger `#EF4444`
 - text `#FAFAFA` · secondary `#D4D4D8` · muted `#A1A1AA`
-- Font: **Plus Jakarta Sans** (via google_fonts) — applied app-wide.
+- Font: **Avenir Next** with the platform sans fallback — applied app-wide without a runtime font download.
 - Subtle warm/purple radial glow behind dark backgrounds.
 
 ## Badges (IMPORTANT — two distinct pills)

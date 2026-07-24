@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
@@ -59,12 +60,6 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
       return;
     }
     setState(() => _scheduledAt = chosen);
-  }
-
-  // Compact local time, e.g. "23/06 19:30" — avoids pulling in intl for one label.
-  String _formatSchedule(DateTime d) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(d.day)}/${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
   }
 
   Future<void> _scheduleRoom() async {
@@ -141,6 +136,16 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
   Widget build(BuildContext context) {
     return AfriScaffold(
       title: 'Go Live',
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      actions: [
+        IconButton(
+          onPressed: _pickSchedule,
+          tooltip: 'Schedule room',
+          icon: Icon(_scheduledAt == null
+              ? CupertinoIcons.calendar_badge_plus
+              : CupertinoIcons.calendar),
+        ),
+      ],
       children: [
         _StagePreview(
           title: _title.text.trim().isEmpty
@@ -151,7 +156,7 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           avatarUrl: widget.avatarUrl,
           stageName: widget.stageName,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
         TextField(
           controller: _title,
           maxLength: 80,
@@ -159,7 +164,7 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           decoration: const InputDecoration(
             labelText: 'Title',
             hintText: 'What are you performing?',
-            prefixIcon: Icon(Icons.title),
+            prefixIcon: Icon(CupertinoIcons.pencil),
           ).copyWith(errorText: _titleError),
         ),
         const SizedBox(height: 4),
@@ -168,9 +173,11 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
             Expanded(
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
+                icon: const Icon(CupertinoIcons.chevron_down, size: 16),
                 initialValue: _category,
                 decoration: const InputDecoration(
-                    labelText: 'Category', prefixIcon: Icon(Icons.music_note)),
+                    labelText: 'Category',
+                    prefixIcon: Icon(CupertinoIcons.music_note)),
                 items: const [
                   'MUSIC',
                   'COMEDY',
@@ -192,10 +199,11 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
             Expanded(
               child: DropdownButtonFormField<String>(
                 isExpanded: true,
+                icon: const Icon(CupertinoIcons.chevron_down, size: 16),
                 initialValue: _language,
                 decoration: const InputDecoration(
                     labelText: 'Language',
-                    prefixIcon: Icon(Icons.translate_outlined)),
+                    prefixIcon: Icon(CupertinoIcons.globe)),
                 items: const [
                   'pidgin',
                   'english',
@@ -211,27 +219,27 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           initialValue: _country,
+          icon: const Icon(CupertinoIcons.chevron_down, size: 16),
           decoration: const InputDecoration(
               labelText: 'Stage location',
-              prefixIcon: Icon(Icons.public_outlined)),
+              prefixIcon: Icon(CupertinoIcons.location)),
           items: const ['NG', 'GH', 'KE', 'ZA', 'UK', 'US']
               .map((c) => DropdownMenuItem(value: c, child: Text(c)))
               .toList(),
           onChanged: (v) => setState(() => _country = v ?? 'NG'),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
         const AfriSectionHeader(
           title: 'Audience & settings',
-          subtitle: 'Choose how viewers enter and interact with this room',
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(children: [
           const Expanded(
             child: _SetupTile(
-              icon: Icons.public,
+              icon: CupertinoIcons.person_2,
               title: 'Audience',
               value: 'Public',
               accent: AfriColors.teal,
@@ -240,18 +248,19 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: _SetupTile(
-              icon: Icons.chat_bubble_outline,
+              icon: CupertinoIcons.chat_bubble,
               title: 'Chat',
               value: _chatRules ? 'Rules on' : 'Open chat',
               accent: AfriColors.purple,
+              onTap: () => setState(() => _chatRules = !_chatRules),
             ),
           ),
         ]),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(children: [
           const Expanded(
             child: _SetupTile(
-              icon: Icons.card_giftcard,
+              icon: CupertinoIcons.gift,
               title: 'Gifts',
               value: 'Enabled',
               accent: AfriColors.gold,
@@ -260,48 +269,24 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: _SetupTile(
-              icon: Icons.shield_outlined,
+              icon: CupertinoIcons.shield,
               title: 'Moderation',
               value: _chatRules ? 'Standard' : 'Basic',
               accent: AfriColors.success,
             ),
           ),
         ]),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _chatRules,
-          onChanged: (v) => setState(() => _chatRules = v),
-          title: const Text('Show chat rules'),
-          subtitle: const Text('Remind viewers to keep the room respectful.'),
-        ),
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-          leading: const Icon(Icons.event_outlined),
-          title: Text(_scheduledAt == null
-              ? 'Schedule for later'
-              : 'Scheduled: ${_formatSchedule(_scheduledAt!)}'),
-          subtitle: const Text('Announce a start time in the Upcoming feed.'),
-          trailing: _scheduledAt == null
-              ? TextButton(
-                  onPressed: _pickSchedule, child: const Text('Set time'))
-              : IconButton(
-                  icon: const Icon(Icons.clear),
-                  tooltip: 'Clear schedule',
-                  onPressed: () => setState(() => _scheduledAt = null),
-                ),
-          onTap: _pickSchedule,
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         FilledButton.icon(
           onPressed: _busy ? null : _start,
           style: FilledButton.styleFrom(
             backgroundColor: AfriColors.purple,
             foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(56),
+            minimumSize: const Size.fromHeight(48),
           ),
-          icon: Icon(
-              _scheduledAt == null ? Icons.live_tv : Icons.event_available),
+          icon: Icon(_scheduledAt == null
+              ? CupertinoIcons.video_camera_solid
+              : CupertinoIcons.calendar_badge_plus),
           label: Text(_busy
               ? 'Working…'
               : _scheduledAt == null
@@ -332,13 +317,15 @@ class _StagePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: AspectRatio(
-        aspectRatio: 1.08,
+      child: SizedBox(
+        height: 248,
         child: Stack(fit: StackFit.expand, children: [
           AfriCover(
             imageUrl: avatarUrl,
             category: category,
-            initial: stageName,
+            initial: avatarUrl == null || avatarUrl!.isEmpty
+                ? 'studio creator'
+                : stageName,
           ),
           const DecoratedBox(
             decoration: BoxDecoration(
@@ -365,7 +352,7 @@ class _StagePreview extends StatelessWidget {
                 border: Border.all(color: const Color(0x33FFFFFF)),
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.cameraswitch_outlined,
+                Icon(CupertinoIcons.camera_rotate,
                     color: Colors.white, size: 16),
                 SizedBox(width: 6),
                 Text('Front camera',
@@ -422,26 +409,28 @@ class _SetupTile extends StatelessWidget {
     required this.title,
     required this.value,
     required this.accent,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String value;
   final Color accent;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 76),
-      padding: const EdgeInsets.all(12),
+    final tile = Container(
+      constraints: const BoxConstraints(minHeight: 56),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AfriColors.elevated,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AfriColors.border),
       ),
       child: Row(children: [
-        Icon(icon, color: accent, size: 22),
-        const SizedBox(width: 10),
+        Icon(icon, color: accent, size: 20),
+        const SizedBox(width: 8),
         Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -461,6 +450,12 @@ class _SetupTile extends StatelessWidget {
           ]),
         ),
       ]),
+    );
+    if (onTap == null) return tile;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: tile,
     );
   }
 }

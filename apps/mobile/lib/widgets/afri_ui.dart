@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/afri_theme.dart';
@@ -11,29 +12,53 @@ class AfriScaffold extends StatelessWidget {
       required this.title,
       required this.children,
       this.actions,
+      this.onRefresh,
       this.padding = const EdgeInsets.all(16)});
 
   final String title;
   final List<Widget> children;
   final List<Widget>? actions;
+  final Future<void> Function()? onRefresh;
   final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: actions),
+      appBar: AppBar(
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(CupertinoIcons.chevron_left),
+                tooltip: 'Back',
+                onPressed: () => Navigator.maybePop(context),
+              )
+            : null,
+        title: Text(title),
+        actions: actions,
+      ),
       body: DecoratedBox(
         decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topLeft,
-            radius: 0.9,
-            colors: [Color(0x1AFFC857), AfriColors.stage],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF17110B), AfriColors.stage, Color(0xFF0E0918)],
+            stops: [0, 0.42, 1],
           ),
         ),
-        child: ListView(
-          padding: padding,
-          children: children,
-        ),
+        child: onRefresh == null
+            ? ListView(
+                padding: padding,
+                children: children,
+              )
+            : RefreshIndicator(
+                color: AfriColors.gold,
+                backgroundColor: AfriColors.elevated,
+                onRefresh: onRefresh!,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: padding,
+                  children: children,
+                ),
+              ),
       ),
     );
   }
@@ -52,10 +77,19 @@ class AfriCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = Card(child: Padding(padding: padding, child: child));
+    final card = Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(padding: padding, child: child),
+    );
     if (onTap == null) return card;
-    return InkWell(
-        borderRadius: BorderRadius.circular(16), onTap: onTap, child: card);
+    return Semantics(
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: card,
+      ),
+    );
   }
 }
 
@@ -106,22 +140,41 @@ class AfriBrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconSize = size * 0.56;
     if (flat) {
-      return Icon(Icons.auto_awesome, size: iconSize, color: AfriColors.orange);
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AfriColors.gold, width: 1.5),
+        ),
+        child: Icon(CupertinoIcons.antenna_radiowaves_left_right,
+            size: iconSize * 0.78, color: AfriColors.gold),
+      );
     }
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient:
-            const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
-        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AfriColors.orange, AfriColors.gold],
+        ),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(size * 0.28),
+          topRight: Radius.circular(size * 0.28),
+          bottomRight: Radius.circular(size * 0.28),
+          bottomLeft: Radius.circular(size * 0.1),
+        ),
+        border: Border.all(color: Colors.white24),
         boxShadow: [
           BoxShadow(
-              color: AfriColors.orange.withValues(alpha: 0.24),
-              blurRadius: size * 0.42),
+              color: AfriColors.orange.withValues(alpha: 0.3),
+              blurRadius: size * 0.52,
+              offset: Offset(0, size * 0.14)),
         ],
       ),
-      child: Icon(Icons.auto_awesome,
+      child: Icon(CupertinoIcons.antenna_radiowaves_left_right,
           color: const Color(0xFF170B02), size: iconSize),
     );
   }
@@ -226,7 +279,8 @@ class AfriActionRow extends StatelessWidget {
             ),
           ),
           trailing ??
-              const Icon(Icons.chevron_right, color: AfriColors.mutedText),
+              const Icon(CupertinoIcons.chevron_right,
+                  size: 17, color: AfriColors.mutedText),
         ],
       ),
     );
@@ -324,7 +378,7 @@ class AfriChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
         color: selected
             ? AfriColors.orange.withValues(alpha: 0.18)
@@ -335,7 +389,7 @@ class AfriChip extends StatelessWidget {
       ),
       child: Text(label,
           style: TextStyle(
-              fontSize: 13,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
               color: selected ? AfriColors.gold : AfriColors.secondaryText)),
     );
@@ -361,7 +415,7 @@ class AfriEmptyState extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       child: Column(
         children: [
-          Icon(icon, color: AfriColors.gold, size: 38),
+          AfriIconBadge(icon: icon, size: 52),
           const SizedBox(height: 12),
           Text(title,
               textAlign: TextAlign.center,
@@ -468,7 +522,7 @@ class AfriErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AfriEmptyState(
-      icon: Icons.wifi_off,
+      icon: CupertinoIcons.wifi_slash,
       title: title,
       body: body,
       action: onRetry == null
@@ -532,7 +586,7 @@ class AfriHeroEventCard extends StatelessWidget {
                     if (r != null)
                       Row(
                         children: [
-                          const Icon(Icons.person,
+                          const Icon(CupertinoIcons.person_fill,
                               color: Colors.white, size: 15),
                           const SizedBox(width: 4),
                           Text('${afriCompactCount(r.viewerCount)} watching',
@@ -565,13 +619,14 @@ class AfriHeroEventCard extends StatelessWidget {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: onJoin,
-                        icon:
-                            Icon(r != null ? Icons.play_arrow : Icons.refresh),
+                        icon: Icon(r != null
+                            ? CupertinoIcons.play_arrow_solid
+                            : CupertinoIcons.refresh),
                         label: Text(r != null ? 'Join now' : 'Refresh'),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const AfriIconBadge(icon: Icons.card_giftcard),
+                    const AfriIconBadge(icon: CupertinoIcons.gift_fill),
                   ],
                 ),
               ],
@@ -654,7 +709,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                   Positioned(
                     right: -18,
                     bottom: -24,
-                    child: Icon(Icons.auto_awesome,
+                    child: Icon(CupertinoIcons.sparkles,
                         size: 142,
                         color: AfriColors.gold.withValues(alpha: 0.16)),
                   ),
@@ -668,7 +723,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         AfriChip(label: country),
                         const Spacer(),
-                        const Icon(Icons.person,
+                        const Icon(CupertinoIcons.person_fill,
                             color: AfriColors.secondaryText, size: 16),
                         const SizedBox(width: 4),
                         Text('$viewerCount',
@@ -702,7 +757,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right,
+                        const Icon(CupertinoIcons.chevron_right,
                             color: AfriColors.secondaryText),
                       ],
                     ),
@@ -743,25 +798,33 @@ class AfriLiveRoomCard extends StatelessWidget {
 IconData afriGiftIcon(String name) {
   final n = name.toLowerCase();
   if (n.contains('rose') || n.contains('flower')) {
-    return Icons.local_florist;
+    return CupertinoIcons.heart_fill;
   }
   if (n.contains('fire') || n.contains('flame')) {
-    return Icons.local_fire_department;
+    return CupertinoIcons.flame_fill;
   }
-  if (n.contains('mic')) return Icons.mic;
-  if (n.contains('drum') || n.contains('music')) return Icons.music_note;
+  if (n.contains('mic')) return CupertinoIcons.mic_fill;
+  if (n.contains('drum') || n.contains('music')) {
+    return CupertinoIcons.music_note_2;
+  }
   if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
-    return Icons.workspace_premium;
+    return CupertinoIcons.star_fill;
   }
   if (n.contains('spotlight') || n.contains('light')) {
-    return Icons.flashlight_on;
+    return CupertinoIcons.lightbulb_fill;
   }
-  if (n.contains('star')) return Icons.star;
-  if (n.contains('stage') || n.contains('concert')) return Icons.stadium;
-  if (n.contains('heart') || n.contains('love')) return Icons.favorite;
-  if (n.contains('diamond') || n.contains('gem')) return Icons.diamond;
-  if (n.contains('rocket')) return Icons.rocket_launch;
-  return Icons.card_giftcard;
+  if (n.contains('star')) return CupertinoIcons.star_fill;
+  if (n.contains('stage') || n.contains('concert')) {
+    return CupertinoIcons.music_mic;
+  }
+  if (n.contains('heart') || n.contains('love')) {
+    return CupertinoIcons.heart_fill;
+  }
+  if (n.contains('diamond') || n.contains('gem')) {
+    return CupertinoIcons.sparkles;
+  }
+  if (n.contains('rocket')) return CupertinoIcons.rocket_fill;
+  return CupertinoIcons.gift_fill;
 }
 
 // Distinct gift tints so the gift panel reads colorful (matches the room mockup).
@@ -786,6 +849,28 @@ class AfriGiftTile extends StatelessWidget {
   final VoidCallback onTap;
   final Color accent;
   final bool selected;
+
+  Widget _artwork() {
+    final url = gift.artworkUrl;
+    final rasterArtwork = url != null &&
+        url.isNotEmpty &&
+        RegExp(r'\.(png|jpe?g|webp|gif)(\?.*)?$', caseSensitive: false)
+            .hasMatch(url);
+    if (!rasterArtwork) {
+      return Icon(afriGiftIcon(gift.name), color: accent, size: 23);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        url,
+        width: 42,
+        height: 42,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) =>
+            Icon(afriGiftIcon(gift.name), color: accent, size: 23),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -818,14 +903,13 @@ class AfriGiftTile extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 30,
-                    height: 30,
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.16),
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child:
-                        Icon(afriGiftIcon(gift.name), color: accent, size: 18),
+                    child: Center(child: _artwork()),
                   ),
                   const SizedBox(height: 4),
                   Text(gift.name,
@@ -838,7 +922,7 @@ class AfriGiftTile extends StatelessWidget {
                           color: AfriColors.text)),
                   const SizedBox(height: 1),
                   Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.monetization_on,
+                    const Icon(CupertinoIcons.money_dollar_circle_fill,
                         size: 11, color: AfriColors.gold),
                     const SizedBox(width: 2),
                     Text('${gift.coinPrice}',
@@ -913,7 +997,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                       color: AfriColors.gold.withValues(alpha: 0.24)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.monetization_on,
+                  const Icon(CupertinoIcons.money_dollar_circle_fill,
                       color: AfriColors.gold, size: 15),
                   const SizedBox(width: 5),
                   Text(formatCount(widget.coinBalance),
@@ -933,7 +1017,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
             const SizedBox(height: 14),
             if (widget.gifts.isEmpty)
               const AfriEmptyState(
-                icon: Icons.card_giftcard,
+                icon: CupertinoIcons.gift_fill,
                 title: 'No gifts configured',
                 body: 'Ask ops to enable gifts before viewers can send one.',
               )
@@ -969,7 +1053,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                                 color: AfriColors.gold,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.check,
+                              child: const Icon(CupertinoIcons.check_mark,
                                   color: Color(0xFF170B02), size: 13),
                             ),
                           ),
@@ -1005,7 +1089,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                         minimumSize: const Size(84, 42),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
-                      icon: const Icon(Icons.card_giftcard, size: 17),
+                      icon: const Icon(CupertinoIcons.gift_fill, size: 17),
                       label: const Text('Send'),
                     ),
                   ],
@@ -1085,8 +1169,11 @@ class AfriChatBubble extends StatelessWidget {
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(
-                  fontSize: 13, color: Colors.white, height: 1.25),
+              style: DefaultTextStyle.of(context).style.copyWith(
+                    fontSize: 13,
+                    color: Colors.white,
+                    height: 1.25,
+                  ),
               children: [
                 TextSpan(
                     text: '${message.sender}  ',
@@ -1128,24 +1215,75 @@ class AfriCreatorStatusBanner extends StatelessWidget {
   IconData get _icon {
     switch (status.toUpperCase()) {
       case 'APPROVED':
-        return Icons.verified;
+        return CupertinoIcons.checkmark_seal_fill;
       case 'REJECTED':
       case 'SUSPENDED':
-        return Icons.block;
+        return CupertinoIcons.xmark_octagon_fill;
       case 'PENDING':
       default:
-        return Icons.hourglass_top;
+        return CupertinoIcons.hourglass;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AfriActionRow(
-      icon: _icon,
-      title: status.toUpperCase(),
-      body: message ?? 'Creator access status is being reviewed.',
-      accent: _accent,
-      trailing: const SizedBox.shrink(),
+    final approved = status.toUpperCase() == 'APPROVED';
+    return AfriCard(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: _accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(_icon, color: _accent, size: 18),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  approved
+                      ? "You're approved to go live"
+                      : status.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message ?? 'Creator access status is being reviewed.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AfriColors.mutedText,
+                    fontSize: 10,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (approved) ...[
+            const SizedBox(width: 8),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(color: _accent, shape: BoxShape.circle),
+              child: const Icon(CupertinoIcons.check_mark,
+                  color: Color(0xFF06150B), size: 19),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1170,7 +1308,7 @@ class AfriWalletBalanceCard extends StatelessWidget {
           Row(
             children: [
               const AfriIconBadge(
-                  icon: Icons.monetization_on_outlined,
+                  icon: CupertinoIcons.money_dollar_circle,
                   accent: AfriColors.gold),
               const Spacer(),
               AfriChip(label: modeLabel, selected: true),
@@ -1207,7 +1345,7 @@ class AfriCoinPackageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AfriActionRow(
-      icon: Icons.monetization_on_outlined,
+      icon: CupertinoIcons.money_dollar_circle,
       title: label,
       body: body,
       accent: AfriColors.gold,
@@ -1217,7 +1355,7 @@ class AfriCoinPackageCard extends StatelessWidget {
               height: 18,
               width: 18,
               child: CircularProgressIndicator(strokeWidth: 2))
-          : const Icon(Icons.add_circle_outline, color: AfriColors.gold),
+          : const Icon(CupertinoIcons.add_circled, color: AfriColors.gold),
     );
   }
 }
@@ -1280,7 +1418,10 @@ class AfriReportReasonTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
-          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+          Icon(
+              selected
+                  ? CupertinoIcons.check_mark_circled_solid
+                  : CupertinoIcons.circle,
               color: selected ? AfriColors.danger : AfriColors.mutedText),
           const SizedBox(width: 10),
           Expanded(
@@ -1299,7 +1440,7 @@ class AfriSupportTicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AfriActionRow(
-      icon: Icons.confirmation_number_outlined,
+      icon: CupertinoIcons.ticket,
       title: ticket['subject'] as String? ?? 'Support ticket',
       body: '${ticket['type'] ?? 'GENERAL'}',
       accent: AfriColors.teal,
@@ -1394,14 +1535,15 @@ class _Avatar extends StatelessWidget {
             errorBuilder: (_, __, ___) => const CircleAvatar(
                   radius: innerSize / 2,
                   backgroundColor: AfriColors.elevated,
-                  child: Icon(Icons.person, color: AfriColors.purple),
+                  child: Icon(CupertinoIcons.person_fill,
+                      color: AfriColors.purple),
                 )),
       );
     } else {
       face = const CircleAvatar(
         radius: innerSize / 2,
         backgroundColor: AfriColors.elevated,
-        child: Icon(Icons.person, color: AfriColors.purple),
+        child: Icon(CupertinoIcons.person_fill, color: AfriColors.purple),
       );
     }
 
@@ -1438,7 +1580,7 @@ class _Avatar extends StatelessWidget {
                     padding: const EdgeInsets.all(5),
                     decoration: const BoxDecoration(
                         color: AfriColors.gold, shape: BoxShape.circle),
-                    child: const Icon(Icons.edit,
+                    child: const Icon(CupertinoIcons.pencil,
                         size: 13, color: Color(0xFF170B02)),
                   ),
                 ),
@@ -1637,7 +1779,7 @@ class AfriVideoStage extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.stop_circle_outlined,
+                        const Icon(CupertinoIcons.stop_circle,
                             color: AfriColors.danger, size: 42),
                         const SizedBox(height: 10),
                         Text('Room ended',
@@ -1691,7 +1833,7 @@ class _VideoWaitingState extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white24),
             ),
-            child: const Icon(Icons.play_arrow_rounded,
+            child: const Icon(CupertinoIcons.play_arrow_solid,
                 color: Colors.white, size: 36),
           ),
         ),
@@ -1710,7 +1852,9 @@ class _VideoWaitingState extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const AfriIconBadge(
-                  icon: Icons.live_tv, accent: AfriColors.teal, size: 60),
+                  icon: CupertinoIcons.video_camera_solid,
+                  accent: AfriColors.teal,
+                  size: 60),
               const SizedBox(height: 14),
               Text('Ready to publish',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -1722,7 +1866,7 @@ class _VideoWaitingState extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onStartVideo,
-                icon: const Icon(Icons.videocam),
+                icon: const Icon(CupertinoIcons.video_camera_solid),
                 label: const Text('Go Live with Camera + Mic'),
               ),
             ],
@@ -1780,7 +1924,7 @@ class AfriLiveTopBar extends StatelessWidget {
               IconButton(
                   tooltip: 'Close room',
                   onPressed: onClose,
-                  icon: const Icon(Icons.keyboard_arrow_down,
+                  icon: const Icon(CupertinoIcons.chevron_down,
                       color: Colors.white, size: 24)),
               Expanded(
                 child: Semantics(
@@ -1847,7 +1991,8 @@ class AfriLiveTopBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.people, size: 13, color: Colors.white),
+                  const Icon(CupertinoIcons.person_2_fill,
+                      size: 13, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(formatCount(viewerCount),
                       style: const TextStyle(
@@ -1860,7 +2005,7 @@ class AfriLiveTopBar extends StatelessWidget {
                 IconButton(
                     tooltip: 'Room options',
                     onPressed: onReport,
-                    icon: const Icon(Icons.more_horiz,
+                    icon: const Icon(CupertinoIcons.ellipsis,
                         color: Colors.white, size: 20)),
             ],
           ),
@@ -1968,7 +2113,7 @@ class AfriRoomStateBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: _accent, size: 18),
+          Icon(CupertinoIcons.info_circle, color: _accent, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -2007,7 +2152,11 @@ class AfriNetworkStatusPill extends StatelessWidget {
             ? AfriColors.success
             : AfriColors.teal;
     return ActionChip(
-      avatar: Icon(lowData ? Icons.speed : Icons.network_check, color: accent),
+      avatar: Icon(
+          lowData
+              ? CupertinoIcons.speedometer
+              : CupertinoIcons.antenna_radiowaves_left_right,
+          color: accent),
       label: Text(
           lowData ? 'Low data' : (poorNetwork ? 'Network weak' : 'Network ok')),
       onPressed: () => onToggleLowData(!lowData),
@@ -2104,13 +2253,13 @@ class AfriChatInput extends StatelessWidget {
                 IconButton.filledTonal(
                   tooltip: 'Send message',
                   onPressed: enabled ? onSend : null,
-                  icon: const Icon(Icons.send),
+                  icon: const Icon(CupertinoIcons.paperplane_fill),
                 ),
                 AfriReactionButton(onReaction: onReaction),
                 IconButton.filled(
                   tooltip: 'Send gift',
                   onPressed: onGift,
-                  icon: const Icon(Icons.card_giftcard),
+                  icon: const Icon(CupertinoIcons.gift_fill),
                 ),
               ],
             ),
@@ -2142,7 +2291,7 @@ class AfriReactionButton extends StatelessWidget {
         child: CircleAvatar(
           radius: 20,
           backgroundColor: AfriColors.elevated,
-          child: Icon(Icons.favorite, color: AfriColors.gold),
+          child: Icon(CupertinoIcons.heart_fill, color: AfriColors.gold),
         ),
       ),
     );
@@ -2168,9 +2317,13 @@ class AfriReactionLayer extends StatelessWidget {
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 220),
               opacity: 1,
-              child: Text(
-                _reactionGlyph(visible[i]),
-                style: const TextStyle(fontSize: 26),
+              child: Icon(
+                _reactionIcon(visible[i]),
+                size: 27,
+                color: _reactionColor(visible[i]),
+                shadows: const [
+                  Shadow(color: Color(0x99000000), blurRadius: 8),
+                ],
               ),
             ),
           ),
@@ -2178,17 +2331,31 @@ class AfriReactionLayer extends StatelessWidget {
     );
   }
 
-  static String _reactionGlyph(String value) {
+  static IconData _reactionIcon(String value) {
     switch (value) {
       case 'fire':
-        return '🔥';
+        return CupertinoIcons.flame_fill;
       case 'clap':
-        return '👏';
+        return CupertinoIcons.hand_thumbsup_fill;
       case 'laugh':
-        return '😂';
+        return CupertinoIcons.smiley_fill;
       case 'heart':
       default:
-        return '❤';
+        return CupertinoIcons.heart_fill;
+    }
+  }
+
+  static Color _reactionColor(String value) {
+    switch (value) {
+      case 'fire':
+        return AfriColors.orange;
+      case 'clap':
+        return AfriColors.gold;
+      case 'laugh':
+        return AfriColors.teal;
+      case 'heart':
+      default:
+        return const Color(0xFFFF4664);
     }
   }
 }
@@ -2356,7 +2523,7 @@ class AfriHostControlsPanel extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onStartVideo,
-                icon: const Icon(Icons.videocam),
+                icon: const Icon(CupertinoIcons.video_camera_solid),
                 label: const Text('Go Live with Camera + Mic'),
               ),
             ),
@@ -2371,20 +2538,25 @@ class AfriHostControlsPanel extends StatelessWidget {
             FilterChip(
               selected: cameraOn,
               onSelected: onCameraChanged,
-              avatar: Icon(cameraOn ? Icons.videocam : Icons.videocam_off),
+              avatar: Icon(cameraOn
+                  ? CupertinoIcons.video_camera_solid
+                  : CupertinoIcons.video_camera),
               label: Text(cameraOn ? 'Camera on' : 'Camera off'),
             ),
             FilterChip(
               selected: micOn,
               onSelected: onMicChanged,
-              avatar: Icon(micOn ? Icons.mic : Icons.mic_off),
+              avatar: Icon(micOn
+                  ? CupertinoIcons.mic_fill
+                  : CupertinoIcons.mic_slash_fill),
               label: Text(micOn ? 'Mic on' : 'Mic off'),
             ),
             FilterChip(
               selected: chatVisible,
               onSelected: onChatVisibleChanged,
-              avatar:
-                  Icon(chatVisible ? Icons.chat : Icons.chat_bubble_outline),
+              avatar: Icon(chatVisible
+                  ? CupertinoIcons.chat_bubble_fill
+                  : CupertinoIcons.chat_bubble),
               label: Text(chatVisible ? 'Chat visible' : 'Chat hidden'),
             ),
             AfriNetworkStatusPill(
@@ -2394,17 +2566,17 @@ class AfriHostControlsPanel extends StatelessWidget {
               onToggleLowData: onLowDataChanged,
             ),
             ActionChip(
-              avatar: const Icon(Icons.volume_off),
+              avatar: const Icon(CupertinoIcons.speaker_slash_fill),
               label: const Text('Mute user'),
               onPressed: onMuteUser,
             ),
             ActionChip(
-              avatar: const Icon(Icons.health_and_safety_outlined),
+              avatar: const Icon(CupertinoIcons.exclamationmark_shield_fill),
               label: const Text('Safety'),
               onPressed: onSafety,
             ),
             ActionChip(
-              avatar: const Icon(Icons.stop_circle_outlined,
+              avatar: const Icon(CupertinoIcons.stop_circle,
                   color: AfriColors.danger),
               label: Text(ending ? 'Ending…' : 'End Room'),
               onPressed: ending ? null : onEndRoom,
@@ -2661,7 +2833,7 @@ class AfriLiveTile extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.person,
+                            const Icon(CupertinoIcons.person_fill,
                                 color: Colors.white, size: 13),
                             const SizedBox(width: 3),
                             Text(afriCompactCount(room.viewerCount),

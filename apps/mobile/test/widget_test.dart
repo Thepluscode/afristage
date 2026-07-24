@@ -1,6 +1,7 @@
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/screens/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -14,7 +15,8 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.antenna_radiowaves_left_right),
+        findsOneWidget);
     expect(find.text('Welcome back to AfriStage'), findsOneWidget);
     expect(find.text('Log in to AfriStage'), findsOneWidget);
     expect(find.text('Seeded test accounts'), findsOneWidget);
