@@ -73,6 +73,26 @@ describe('fetchRoom', () => {
   });
 });
 
+describe('fetchTopGifters', () => {
+  it('maps leaderboard rows, filling rank/name/coins fallbacks', async () => {
+    const rows = [
+      { rank: 1, displayName: 'Kwame', totalCoins: 200 },
+      {}, // missing rank + name + coins → all fallbacks
+    ];
+    const doFetch = vi.fn().mockResolvedValue(ok(rows));
+    const { fetchTopGifters } = await import('../lib/live');
+    expect(await fetchTopGifters('http://b', 'r1', doFetch as never)).toEqual([
+      { rank: 1, displayName: 'Kwame', totalCoins: 200 },
+      { rank: 2, displayName: 'Supporter', totalCoins: 0 },
+    ]);
+    expect(doFetch).toHaveBeenCalledWith('http://b/live-rooms/r1/top-gifters');
+  });
+  it('returns an empty list when unreachable', async () => {
+    const { fetchTopGifters } = await import('../lib/live');
+    expect(await fetchTopGifters('http://b', 'r1', vi.fn().mockResolvedValue(notOk(503)) as never)).toEqual([]);
+  });
+});
+
 describe('fetchGuestToken', () => {
   it('POSTs and returns the token payload for a live room', async () => {
     const payload = { viewerToken: 'tok', livekitUrl: 'wss://lk', roomStatus: 'LIVE' };

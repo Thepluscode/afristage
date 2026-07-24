@@ -29,3 +29,20 @@ export interface ViewerCountUpdate {
   roomId: string;
   count: number;
 }
+
+export interface ReactionSent {
+  roomId: string;
+  userId: string;
+  reactionType: string;
+}
+
+type Fetch = typeof fetch;
+
+/** Read this client's access token (for the socket handshake) from the httpOnly
+ *  cookie via the server route. Null = guest (connect read-only). */
+export async function fetchSocketToken(doFetch: Fetch = fetch): Promise<string | null> {
+  const res = await doFetch('/api/socket-token');
+  if (!res.ok) return null;
+  const body = (await res.json()) as { token?: string | null };
+  return body.token ?? null;
+}

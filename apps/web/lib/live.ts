@@ -57,3 +57,17 @@ export async function fetchRoom(base: string, roomId: string, doFetch: Fetch = f
   if (!res.ok) return null;
   return (await res.json()) as RoomInfo;
 }
+
+export interface TopGifter {
+  rank: number;
+  displayName: string;
+  totalCoins: number;
+}
+
+/** Public top-supporters leaderboard for a room (ranked by coins gifted). */
+export async function fetchTopGifters(base: string, roomId: string, doFetch: Fetch = fetch): Promise<TopGifter[]> {
+  const res = await doFetch(`${base}/live-rooms/${roomId}/top-gifters`);
+  if (!res.ok) return [];
+  const rows = (await res.json()) as Array<{ rank?: number; displayName?: string | null; totalCoins?: number }>;
+  return rows.map((r, i) => ({ rank: r.rank ?? i + 1, displayName: r.displayName || 'Supporter', totalCoins: r.totalCoins ?? 0 }));
+}
