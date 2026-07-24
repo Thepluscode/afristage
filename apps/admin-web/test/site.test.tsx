@@ -32,9 +32,9 @@ describe('public marketing page (/site)', () => {
     }
     // proof strip
     expect(screen.getByText('60/40')).toBeInTheDocument();
-    // operator login CTAs point at the real login route
-    const loginLinks = document.querySelectorAll('a[href="/login"]');
-    expect(loginLinks.length).toBeGreaterThan(0);
+    // marketing CTAs reach the consumer web app, never the staff admin login
+    expect(document.querySelectorAll('a[href="/login"]').length).toBe(0);
+    expect(document.querySelectorAll('a[href$="/watch"]').length).toBeGreaterThan(0);
   });
 
   it('step selector switches the active step on click', () => {
