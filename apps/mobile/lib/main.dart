@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import 'core/afri_theme.dart';
@@ -6,6 +7,7 @@ import 'core/app_state.dart';
 import 'screens/creator_apply_screen.dart';
 import 'screens/creator_screen.dart';
 import 'screens/feed_screen.dart';
+import 'screens/go_live_setup_screen.dart';
 import 'screens/live_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
@@ -55,23 +57,31 @@ class HomeShell extends StatefulWidget {
 
 // Prominent gold "Go Live" center action in the bottom nav (per the mockup).
 class _GoLiveButton extends StatelessWidget {
-  const _GoLiveButton({required this.icon});
+  const _GoLiveButton({required this.icon, required this.isCreator});
   final IconData icon;
+  final bool isCreator;
   @override
   Widget build(BuildContext context) {
+    final colors = isCreator
+        ? const [AfriColors.purple, Color(0xFF8A35E8)]
+        : const [AfriColors.orange, AfriColors.gold];
+    final glow = isCreator ? AfriColors.purple : AfriColors.orange;
     return Container(
-      width: 46,
-      height: 46,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
-        gradient:
-            const LinearGradient(colors: [AfriColors.orange, AfriColors.gold]),
+        gradient: LinearGradient(colors: colors),
         shape: BoxShape.circle,
+        border: Border.all(color: Colors.white24),
         boxShadow: [
-          BoxShadow(
-              color: AfriColors.orange.withValues(alpha: 0.4), blurRadius: 14)
+          BoxShadow(color: glow.withValues(alpha: 0.4), blurRadius: 14)
         ],
       ),
-      child: Icon(icon, color: const Color(0xFF170B02), size: 24),
+      child: Icon(
+        icon,
+        color: isCreator ? Colors.white : const Color(0xFF170B02),
+        size: 24,
+      ),
     );
   }
 }
@@ -84,43 +94,64 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final isCreator = context.watch<AppState>().isCreator;
-    final pages = <Widget>[
-      const FeedScreen(),
-      const LiveScreen(),
-      isCreator ? const CreatorScreen() : const CreatorApplyScreen(),
-      const WalletScreen(),
-      const ProfileScreen(),
-    ];
+    final pages = isCreator
+        ? <Widget>[
+            const FeedScreen(),
+            const CreatorScreen(),
+            const GoLiveSetupScreen(),
+            const WalletScreen(),
+            const ProfileScreen(),
+          ]
+        : <Widget>[
+            const FeedScreen(),
+            const LiveScreen(),
+            const CreatorApplyScreen(),
+            const WalletScreen(),
+            const ProfileScreen(),
+          ];
     final destinations = <NavigationDestination>[
       const NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
+          icon: Icon(CupertinoIcons.house),
+          selectedIcon: Icon(CupertinoIcons.house_fill),
           label: 'Home'),
-      const NavigationDestination(
-          icon: Icon(Icons.live_tv_outlined),
-          selectedIcon: Icon(Icons.live_tv),
-          label: 'Live'),
-      const NavigationDestination(
-        icon: _GoLiveButton(icon: Icons.videocam),
-        selectedIcon: _GoLiveButton(icon: Icons.videocam),
+      NavigationDestination(
+          icon: Icon(isCreator
+              ? CupertinoIcons.chart_bar
+              : CupertinoIcons.play_rectangle),
+          selectedIcon: Icon(isCreator
+              ? CupertinoIcons.chart_bar_fill
+              : CupertinoIcons.play_rectangle_fill),
+          label: isCreator ? 'Analytics' : 'Live'),
+      NavigationDestination(
+        icon: _GoLiveButton(
+            icon: CupertinoIcons.video_camera, isCreator: isCreator),
+        selectedIcon: _GoLiveButton(
+          icon: CupertinoIcons.video_camera_solid,
+          isCreator: isCreator,
+        ),
         label: 'Go Live',
       ),
+      NavigationDestination(
+          icon: const Icon(CupertinoIcons.creditcard),
+          selectedIcon: const Icon(CupertinoIcons.creditcard_fill),
+          label: isCreator ? 'Earn' : 'Wallet'),
       const NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet),
-          label: 'Wallet'),
-      const NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person),
+          icon: Icon(CupertinoIcons.person),
+          selectedIcon: Icon(CupertinoIcons.person_fill),
           label: 'Profile'),
     ];
     final safeIndex = _index.clamp(0, pages.length - 1);
     return Scaffold(
       body: pages[safeIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: destinations,
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AfriColors.border)),
+        ),
+        child: NavigationBar(
+          selectedIndex: safeIndex,
+          onDestinationSelected: (value) => setState(() => _index = value),
+          destinations: destinations,
+        ),
       ),
     );
   }

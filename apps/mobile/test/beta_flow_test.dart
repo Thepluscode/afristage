@@ -11,6 +11,7 @@ import 'package:afristage_mobile/screens/search_screen.dart';
 import 'package:afristage_mobile/screens/wallet_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -119,7 +120,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Go Live'), findsOneWidget);
-    expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.video_camera), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Gift Wallet'),
       300,
@@ -150,7 +151,7 @@ void main() {
 
     expect(find.text('Send Gift'), findsOneWidget);
     expect(find.text('100'), findsOneWidget);
-    expect(find.byIcon(Icons.flashlight_on), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.lightbulb_fill), findsOneWidget);
     expect(find.text('Spotlight'), findsWidgets);
     expect(find.text('50 coins'), findsWidgets);
     expect(find.text('Buy coins'), findsOneWidget);
@@ -173,7 +174,7 @@ void main() {
     ));
 
     expect(find.text('LIVE'), findsOneWidget);
-    expect(find.byIcon(Icons.person), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.person), findsOneWidget);
     expect(find.text('Friday Afrobeats Live'), findsOneWidget);
     expect(find.textContaining('Zola Kim'), findsOneWidget);
   });

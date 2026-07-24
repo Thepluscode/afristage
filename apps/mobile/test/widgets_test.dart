@@ -828,6 +828,13 @@ void main() {
     expect(stageFallback('Ama K'), 'assets/stage/nandi-live.jpg');
   });
 
+  test('stageFallback maps studio previews to the creator control asset', () {
+    expect(
+      stageFallback('studio creator'),
+      'assets/stage/creator-control.jpg',
+    );
+  });
+
   testWidgets('AfriCover fallback swallows asset load errors (errorBuilder)',
       (tester) async {
     await tester.pumpWidget(MaterialApp(

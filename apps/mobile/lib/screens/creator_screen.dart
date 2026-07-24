@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
@@ -117,17 +118,18 @@ class _CreatorScreenState extends State<CreatorScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        toolbarHeight: 46,
         actions: [
           IconButton(
             tooltip: 'Creator settings',
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const CreatorRoomsScreen())),
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(CupertinoIcons.gear),
           ),
           IconButton(
             tooltip: 'Creator alerts',
             onPressed: _reload,
-            icon: const Icon(Icons.notifications_none),
+            icon: const Icon(CupertinoIcons.bell),
           ),
           const SizedBox(width: 6),
         ],
@@ -147,7 +149,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 children: [
                   const SizedBox(height: 80),
                   AfriEmptyState(
-                    icon: Icons.wifi_off,
+                    icon: CupertinoIcons.wifi_slash,
                     title: 'Creator hub unavailable',
                     body:
                         'Check your connection and retry. If the problem continues, contact support.',
@@ -174,133 +176,171 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 const <Map<String, dynamic>>[];
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               children: [
                 _CreatorHeader(
                     stageName: stageName,
                     approved: status == 'APPROVED',
                     avatarUrl: data?['avatarUrl'] as String?),
-                const SizedBox(height: 14),
-                AfriCreatorStatusBanner(
-                  status: status,
-                  message: status == 'APPROVED'
-                      ? "You're approved to go live and receive gifts."
-                      : 'Your creator profile is under review. Go Live unlocks once approved.',
-                ),
-                const SizedBox(height: 16),
-                const AfriSectionHeader(
-                  title: 'Overview',
-                  subtitle: 'This week',
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AfriStatTile(
-                          label: 'Earnings',
-                          value: earnings,
-                          icon: Icons.payments_outlined,
-                          accent: AfriColors.success),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AfriStatTile(
-                          label: 'Views',
-                          value: views,
-                          icon: Icons.visibility_outlined,
-                          accent: AfriColors.teal),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AfriStatTile(
-                          label: 'New followers',
-                          value: formatCount(asInt(
-                              data?['newFollowers'] ?? data?['followers'])),
-                          icon: Icons.group_add_outlined,
-                          accent: AfriColors.purple),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AfriStatTile(
-                          label: 'Live sessions',
-                          value: '${data?['totalRooms'] ?? 0}',
-                          icon: Icons.mic,
-                          accent: AfriColors.teal),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const AfriSectionHeader(
-                  title: 'Earnings',
-                  subtitle: 'Ready to withdraw',
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 68,
+                  child: AfriCreatorStatusBanner(
+                    status: status,
+                    message: status == 'APPROVED'
+                        ? 'All set! You can start your live session.'
+                        : 'Your creator profile is under review. Go Live unlocks once approved.',
+                  ),
                 ),
                 const SizedBox(height: 10),
-                AfriGradientPanel(
-                  colors: const [Color(0xFF2D2408), Color(0xFF17150E)],
-                  padding: const EdgeInsets.all(16),
+                const AfriSectionHeader(
+                  title: 'Overview',
+                  trailing: Text(
+                    'This week',
+                    style: TextStyle(color: AfriColors.mutedText, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                SizedBox(
+                  height: 64,
                   child: Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Available balance',
-                                style: Theme.of(context).textTheme.bodyMedium),
-                            const SizedBox(height: 3),
-                            Text(earnings,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(
-                                        color: AfriColors.text,
-                                        fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 7),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 9, vertical: 5),
-                              decoration: BoxDecoration(
-                                color:
-                                    AfriColors.success.withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: const Text(
-                                'Ready to withdraw',
-                                style: TextStyle(
-                                  color: AfriColors.success,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: AfriStatTile(
+                            label: 'Earnings',
+                            value: earnings,
+                            icon: CupertinoIcons.money_dollar,
+                            accent: AfriColors.purple,
+                            compact: true),
                       ),
-                      FilledButton.icon(
-                        onPressed: _requestPayout,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 44),
-                          backgroundColor: AfriColors.gold,
-                          foregroundColor: const Color(0xFF170B02),
-                        ),
-                        icon: const Icon(Icons.north_east, size: 17),
-                        label: const Text('Payout'),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AfriStatTile(
+                            label: 'Views',
+                            value: views,
+                            icon: CupertinoIcons.eye,
+                            accent: AfriColors.teal,
+                            compact: true),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                const AfriSectionHeader(
-                  title: 'Top supporters',
-                  subtitle: 'This week',
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 64,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: AfriStatTile(
+                            label: 'New followers',
+                            value: formatCount(asInt(
+                                data?['newFollowers'] ?? data?['followers'])),
+                            icon: CupertinoIcons.person_add,
+                            accent: AfriColors.purple,
+                            compact: true),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AfriStatTile(
+                            label: 'Live sessions',
+                            value: '${data?['totalRooms'] ?? 0}',
+                            icon: CupertinoIcons.mic,
+                            accent: AfriColors.teal,
+                            compact: true),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
+                const AfriSectionHeader(
+                  title: 'Earnings',
+                  trailing: Text(
+                    'See all',
+                    style: TextStyle(color: AfriColors.mutedText, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                SizedBox(
+                  height: 106,
+                  child: AfriGradientPanel(
+                    colors: const [Color(0xFF2D2408), Color(0xFF17150E)],
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Available balance',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      color: AfriColors.mutedText,
+                                      fontSize: 11)),
+                              const SizedBox(height: 2),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(earnings,
+                                      maxLines: 1,
+                                      style: const TextStyle(
+                                          fontSize: 21,
+                                          color: AfriColors.text,
+                                          fontWeight: FontWeight.w900)),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AfriColors.success
+                                      .withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Text(
+                                  'Ready to withdraw',
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    color: AfriColors.success,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: _requestPayout,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 38),
+                            backgroundColor: AfriColors.gold,
+                            foregroundColor: const Color(0xFF170B02),
+                          ),
+                          icon: const Icon(CupertinoIcons.arrow_up_right,
+                              size: 16),
+                          label: const Text('Payout'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const AfriSectionHeader(
+                  title: 'Top supporters',
+                  trailing: Text(
+                    'This week',
+                    style: TextStyle(color: AfriColors.mutedText, fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 7),
                 if (supporters.isEmpty)
                   const AfriEmptyState(
-                    icon: Icons.volunteer_activism,
+                    icon: CupertinoIcons.heart_circle_fill,
                     title: 'No supporters yet',
                     body:
                         'When viewers send gifts in your rooms, your top supporters appear here.',
@@ -322,7 +362,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                       ],
                     ),
                   ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 FilledButton.icon(
                   onPressed: status == 'APPROVED'
                       ? () => _goLive(
@@ -334,12 +374,12 @@ class _CreatorScreenState extends State<CreatorScreen> {
                     backgroundColor: AfriColors.purple,
                     foregroundColor: Colors.white,
                   ),
-                  icon: const Icon(Icons.sensors),
+                  icon: const Icon(CupertinoIcons.video_camera_solid),
                   label: const Text('Go Live'),
                 ),
                 const SizedBox(height: 16),
                 AfriActionRow(
-                  icon: Icons.account_balance,
+                  icon: CupertinoIcons.building_2_fill,
                   title: 'Payout methods',
                   body:
                       'Add a bank or mobile-money destination for your earnings.',
@@ -351,7 +391,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 ),
                 const SizedBox(height: 10),
                 AfriActionRow(
-                  icon: Icons.history,
+                  icon: CupertinoIcons.clock_fill,
                   title: 'Payout history',
                   body: 'Track every payout request from review to paid.',
                   accent: AfriColors.gold,
@@ -362,7 +402,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 ),
                 const SizedBox(height: 10),
                 AfriActionRow(
-                  icon: Icons.insights,
+                  icon: CupertinoIcons.chart_bar_fill,
                   title: 'Show performance',
                   body: 'Peak viewers, watch time, and gifts for each room.',
                   accent: AfriColors.purple,
@@ -373,7 +413,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                 ),
                 const SizedBox(height: 10),
                 AfriActionRow(
-                  icon: Icons.tune,
+                  icon: CupertinoIcons.slider_horizontal_3,
                   title: 'Prepare next room',
                   body: 'Set title, region, language, and viewer defaults.',
                   accent: AfriColors.teal,
@@ -405,8 +445,8 @@ class _CreatorHeader extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 56,
-          height: 56,
+          width: 52,
+          height: 52,
           padding: const EdgeInsets.all(2.5),
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
@@ -437,7 +477,7 @@ class _CreatorHeader extends StatelessWidget {
                   ),
                   if (approved) ...[
                     const SizedBox(width: 6),
-                    const Icon(Icons.verified,
+                    const Icon(CupertinoIcons.checkmark_seal_fill,
                         color: AfriColors.teal, size: 18),
                   ],
                 ],
@@ -473,7 +513,7 @@ class _SupporterRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         border: showDivider
             ? const Border(bottom: BorderSide(color: AfriColors.border))
@@ -487,7 +527,7 @@ class _SupporterRow extends StatelessWidget {
                   color: AfriColors.mutedText, fontWeight: FontWeight.w800)),
         ),
         CircleAvatar(
-          radius: 17,
+          radius: 15,
           backgroundColor: AfriColors.gold.withValues(alpha: 0.16),
           backgroundImage: hasAvatar
               ? NetworkImage(avatarUrl!)

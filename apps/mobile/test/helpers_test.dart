@@ -1,10 +1,21 @@
 import 'package:afristage_mobile/screens/payout_methods_screen.dart';
+import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Gift reads configured artwork from the API animation URL', () {
+    final gift = Gift.fromJson({
+      'id': 'rose',
+      'name': 'Rose',
+      'coinPrice': 10,
+      'animationUrl': 'https://cdn.example/rose.webp',
+    });
+    expect(gift.artworkUrl, 'https://cdn.example/rose.webp');
+  });
+
   group('payoutMethodError', () {
     test('flags the first missing field in order', () {
       expect(
@@ -36,7 +47,7 @@ void main() {
     test('formats whole and fractional coin counts as 2dp dollars', () {
       expect(usd(0), r'$0.00');
       expect(usd(620), r'$620.00');
-      expect(usd(1234.5), r'$1234.50');
+      expect(usd(1234.5), r'$1,234.50');
     });
     test('keeps the sign for negatives', () {
       expect(usd(-5), r'$-5.00');
