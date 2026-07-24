@@ -62,6 +62,9 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
     setState(() => _scheduledAt = chosen);
   }
 
+  // Drop a chosen schedule back to "go live now" (the app-bar icon only re-picks).
+  void _clearSchedule() => setState(() => _scheduledAt = null);
+
   Future<void> _scheduleRoom() async {
     setState(() => _busy = true);
     final state = context.read<AppState>();
@@ -276,6 +279,34 @@ class _GoLiveSetupScreenState extends State<GoLiveSetupScreen> {
             ),
           ),
         ]),
+        if (_scheduledAt != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AfriColors.purple.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AfriColors.purple.withValues(alpha: 0.4)),
+            ),
+            child: Row(children: [
+              const Icon(CupertinoIcons.calendar,
+                  size: 16, color: AfriColors.purple),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Scheduled · ${MaterialLocalizations.of(context).formatMediumDate(_scheduledAt!)}, ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(_scheduledAt!))}',
+                  style: const TextStyle(fontSize: 12.5, color: Colors.white),
+                ),
+              ),
+              IconButton(
+                onPressed: _clearSchedule,
+                tooltip: 'Clear schedule',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(CupertinoIcons.xmark, size: 16),
+              ),
+            ]),
+          ),
+        ],
         const SizedBox(height: 10),
         FilledButton.icon(
           onPressed: _busy ? null : _start,
