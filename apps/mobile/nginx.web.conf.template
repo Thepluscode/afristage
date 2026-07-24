@@ -1,0 +1,20 @@
+# Rendered by the nginx image's envsubst (only ${PORT} is substituted; nginx's
+# own $uri is left alone because `uri` is not an env var). Serves the Flutter web
+# build, answers the shared railway.toml healthcheck, and falls back to index.html.
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Shared railway.toml sets healthcheckPath=/api/health for every service.
+    location = /api/health {
+        add_header Content-Type application/json;
+        return 200 '{"status":"ok","service":"flutter-web"}';
+    }
+
+    # Flutter web uses hash routing by default, but keep an SPA fallback for safety.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

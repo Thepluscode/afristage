@@ -1,0 +1,22 @@
+# Flutter web build → static nginx, hosted as a Railway service. Built from the
+# repo root context (Railway). Binds $PORT (Railway probes it) and answers
+# /api/health (the shared railway.toml healthcheck path).
+FROM ghcr.io/cirruslabs/flutter:3.44.0 AS build
+# The hosted web build talks to staging by default; override at build time if needed.
+ARG API_BASE=https://api-production-e12f.up.railway.app/api
+WORKDIR /app
+# pubspec first so `pub get` caches unless deps change.
+COPY apps/mobile/pubspec.yaml apps/mobile/pubspec.lock ./
+RUN flutter pub get
+# Only what `flutter build web` needs — not android/ios/test/build/.dart_tool.
+COPY apps/mobile/lib ./lib
+COPY apps/mobile/web ./web
+COPY apps/mobile/assets ./assets
+COPY apps/mobile/analysis_options.yaml ./
+RUN flutter build web --release --dart-define=API_BASE=$API_BASE
+
+FROM nginx:1.27-alpine
+# Fallback for local runs; Railway injects the real $PORT and envsubst uses it.
+ENV PORT=8080
+COPY --from=build /app/build/web /usr/share/nginx/html
+COPY apps/mobile/nginx.web.conf.template /etc/nginx/templates/default.conf.template

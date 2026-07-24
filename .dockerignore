@@ -1,0 +1,9 @@
+# Keep the Railway build context lean. None of the service Dockerfiles copy host
+# node_modules / build artifacts (deps are installed inside each image), so these
+# are safe to exclude — and excluding apps/mobile/build (1.5G) + .dart_tool is
+# essential for the flutter-web image.
+**/node_modules
+.git
+apps/mobile/build
+apps/mobile/.dart_tool
+apps/mobile/coverage
