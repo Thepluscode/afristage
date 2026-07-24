@@ -374,9 +374,24 @@ provenance for the `/site` marketing photos before any marketing push (#171).
 These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
 (no prod logs / live evidence):
 
-- All of the above — verified locally (host-GPU emulator captures, jest/flutter
-  suites), not against a deployed environment. GitHub Actions is billing-blocked,
-  so CI evidence is unavailable; merges rest on local green.
+- **Now staging-verified with live evidence (debt retired):** the payments work
+  (#183 disputes, #185 revenue-alert), the whole web client (#192–#207), and the
+  diamonds/earnings work — API `/creators/me/dashboard` fiat fields proven on the
+  deployed API via a throwaway creator; the `/earnings` view + the mobile Diamonds
+  wallet both **rendered live from a real gift→earnings funnel** (720 💎), each with
+  a ledger-safe teardown + `ledger_integrity_ok=1` after. Staging is the only
+  deployed environment, so "staging live" is the bar here — not local-only.
+- **Still local-only (unchanged debt):** the older mobile/landing design passes
+  (goal-interface fidelity, captures) — host-GPU emulator + jest/flutter suites, no
+  deployed evidence. GitHub Actions is billing-blocked, so CI evidence is
+  unavailable; merges rest on local green.
+- **New — native mobile distribution gap:** the diamonds change (#206) is proven in
+  the release web bundle (grep) **and** rendered on the hosted `flutter-web` service,
+  but there is **no Play Store / TestFlight path** — release Android uses debug
+  signing (no upload keystore), and no store/CI publish pipeline exists. The hosted
+  Flutter web build is the current distribution; native app-store shipping is
+  un-started. Physical-device camera publish (#172) also still pending (emulator
+  can't capture).
 - The coin-overdraw fix (#29) relies on Postgres row locks under real concurrency.
   ✅ Now covered by a real-DB concurrency test (#34) — proven under 20 parallel
   gifts on a local Postgres, with teeth verified (guard removed → overdraw). The
