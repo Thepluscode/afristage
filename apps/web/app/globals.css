@@ -142,14 +142,110 @@ html, body {
 /* Gift button + drawer (over the stage) */
 .gift-btn {
   position: absolute;
-  right: 1.2rem;
-  bottom: 1.4rem;
-  padding: 0.7rem 1.2rem;
+  right: 1rem;
+  bottom: 4.4rem;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
   border: 1px solid var(--stage-gold);
   background: rgba(10, 8, 7, 0.72);
   color: var(--stage-gold);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Top supporters strip (under the header) */
+.supporters {
+  position: absolute;
+  top: 3.6rem;
+  left: 1rem;
+  display: flex;
+  gap: 0.4rem;
+  font-family: system-ui, sans-serif;
+  pointer-events: none;
+}
+.supporter {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  background: rgba(10, 8, 7, 0.55);
   border-radius: 999px;
+  font-size: 0.72rem;
+}
+.supporter-rank {
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--stage-gold);
+  color: var(--stage-bg);
+  font-weight: 700;
+  font-size: 0.62rem;
+}
+.supporter-name { color: #f4ead4; max-width: 6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.supporter-coins { color: var(--stage-gold); }
+
+/* Floating hearts (rise from the bottom-right) */
+.hearts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.heart {
+  position: absolute;
+  bottom: 4.5rem;
+  font-size: 1.5rem;
+  animation: heartRise 2.6s ease-out forwards;
+}
+@keyframes heartRise {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  15% { opacity: 1; transform: translateY(-10px) scale(1); }
+  100% { opacity: 0; transform: translateY(-42vh) scale(1.1); }
+}
+
+/* Chat bar (bottom) */
+.chatbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  background: linear-gradient(transparent, rgba(10, 8, 7, 0.8) 40%);
+}
+.chatbar-input {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(233, 180, 76, 0.35);
+  background: rgba(10, 8, 7, 0.6);
+  color: #f4ead4;
   font: inherit;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+.chatbar-input::placeholder { color: rgba(244, 234, 212, 0.5); }
+.chatbar-signin {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(233, 180, 76, 0.35);
+  background: rgba(10, 8, 7, 0.6);
+  color: var(--stage-gold);
+  text-decoration: none;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+.heart-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(233, 180, 76, 0.35);
+  background: rgba(10, 8, 7, 0.6);
+  font-size: 1.2rem;
   cursor: pointer;
 }
 .drawer {

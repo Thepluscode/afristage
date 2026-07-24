@@ -7,6 +7,9 @@ import GiftDrawer from './GiftDrawer';
 import StreamerHeader from './StreamerHeader';
 import ChatFeed from './ChatFeed';
 import GiftOverlay from './GiftOverlay';
+import TopSupporters from './TopSupporters';
+import HeartsOverlay from './HeartsOverlay';
+import ChatBar from './ChatBar';
 import { useRoomLive } from './useRoomLive';
 
 // Thin integration shell: resolve a live room → fetch a guest token → connect and
@@ -19,8 +22,8 @@ export default function Viewer({ room }: { room?: string }) {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [giftOpen, setGiftOpen] = useState(false);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
-  // Live room layer (viewer count, chat, gifts) — connects once roomId is known.
-  const { viewerCount, messages, gifts } = useRoomLive(roomId);
+  // Live room layer — connects once roomId is known.
+  const { viewerCount, messages, gifts, hearts, topGifters, canSend, sendChat, sendReaction } = useRoomLive(roomId);
 
   useEffect(() => {
     let lkRoom: Room | null = null;
@@ -78,6 +81,8 @@ export default function Viewer({ room }: { room?: string }) {
       <video ref={videoRef} playsInline autoPlay muted />
       {status ? <div className="status">{status}</div> : null}
       {roomId ? <StreamerHeader room={roomInfo} liveCount={viewerCount} /> : null}
+      {roomId ? <TopSupporters gifters={topGifters} /> : null}
+      <HeartsOverlay hearts={hearts} />
       <GiftOverlay gifts={gifts} />
       <ChatFeed messages={messages} />
       {unmute ? (
@@ -87,9 +92,10 @@ export default function Viewer({ room }: { room?: string }) {
       ) : null}
       {roomId ? (
         <button className="gift-btn" onClick={() => setGiftOpen(true)} type="button">
-          🎁 Send a gift
+          🎁
         </button>
       ) : null}
+      {roomId ? <ChatBar canSend={canSend} onSend={sendChat} onHeart={sendReaction} /> : null}
       {roomId && giftOpen ? <GiftDrawer roomId={roomId} onClose={() => setGiftOpen(false)} /> : null}
     </div>
   );
