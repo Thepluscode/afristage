@@ -323,8 +323,8 @@ export default function AfriStageSitePage() {
               <span>{subtitle}</span>
               <h3>{title}</h3>
               <p>{body}</p>
-              <a href="/login">
-                Open control plane <ArrowRight size={16} />
+              <a href={WEB_URL}>
+                Get started <ArrowRight size={16} />
               </a>
             </article>
           ))}
@@ -336,8 +336,8 @@ export default function AfriStageSitePage() {
           <p className={styles.eyebrow}>Final call</p>
           <h2>Build the stage. Govern the economy. Launch with evidence.</h2>
         </div>
-        <a className={styles.primaryButton} href="/login">
-          Enter mission control <ArrowRight size={18} />
+        <a className={styles.primaryButton} href={`${WEB_URL}/watch`}>
+          Watch live now <ArrowRight size={18} />
         </a>
       </section>
 
