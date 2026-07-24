@@ -147,6 +147,8 @@ describe('CreatorsService.dashboard', () => {
       { userId: 's1', displayName: 'Big Fan', avatarUrl: null, coins: 50 }
     ]);
     expect(res).toMatchObject({ totalGiftTransactions: 0, totalRooms: 0, followers: 0 });
+    // published 💎→fiat rate + currency (env defaults) for the web earnings view
+    expect(res).toMatchObject({ payoutRate: 100, payoutCurrency: 'NGN' });
   });
 });
 
