@@ -38,6 +38,7 @@ export default function WalletPage() {
         <>
           <p className="balance">{wallet.coinBalance} <span>coins</span></p>
           <a className="cta" href="/buy">Buy coins</a>
+          <p className="alt"><a href="/earnings">Creator? View your earnings →</a></p>
           <p className="alt"><a href="/watch">Back to the stage</a> · <button className="link" onClick={logout} type="button">Sign out</button></p>
         </>
       ) : (

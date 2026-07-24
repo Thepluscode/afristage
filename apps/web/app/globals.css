@@ -189,6 +189,15 @@ html, body {
 .supporter-name { color: #f4ead4; max-width: 6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .supporter-coins { color: var(--stage-gold); }
 
+.earnings .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; width: 100%; margin: 0.5rem 0; }
+.earnings .stat { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem; background: rgba(255, 255, 255, 0.04); border-radius: 0.6rem; }
+.earnings .stat strong { font-size: 1.4rem; font-weight: 500; }
+.earnings .stat span { font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; }
+.earnings .payouts { width: 100%; margin-top: 0.5rem; }
+.earnings .payouts h2 { font-size: 1rem; font-weight: 400; opacity: 0.8; margin: 0 0 0.5rem; }
+.earnings .payout { display: flex; justify-content: space-between; padding: 0.5rem 0; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 0.9rem; }
+.earnings .payout-status { opacity: 0.6; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
+
 /* Floating hearts (rise from the bottom-right) */
 .hearts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .heart {

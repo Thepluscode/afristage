@@ -129,7 +129,11 @@ export class CreatorsService {
       totalRooms: rooms,
       followers,
       totalWatchSeconds: watchAgg._sum.totalWatchSeconds ?? 0n,
-      topSupporters
+      topSupporters,
+      // Published 💎→fiat conversion so clients can show earnings' cash value
+      // without hardcoding the rate. Same env the payout path applies at cash-out.
+      payoutRate: Number(process.env.COIN_TO_FIAT_MINOR_RATE || 100),
+      payoutCurrency: process.env.CREATOR_PAYOUT_CURRENCY || 'NGN'
     };
   }
 
