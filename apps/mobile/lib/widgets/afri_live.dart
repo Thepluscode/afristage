@@ -621,6 +621,16 @@ String usd(num coins) {
   return '\$${coins < 0 ? '-' : ''}$grouped.${parts.last}';
 }
 
+// Diamonds (💎) are the creator earning unit — 1 💎 = 1 earned coin (a creator's
+// 60% share of a gift). Grouped integer count, no currency symbol; usd() renders
+// the same balance's cash-out value.
+String gems(num n) {
+  final whole = n.abs().round().toString();
+  final grouped =
+      whole.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+  return '${n < 0 ? '-' : ''}$grouped';
+}
+
 /// Ledger amount display. COIN has no minor subdivision (whole coins); fiat
 /// `amountMinor` is in minor units (kobo/cents) and divides by 100.
 String ledgerMoney(int amountMinor, String currency) {

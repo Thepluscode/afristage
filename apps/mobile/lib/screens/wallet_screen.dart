@@ -317,7 +317,7 @@ class _EarningsSummaryCard extends StatelessWidget {
           Row(children: [
             const Expanded(
               child: Text(
-                'Earnings summary',
+                'Diamonds',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -335,8 +335,8 @@ class _EarningsSummaryCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: _SummaryMetric(
-                label: 'Total earnings',
-                value: usd(earnings + payoutHold),
+                label: 'Total diamonds',
+                value: '${gems(earnings + payoutHold)} 💎',
                 accent: AfriColors.success,
               ),
             ),
@@ -346,8 +346,8 @@ class _EarningsSummaryCard extends StatelessWidget {
             ),
             Expanded(
               child: _SummaryMetric(
-                label: 'Views earnings',
-                value: usd(0),
+                label: 'Views',
+                value: '${gems(0)} 💎',
               ),
             ),
           ]),
@@ -355,8 +355,8 @@ class _EarningsSummaryCard extends StatelessWidget {
           Row(children: [
             Expanded(
               child: _SummaryMetric(
-                label: 'Gift earnings',
-                value: usd(earnings),
+                label: 'Gift diamonds',
+                value: '${gems(earnings)} 💎',
               ),
             ),
             const SizedBox(
@@ -366,7 +366,7 @@ class _EarningsSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: 'Tips',
-                value: usd(0),
+                value: '${gems(0)} 💎',
               ),
             ),
           ]),
