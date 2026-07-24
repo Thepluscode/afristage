@@ -526,7 +526,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Available balance'), findsOneWidget);
     expect(find.text(r'$620.00'), findsWidgets);
-    expect(find.text('Gift earnings'), findsOneWidget);
+    // Diamonds are the creator earning unit: 620 earned coins → "620 💎".
+    expect(find.text('Gift diamonds'), findsOneWidget);
+    expect(find.text('620 💎'), findsOneWidget);
+    expect(find.text('670 💎'), findsOneWidget); // total = earnings + payout hold
   });
 
   testWidgets('PayoutMethods add-method sheet opens with provider segments',

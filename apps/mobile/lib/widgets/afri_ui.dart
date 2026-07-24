@@ -1391,7 +1391,7 @@ class AfriPayoutStatusCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text('Coins, earnings, and payout holds are separated for safety.',
+          Text('Coins, diamonds, and payout holds are separated for safety.',
               style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
@@ -2534,7 +2534,7 @@ class AfriHostControlsPanel extends StatelessWidget {
           children: [
             AfriChip(label: '$viewerCount viewers', selected: true),
             AfriChip(label: '$giftCount gifts'),
-            AfriChip(label: '$earningsEstimate coins'),
+            AfriChip(label: '$earningsEstimate 💎'),
             FilterChip(
               selected: cameraOn,
               onSelected: onCameraChanged,

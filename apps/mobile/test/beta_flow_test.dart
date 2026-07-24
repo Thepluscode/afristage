@@ -95,8 +95,8 @@ void main() {
       (tester) async {
     await tester.pumpWidget(wrap(const WalletScreen()));
     expect(find.text('Wallet'), findsOneWidget);
-    expect(find.text('Gift earnings'), findsOneWidget);
-    expect(find.text('Views earnings'), findsOneWidget);
+    expect(find.text('Gift diamonds'), findsOneWidget);
+    expect(find.text('Views'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Buy coins'), 300);
     expect(find.text('Buy coins'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Live history'), 300);
