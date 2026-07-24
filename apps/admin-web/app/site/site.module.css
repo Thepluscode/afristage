@@ -6,7 +6,7 @@
     radial-gradient(circle at 72% 4%, rgba(124, 58, 237, 0.3), transparent 30rem),
     linear-gradient(180deg, #050407 0%, #0c0909 44%, #040405 100%);
   color: #fff8e8;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Avenir Next", Avenir, "Helvetica Neue", Helvetica, ui-sans-serif, system-ui, sans-serif;
 }
 
 .siteShell,
@@ -490,14 +490,13 @@
 
 .featurePanel {
   position: relative;
+  isolation: isolate;
   min-height: 410px;
   overflow: hidden;
   padding: 34px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 34px;
-  background:
-    radial-gradient(circle at 78% 16%, rgba(255, 200, 87, 0.18), transparent 14rem),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.025));
+  background: #080708;
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.28);
 }
 
@@ -516,28 +515,59 @@
 
 .featurePanel:nth-child(4) {
   grid-column: 1 / -1;
-  min-height: 360px;
+  min-height: 430px;
   margin-top: 28px;
-  background:
-    radial-gradient(circle at 84% 20%, rgba(124, 58, 237, 0.24), transparent 18rem),
-    radial-gradient(circle at 18% 90%, rgba(20, 184, 166, 0.14), transparent 16rem),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
 }
 
-.featurePanel::after {
+.featurePanel::before {
   position: absolute;
-  right: -70px;
-  bottom: -90px;
-  width: 250px;
-  height: 250px;
+  z-index: 1;
+  inset: 0;
   content: "";
-  border-radius: 50%;
-  background: conic-gradient(from 120deg, rgba(255, 200, 87, 0.28), rgba(124, 58, 237, 0.18), transparent);
-  filter: blur(2px);
+  background: linear-gradient(180deg, rgba(5, 5, 6, 0.98) 0%, rgba(5, 5, 6, 0.9) 42%, rgba(5, 5, 6, 0.4) 72%, rgba(5, 5, 6, 0.12) 100%);
+  pointer-events: none;
 }
 
-.panelIndex {
+.featureImage {
+  z-index: 0;
+  object-fit: cover;
+  filter: saturate(0.86) contrast(1.03);
+  transform: scale(1.015);
+  transition: filter 600ms ease, transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.featurePanel:first-child .featureImage {
+  object-position: 66% 52%;
+}
+
+.featurePanel:nth-child(2) .featureImage {
+  object-position: 72% 48%;
+}
+
+.featurePanel:nth-child(3) .featureImage {
+  object-position: 34% 50%;
+}
+
+.featurePanel:nth-child(4) .featureImage {
+  object-position: 72% 50%;
+}
+
+.featurePanel:hover .featureImage {
+  filter: saturate(1) contrast(1.06);
+  transform: scale(1.045);
+}
+
+.featurePanel > svg,
+.featurePanel > p,
+.featurePanel > h3,
+.featurePanel > span:not(.panelIndex) {
+  position: relative;
+  z-index: 2;
+}
+
+.featurePanel > .panelIndex {
   position: absolute;
+  z-index: 2;
   right: 28px;
   top: 26px;
   color: rgba(255, 248, 232, 0.18);
@@ -710,17 +740,62 @@
 }
 
 .offerGrid article {
+  position: relative;
+  isolation: isolate;
+  display: flex;
   min-height: 470px;
+  overflow: hidden;
+  flex-direction: column;
   padding: 30px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 34px;
-  background: rgba(255, 255, 255, 0.045);
+  background: #080708;
+}
+
+.offerGrid article::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
+  background: linear-gradient(180deg, rgba(5, 5, 6, 0.98) 0%, rgba(5, 5, 6, 0.88) 45%, rgba(5, 5, 6, 0.42) 72%, rgba(5, 5, 6, 0.14) 100%);
+  pointer-events: none;
+}
+
+.offerImage {
+  z-index: 0;
+  object-fit: cover;
+  filter: saturate(0.86) contrast(1.03);
+  transform: scale(1.015);
+  transition: filter 600ms ease, transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.offerGrid article:first-child .offerImage {
+  object-position: 68% 52%;
+}
+
+.offerGrid article:nth-child(2) .offerImage {
+  object-position: 70% 50%;
+}
+
+.offerGrid article:nth-child(3) .offerImage {
+  object-position: 72% 50%;
+}
+
+.offerGrid article:hover .offerImage {
+  filter: saturate(1) contrast(1.06);
+  transform: scale(1.045);
+}
+
+.offerGrid article > span,
+.offerGrid article > h3,
+.offerGrid article > p,
+.offerGrid article > a {
+  position: relative;
+  z-index: 2;
 }
 
 .offerGrid .featuredOffer {
-  background:
-    radial-gradient(circle at 70% 0%, rgba(255, 200, 87, 0.24), transparent 15rem),
-    linear-gradient(160deg, rgba(255, 138, 31, 0.22), rgba(124, 58, 237, 0.09));
+  border-color: rgba(255, 200, 87, 0.42);
   transform: translateY(-34px);
 }
 
@@ -728,7 +803,8 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  margin-top: 34px;
+  margin-top: auto;
+  padding-top: 34px;
   color: #ffc857;
   font-weight: 900;
 }
@@ -795,11 +871,26 @@
     grid-row: auto;
   }
 
+  .featurePanel,
+  .featurePanel:first-child,
+  .featurePanel:nth-child(4) {
+    min-height: 620px;
+  }
+
   .featurePanel:nth-child(2),
   .featurePanel:nth-child(3),
   .featurePanel:nth-child(4),
   .offerGrid .featuredOffer {
     transform: none;
+  }
+
+  .featurePanel:nth-child(4) {
+    grid-column: auto;
+    margin-top: 0;
+  }
+
+  .offerGrid article:nth-child(3) {
+    grid-column: 1 / -1;
   }
 
   .processCopy {
@@ -898,6 +989,16 @@
     margin-top: 0;
   }
 
+  .offerGrid article:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .featurePanel,
+  .featurePanel:first-child,
+  .featurePanel:nth-child(4) {
+    min-height: 560px;
+  }
+
   .productShowcase {
     overflow-x: auto;
   }
@@ -954,9 +1055,25 @@
   padding: 18px 0 48px;
   isolation: isolate;
   background:
-    linear-gradient(90deg, rgba(2, 2, 2, 0.98) 0%, rgba(2, 2, 2, 0.88) 29%, rgba(2, 2, 2, 0.16) 61%, rgba(2, 2, 2, 0.12) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.08) 58%, #030303 100%),
-    url('/site/afristage-hero-stage.jpg') center / cover no-repeat;
+    radial-gradient(circle at 88% 11%, rgba(255, 193, 44, 0.38), transparent 29%),
+    linear-gradient(90deg, rgba(2, 2, 2, 0.9) 0%, rgba(2, 2, 2, 0.58) 31%, rgba(2, 2, 2, 0.02) 61%, transparent 100%),
+    linear-gradient(180deg, transparent 62%, rgba(3, 3, 3, 0.1) 80%, #030303 100%),
+    url('/site/afristage-hero-stage.jpg') right top / 115% auto no-repeat;
+}
+
+.hero::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(255, 213, 104, 0.5) 0 2.5%, rgba(255, 167, 20, 0.2) 11%, transparent 30%),
+    url('/site/afristage-hero-stage.jpg') right top / 115% auto no-repeat;
+  filter: brightness(1.22) saturate(1.18);
+  mix-blend-mode: screen;
+  opacity: 0.2;
+  mask-image: linear-gradient(90deg, transparent 34%, rgba(0, 0, 0, 0.28) 52%, #000 69%);
 }
 
 .hero::after {
@@ -991,9 +1108,11 @@
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.36);
   color: #ffc62f;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 20px;
   box-shadow: none;
+}
+
+.brand span svg {
+  display: block;
 }
 
 .navLinks {
@@ -1045,10 +1164,10 @@
 }
 
 .hero h1 {
-  width: 560px;
+  width: 590px;
   max-width: 52vw;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 112px;
+  font-size: 118px;
   font-weight: 400;
   line-height: 0.82;
 }
@@ -1163,16 +1282,16 @@
   position: absolute;
   z-index: 4;
   top: 150px;
-  right: 5.2%;
+  right: clamp(42px, 5.2%, 80px);
   width: 320px;
   height: 510px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.26);
   border-radius: 28px;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.06) 35%, rgba(2, 2, 2, 0.76) 78%, rgba(2, 2, 2, 0.92) 100%),
+    linear-gradient(180deg, transparent 35%, rgba(2, 2, 2, 0.58) 78%, rgba(2, 2, 2, 0.88) 100%),
     url('/site/afristage-hero-stage.jpg') 73% center / auto 112% no-repeat;
-  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.42), 0 0 92px rgba(255, 180, 35, 0.22);
   transform: rotate(1.6deg);
   backdrop-filter: blur(2px);
 }
@@ -1448,4 +1567,198 @@
 }
 .siteFooter a:hover {
   color: #e9b44c;
+}
+
+/* One editorial type system across the entire public landing experience. */
+.siteShell {
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-ui: "Avenir Next", Avenir, "Helvetica Neue", Helvetica, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-ui);
+}
+
+.hero h1,
+.problemSection h2,
+.featureSection h2,
+.processSection h2,
+.offerSection h2,
+.ctaSection h2,
+.featurePanel h3,
+.stepDetail h3,
+.offerGrid h3,
+.proofGrid strong,
+.productShowcaseCopy strong,
+.sectionNumber,
+.panelIndex {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+
+.problemSection h2,
+.featureSection h2,
+.processSection h2,
+.offerSection h2,
+.ctaSection h2 {
+  line-height: 0.98;
+}
+
+.featurePanel h3,
+.stepDetail h3,
+.offerGrid h3 {
+  line-height: 1.02;
+}
+
+.eyebrow,
+.featurePanel p,
+.offerGrid article span,
+.navLinks a,
+.navCta,
+.productShowcaseCopy > span,
+.productShowcaseLegend span {
+  font-family: var(--font-ui);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Remotion-style sequencing adapted to the live page: one measured reveal,
+   followed by restrained ambient motion instead of unrelated effects. */
+.nav {
+  animation: editorialDrop 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.heroCopy .eyebrow,
+.heroCopy h1,
+.heroCopy .lede,
+.heroActions,
+.liveMeta {
+  animation: editorialRise 840ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.heroCopy .eyebrow { animation-delay: 100ms; }
+.heroCopy h1 { animation-delay: 180ms; }
+.heroCopy .lede { animation-delay: 300ms; }
+.heroActions { animation-delay: 410ms; }
+.liveMeta { animation-delay: 520ms; }
+
+.liveFrame {
+  animation:
+    liveFrameEnter 980ms 300ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    liveFrameFloat 6.4s 1.28s ease-in-out infinite;
+}
+
+.liveChat p {
+  animation: chatArrival 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.liveChat p:nth-child(1) { animation-delay: 700ms; }
+.liveChat p:nth-child(2) { animation-delay: 820ms; }
+.liveChat p:nth-child(3) { animation-delay: 940ms; }
+.liveChat p:nth-child(4) { animation-delay: 1060ms; }
+
+.hearts svg {
+  animation: heartLift 2.8s ease-in-out infinite;
+}
+
+.hearts svg:nth-child(2) { animation-delay: 420ms; }
+.hearts svg:nth-child(3) { animation-delay: 840ms; }
+
+.scrollCue i {
+  animation: scrollPulse 2.2s ease-in-out infinite;
+  transform-origin: top;
+}
+
+.motionReady [data-reveal] {
+  opacity: 0;
+  transform: translateY(44px);
+  transition:
+    opacity 880ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 880ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.motionReady [data-reveal].revealed {
+  opacity: 1;
+  transform: none;
+}
+
+.motionReady .revealed .featurePanel,
+.motionReady .revealed .proofGrid > div,
+.motionReady .revealed .offerGrid > article {
+  animation: editorialCardIn 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.motionReady .revealed .featurePanel:nth-child(2),
+.motionReady .revealed .proofGrid > div:nth-child(2),
+.motionReady .revealed .offerGrid > article:nth-child(2) { animation-delay: 90ms; }
+
+.motionReady .revealed .featurePanel:nth-child(3),
+.motionReady .revealed .proofGrid > div:nth-child(3),
+.motionReady .revealed .offerGrid > article:nth-child(3) { animation-delay: 180ms; }
+
+.motionReady .revealed .featurePanel:nth-child(4),
+.motionReady .revealed .proofGrid > div:nth-child(4) { animation-delay: 270ms; }
+
+.stepDetail {
+  animation: stepDetailIn 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes editorialDrop {
+  from { opacity: 0; transform: translateY(-18px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes editorialRise {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes liveFrameEnter {
+  from { opacity: 0; transform: translateY(42px) rotate(4deg) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) rotate(1.6deg) scale(1); }
+}
+
+@keyframes liveFrameFloat {
+  0%, 100% { transform: translateY(0) rotate(1.6deg); }
+  50% { transform: translateY(-9px) rotate(0.8deg); }
+}
+
+@keyframes chatArrival {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes heartLift {
+  0%, 100% { opacity: 0.54; transform: translateY(5px) scale(0.88); }
+  45% { opacity: 1; transform: translateY(-7px) scale(1.08); }
+}
+
+@keyframes scrollPulse {
+  0%, 100% { opacity: 0.28; transform: scaleY(0.55); }
+  50% { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes editorialCardIn {
+  from { opacity: 0; transform: translateY(26px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes stepDetailIn {
+  from { opacity: 0; transform: translateX(22px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siteShell *,
+  .siteShell *::before,
+  .siteShell *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .motionReady [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
 }

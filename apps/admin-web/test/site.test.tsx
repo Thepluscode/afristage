@@ -19,6 +19,17 @@ describe('public marketing page (/site)', () => {
     for (const kicker of ['Live rooms', 'Creator economy', 'Trust operations', 'Creator control']) {
       expect(screen.getAllByText(kicker).length).toBeGreaterThan(0);
     }
+    for (const alt of [
+      /singer performing for a live camera/i,
+      /music creator reviewing earnings/i,
+      /live-event operator monitoring a broadcast/i,
+      /musician preparing a camera/i,
+      /three creators preparing a closed beta stream/i,
+      /creator reviewing her phone backstage/i,
+      /two live-platform operators coordinating a broadcast/i
+    ]) {
+      expect(screen.getByRole('img', { name: alt })).toBeInTheDocument();
+    }
     // proof strip
     expect(screen.getByText('60/40')).toBeInTheDocument();
     // operator login CTAs point at the real login route
