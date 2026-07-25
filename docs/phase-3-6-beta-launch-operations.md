@@ -4,6 +4,31 @@
 
 Run the AfriStage closed beta as a controlled operation. Phase 3.5 proved the core flows; Phase 3.6 defines who is allowed in, what operators check every day, how incidents are handled, and which gates block launch.
 
+## Beta GO / NO-GO checklist
+
+Run top to bottom before inviting anyone. **One unchecked Blocker = NO-GO.** Verify each
+against evidence — don't assume. State column is today's status.
+
+### A. Blockers — every one must be ✅
+| # | Check | How to verify | State |
+|---|---|---|---|
+| 1 | Launch gate passes | `npm run launch:beta:live` exits 0 (needs Postgres/Redis/LiveKit/API up) | ⬜ run at launch |
+| 2 | Ledger integrity green | `curl -s $API/metrics \| grep -E 'ledger_integrity_ok 1\|ledger_unbalanced.* 0'` | ✅ staging |
+| 3 | Outside-in monitor **scheduled + seen to fire** | `apps/api/scripts/beta-uptime.sh` runs on a schedule with `UPTIME_ALERT_WEBHOOK_URL` set; confirm a real Slack alert arrived (point it at a bad URL once) | ⬜ script done, not scheduled |
+| 4 | Real payments (only if real money flows) | `PAYSTACK_SECRET_KEY` set + one live card purchase credits coins; OR the beta is coins-free / mock-only | ⬜ staging = test key → 502 |
+| 5 | Admin can enable creator payouts + approvals staffed | `POST /api/admin/creators/:id/payout {enabled:true}` (verified #208) + an accountable operator on payout approvals | ✅ #208 (endpoint) |
+| 6 | No prod footguns | `REQUIRE_ADMIN_MFA=true`, `ENABLE_MOCK_PAYMENTS` unset, `ALLOW_SEEDED_PROD_LOGIN` unset, admin cookie secure (see **Production readiness flags**) | ⬜ pending |
+
+### B. Should-have — warn, not blocking for a small hand-supported beta
+- `RESEND_API_KEY` set — else password-reset/email ships dark (recovery is admin-assisted, OK only while support can hand-verify identity). **Becomes a Blocker** for any wave too large to hand-verify.
+- Support playbooks linked + on-call assigned (this doc's **Incident playbooks**).
+- Self-serve KYC gap acknowledged — creators are hand-approved for payout (fine at beta scale).
+
+### C. Decisions to record before inviting
+- **Distribution channel:** hosted flutter-web (live) / Android internal testing / native store (native **not operational** — see `docs/mobile-release.md`).
+- **Wave size vs. support capacity** — drives whether the B items become Blockers.
+- **Money mode:** real payments (needs A#4) vs. a coins-free demo beta.
+
 ## Launch Gate Commands
 
 Local preflight without a live API smoke:
