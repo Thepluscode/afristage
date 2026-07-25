@@ -68,6 +68,22 @@ mis-converted — and unblocks paying a global creator operationally via manual 
 creator needs automated payout** — then Stripe Connect, with the compliance work scoped
 separately.
 
+## Rates set (2026-07-25)
+
+Anchored to the buy price (100 coins = ₦1,000 = $1 → **1 coin = ₦10 = $0.01**), so
+creators redeem at what viewers actually paid (the 60% split is already applied at gift
+time). Live on the api service:
+
+```
+COIN_FIAT_RATES = {"NGN":1000,"USD":1}     # minor units per coin: 1000 kobo=₦10, 1 cent=$0.01
+```
+
+NGN + USD only (the markets with coin-buy packages); other currencies would fall back to
+`COIN_TO_FIAT_MINOR_RATE` and mis-pay, so they stay disabled until they get their own
+price points. **Display fixed to match** the same turn: mobile `usd()` (1 coin = $0.01, so
+"$620" → "$6.20") and `/creators/me/dashboard` `payoutRate` (now `coinFiatRate(currency)`,
+so web `/earnings` shows the real value) — else the UI showed 100× the actual payout.
+
 ## Explicitly OUT
 Any ledger/COIN change (payouts stay coin-authoritative); changing the buy-side (viewers can
 already pay globally via Stripe/USD); Connect integration (Phase B); tax/AML tooling (Phase B);
