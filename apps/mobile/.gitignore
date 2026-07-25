@@ -51,3 +51,9 @@ app.*.map.json
 # store credentials — NEVER commit
 **/*service-account*.json
 **/*.p8
+
+# local bundler install (fastlane verify)
+/vendor/bundle/
+/.bundle/
+android/vendor/
+ios/vendor/

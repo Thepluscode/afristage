@@ -91,6 +91,10 @@ cd android && bundle install && bundle exec fastlane internal          # → Pla
 # later: bundle exec fastlane production   (staged 10% rollout)
 ```
 
+> **Ruby version:** fastlane needs Ruby ≥ 2.7; macOS **system Ruby (2.6) is too old**.
+> Use a newer Ruby, e.g. homebrew's: `export PATH="/opt/homebrew/opt/ruby/bin:$PATH"`
+> before `bundle install`. Verified: the lanes load + list under Ruby 3.4.
+
 Get the JSON: Play Console → Setup → API access → create a service account with
 "Release manager" permission, download its key. Treat it as a secret (gitignored via
 `**/*service-account*.json`).
