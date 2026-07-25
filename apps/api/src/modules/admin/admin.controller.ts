@@ -99,6 +99,14 @@ export class AdminController {
     return this.creatorsService.suspendCreator(user.sub, userId, reason || 'Suspended');
   }
 
+  // Enable (or disable) creator payouts for the beta. Body { enabled } defaults to
+  // true; enabling also marks KYC APPROVED so the payout gate passes.
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('creators/:userId/payout')
+  setPayoutEligibility(@CurrentUser() user: any, @Param('userId') userId: string, @Body('enabled') enabled?: boolean) {
+    return this.creatorsService.setPayoutEligibility(user.sub, userId, enabled ?? true);
+  }
+
   @Get('payments')
   payments() {
     return this.admin.payments();

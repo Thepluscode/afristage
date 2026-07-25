@@ -3,7 +3,7 @@ describe('AdminController', () => {
   function make() {
     const admin = { betaOpsDashboard: jest.fn(), dashboard: jest.fn(), users: jest.fn(), userActivity: jest.fn(), search: jest.fn(), creators: jest.fn(), liveRooms: jest.fn(), payments: jest.fn(), ledgerTransactions: jest.fn(), auditLogs: jest.fn(), leaderboard: jest.fn() };
     const account = { softDelete: jest.fn(), hardDelete: jest.fn(), export: jest.fn(), purgeExpired: jest.fn() };
-    const creators = { approveCreator: jest.fn(), rejectCreator: jest.fn(), suspendCreator: jest.fn() };
+    const creators = { approveCreator: jest.fn(), rejectCreator: jest.fn(), suspendCreator: jest.fn(), setPayoutEligibility: jest.fn() };
     const ledger = { check: jest.fn() };
     const rooms = { endStaleRooms: jest.fn(), get: jest.fn(), adminEnd: jest.fn() };
     return { c: new AdminController(admin as any, account as any, creators as any, ledger as any, rooms as any), admin, account, creators, ledger, rooms };
@@ -30,8 +30,11 @@ describe('AdminController', () => {
     const { c, creators, rooms } = make();
     c.approveCreator(u, 'c1'); c.rejectCreator(u, 'c1'); c.rejectCreator(u, 'c1', 'bad');
     c.suspendCreator(u, 'c1'); c.suspendCreator(u, 'c1', 'tos'); c.endRoom(u, 'r1');
+    c.setPayoutEligibility(u, 'c1'); c.setPayoutEligibility(u, 'c1', false);
     expect(creators.rejectCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Rejected');
     expect(creators.suspendCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Suspended');
+    expect(creators.setPayoutEligibility).toHaveBeenNthCalledWith(1, 'a1', 'c1', true); // enabled defaults to true
+    expect(creators.setPayoutEligibility).toHaveBeenNthCalledWith(2, 'a1', 'c1', false);
     expect(rooms.adminEnd).toHaveBeenCalledWith('a1', 'r1');
   });
   it('delegates account deletion endpoints with the acting admin id', () => {
