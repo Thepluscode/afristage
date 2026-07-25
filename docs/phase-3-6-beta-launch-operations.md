@@ -126,6 +126,60 @@ is on); `identifier` is email OR phone.
   throttle only (deliberate). A targeted slow attack across IPs is bounded by
   bcrypt cost 12; revisit at scale.
 
+### Go live (creator) / Watch (viewer)
+
+Customer-symptom table for the core streaming flow. Every row is a distinct throw
+in `live-rooms.service` / the guest-token path.
+
+| User sees | Cause | Diagnosis | Resolution | Tier |
+|---|---|---|---|---|
+| Creator: "Only creators can create live rooms" | Account is a viewer, not a creator | `select role from users where id='U';` + `select approval_status from creator_profiles where user_id='U';` | User applies (`POST /api/creators/apply`), then approve in Admin → Creators (`POST /api/admin/creators/:userId/approve`, audited) | 2 |
+| Creator: "Creator approval required before going live" | creatorProfile exists but `approval_status ≠ APPROVED` | `select approval_status, kyc_status from creator_profiles where user_id='U';` | Review the application; `POST /api/admin/creators/:userId/approve`. If rejected on purpose, reply with the reason | 2 |
+| Creator/viewer: "User is not active" | Account SUSPENDED/BANNED | `select status from users where id='U';` + Admin → audit logs | Same as auth "User is not active" — `POST /api/admin/users/:id/reactivate` if wrong | 2 |
+| Viewer: stream won't load / no video (no guest token) | Room isn't LIVE (`POST /live-rooms/:id/guest-token` is LIVE-only) or it ended | `select status from live_rooms where id='R';` — SCHEDULED/ENDED → no token, by design | Not an error if the stream simply ended. Host crashed → the room-cleanup sweep ends the stuck room; ask the host to restart | 1/2 |
+| All viewers: can't join a LIVE room / black video | LiveKit token or service failure | `/api/health` + LiveKit health; confirm host start returned `hostToken`+`livekitUrl`; check `LIVEKIT_*` env after any deploy | Follow **LiveKit or realtime failure** (Tier 3) below; move the session if >10 min | 3 |
+
+### Buy coins
+
+Every row is a throw in `payments.service` (plus the two operational realities: a test key in staging, and webhook lag).
+
+| User sees | Cause | Diagnosis | Resolution | Tier |
+|---|---|---|---|---|
+| "A verified email is required for card payments" | Card intent, phone-only account has no email | `select email from users where id='U';` | User adds an email, then retries | 1 (reply) |
+| Checkout won't open / 502 on card init | Provider not configured, or a **test** key in staging | `select checkout_url, provider, status from payment_intents where id='I';` + confirm the market's key (NGN→Paystack, USD→Stripe) | Prod: set the real key. Staging: expected with the test key — use the mock path | 2/3 |
+| "<provider> is not configured" | Payment provider env missing for that currency | check the provider keys for the package's market | Set the missing key; until then that market can't buy | 3 |
+| "I paid but no coins arrived" | Webhook lag or a lost webhook | `select status from payment_intents where id='I';` — PENDING while the provider shows paid | The reconciliation sweep (#177) re-verifies + credits via the SAME idempotent path; or `POST /api/payments/coin-purchase-intents/:id/verify` (pull-verify). **Never hand-credit** — double-credit risk | 2 |
+| Duplicate coins credited | Double/retried webhook | idempotency key + reference in Admin → Payments | Freeze the wallet; follow **Payment credit failure** (Tier 3). Credit path is idempotent by design, so investigate how it happened | 3 |
+
+### Send a gift
+
+Every row is a throw in `gifts.service` / `money.service`. Note: a failed gift throws **before** the ledger post, so **no coins move** — reassure the user.
+
+| User sees | Cause | Diagnosis | Resolution | Tier |
+|---|---|---|---|---|
+| "Not enough coins" | Wallet COIN balance < gift price × quantity | `GET /api/wallet/me` (as user) or `select balance_minor from wallet_accounts where user_id='U' and account_type='COIN';` | Expected — user buys more coins. If they DID buy and it's wrong, see the Buy-coins rows | 1 (reply) |
+| "Room is not live" | Gifting a SCHEDULED/ENDED room (race as the stream ends) | `select status from live_rooms where id='R';` | Expected once a stream ends — no coins were lost | 1 (reply) |
+| "You cannot gift yourself" | Host gifted their own room | — | Expected guard | 1 (reply) |
+| "Gift not found" / "only available during its event" | Gift deactivated, or an event-limited gift outside its window | `select is_active from gifts where id='G';` | If it should be active, re-enable in Admin → Gifts | 2 |
+| Gift sent but creator got no diamonds | Ledger/split anomaly | Admin → Ledger Integrity; trace the gift's `ledgerTransactionId` | Follow **Ledger imbalance** (Tier 3) — the split is one balanced txn, so a partial should be impossible | 3 |
+
+### Request a payout
+
+Every row is a throw in `payouts.service`. Payout moves EARNING (diamonds) → PAYOUT_HOLD.
+
+| User sees | Cause | Diagnosis | Resolution | Tier |
+|---|---|---|---|---|
+| "Payout not enabled" | `payout_enabled=false` or `kyc_status ≠ APPROVED` | `select payout_enabled, kyc_status from creator_profiles where user_id='U';` | **GAP — no self-serve KYC flow yet** (see gap below); enabling payout is a manual beta step | 2 |
+| "Below minimum payout threshold" | coinAmount < `MIN_PAYOUT_COIN` (default 500) | — | Expected — creator accrues more diamonds first | 1 (reply) |
+| "Insufficient earnings" | Requested > available EARNING; a pending payout holds funds | `GET /api/wallet/me` `earningBalance` vs `payoutHoldBalance` | Expected. If /earnings shows more, a prior payout is holding it — explain | 1/2 |
+| "Invalid payout method" | `payoutMethodId` not theirs / deleted | `select id from payout_methods where user_id='U';` | User re-adds a method (`POST /api/payouts/methods`) | 1 (reply) |
+| "Idempotency key already used" / "reused with a different amount" | Client double-fired the request | grep logs by `requestId` | The first request stands; no double-hold. Repeated → client bug, file it | 2 |
+| Payout stuck / "Illegal payout transition …" | Admin action out of order (approve/reject/mark-paid) | `select status from payout_requests where id='P';` | Follow **Payout risk or failed payout** (Tier 3); never edit rows | 3 |
+
+**Known gap (do not improvise):** there is **no self-serve KYC / payout-enablement flow**.
+`payout_enabled` + `kyc_status` are set manually (admin/DB) for beta creators, so "Payout
+not enabled" has no user-facing fix yet. Wire a KYC flow before opening payouts broadly.
+
 ### Ledger imbalance
 
 Impact: Critical money integrity incident.
