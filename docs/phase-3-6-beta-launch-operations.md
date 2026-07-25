@@ -69,6 +69,36 @@ Do not invite or expand beta users when any condition is true:
 - Critical report categories do not appear in the admin queue.
 - Open Critical or unresolved money/safety High issue exists.
 
+## Outside-in health monitoring
+
+The in-API `@Cron`s (revenue alert #185, payment synthetic #191, ledger-integrity)
+are blind to their own host: if the API crashes or a deploy never goes healthy,
+they die with it. `apps/api/scripts/beta-uptime.sh` runs **off** the API host and
+probes the deployed public API — so it catches exactly that.
+
+Checks (each a real probe of the deployed URL): `/api/health` 200 + `"status":"ok"`,
+`/live-rooms` 200 (the beta's core public read), `/metrics` contains
+`afristage_ledger_integrity_ok 1` (money integrity). Any failure POSTs Slack (via the
+bundled `synthetic_check.py`) and exits 1 so a scheduler flags it.
+
+```bash
+# one probe (set the webhook to actually alert):
+UPTIME_ALERT_WEBHOOK_URL=https://hooks.slack.com/... \
+  bash apps/api/scripts/beta-uptime.sh
+bash apps/api/scripts/beta-uptime.sh --selftest   # verify detection without alerting
+```
+
+**Schedule it (pick one — a monitor that isn't scheduled is not a monitor):**
+- **Recommended always-on ping:** point a **free external uptime service**
+  (UptimeRobot / BetterStack) at `/api/health`. It's truly off-platform, so it also
+  catches a Railway-wide outage this script can't see from Railway.
+- **The deep check** (health + live-rooms + ledger): run `beta-uptime.sh` every ~5 min
+  from a laptop/server `cron`, a **Railway cron service**, or a GitHub Action (once
+  Actions billing is on) — with `UPTIME_ALERT_WEBHOOK_URL` set.
+
+**Limitation (honest):** a single-region checker on the same platform can't detect a
+total-Railway outage — pair it with the off-platform ping above.
+
 ## Support tiers
 
 Every ticket lands in exactly one tier. The tier decides who acts, not how urgent it feels.
