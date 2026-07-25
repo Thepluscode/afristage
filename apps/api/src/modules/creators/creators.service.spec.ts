@@ -51,6 +51,28 @@ describe('CreatorsService approval workflow', () => {
       expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_REJECTED' }) })
     );
   });
+
+  it('setPayoutEligibility(enabled) sets payoutEnabled + KYC APPROVED + audit', async () => {
+    const { service, prisma } = build();
+    await service.setPayoutEligibility('admin', 'u1', true);
+    expect(prisma.creatorProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ payoutEnabled: true, kycStatus: 'APPROVED' }) })
+    );
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_PAYOUT_ENABLED' }) })
+    );
+  });
+
+  it('setPayoutEligibility(disabled) flips only payoutEnabled, leaves KYC + audit', async () => {
+    const { service, prisma } = build();
+    await service.setPayoutEligibility('admin', 'u1', false);
+    const data = prisma.creatorProfile.update.mock.calls[0][0].data;
+    expect(data).toMatchObject({ payoutEnabled: false });
+    expect(data.kycStatus).toBeUndefined();
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_PAYOUT_DISABLED' }) })
+    );
+  });
 });
 
 describe('CreatorsService.myRooms', () => {

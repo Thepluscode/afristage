@@ -169,16 +169,17 @@ Every row is a throw in `payouts.service`. Payout moves EARNING (diamonds) → P
 
 | User sees | Cause | Diagnosis | Resolution | Tier |
 |---|---|---|---|---|
-| "Payout not enabled" | `payout_enabled=false` or `kyc_status ≠ APPROVED` | `select payout_enabled, kyc_status from creator_profiles where user_id='U';` | **GAP — no self-serve KYC flow yet** (see gap below); enabling payout is a manual beta step | 2 |
+| "Payout not enabled" | `payout_enabled=false` or `kyc_status ≠ APPROVED` | `select payout_enabled, kyc_status from creator_profiles where user_id='U';` | Admin enables: `POST /api/admin/creators/:userId/payout {enabled:true}` — sets `payout_enabled` + `kyc_status=APPROVED`, audited (`CREATOR_PAYOUT_ENABLED`). Self-serve KYC is still backlog | 1/2 |
 | "Below minimum payout threshold" | coinAmount < `MIN_PAYOUT_COIN` (default 500) | — | Expected — creator accrues more diamonds first | 1 (reply) |
 | "Insufficient earnings" | Requested > available EARNING; a pending payout holds funds | `GET /api/wallet/me` `earningBalance` vs `payoutHoldBalance` | Expected. If /earnings shows more, a prior payout is holding it — explain | 1/2 |
 | "Invalid payout method" | `payoutMethodId` not theirs / deleted | `select id from payout_methods where user_id='U';` | User re-adds a method (`POST /api/payouts/methods`) | 1 (reply) |
 | "Idempotency key already used" / "reused with a different amount" | Client double-fired the request | grep logs by `requestId` | The first request stands; no double-hold. Repeated → client bug, file it | 2 |
 | Payout stuck / "Illegal payout transition …" | Admin action out of order (approve/reject/mark-paid) | `select status from payout_requests where id='P';` | Follow **Payout risk or failed payout** (Tier 3); never edit rows | 3 |
 
-**Known gap (do not improvise):** there is **no self-serve KYC / payout-enablement flow**.
-`payout_enabled` + `kyc_status` are set manually (admin/DB) for beta creators, so "Payout
-not enabled" has no user-facing fix yet. Wire a KYC flow before opening payouts broadly.
+**Known gap (do not improvise):** no **self-serve KYC** flow yet. An admin can enable
+payouts via `POST /api/admin/creators/:userId/payout {enabled:true}` (sets both fields,
+audited), but creators can't complete KYC themselves — payout enablement is a hand-approval
+step. Wire a self-serve KYC flow before scaling beyond hand-approved beta creators.
 
 ### Ledger imbalance
 

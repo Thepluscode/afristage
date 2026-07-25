@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CreatorApprovalStatus, RoomStatus, UserRole } from '@prisma/client';
+import { CreatorApprovalStatus, KycStatus, RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -55,6 +55,27 @@ export class CreatorsService {
     });
     await this.prisma.adminAuditLog.create({
       data: { actorId, action: 'CREATOR_REJECTED', target: `creator:${creatorUserId}`, metadata: { reason } }
+    });
+    return creator;
+  }
+
+  // Beta payout enablement (the payout gate needs payoutEnabled AND kycStatus APPROVED,
+  // and there is no self-serve KYC flow yet). Enabling sets both; disabling flips only
+  // the flag. Audited like the other creator moderation actions.
+  async setPayoutEligibility(actorId: string, creatorUserId: string, enabled: boolean) {
+    const creator = await this.prisma.creatorProfile.update({
+      where: { userId: creatorUserId },
+      data: enabled
+        ? { payoutEnabled: true, kycStatus: KycStatus.APPROVED, reviewedById: actorId, reviewedAt: new Date() }
+        : { payoutEnabled: false, reviewedById: actorId, reviewedAt: new Date() }
+    });
+    await this.prisma.adminAuditLog.create({
+      data: {
+        actorId,
+        action: enabled ? 'CREATOR_PAYOUT_ENABLED' : 'CREATOR_PAYOUT_DISABLED',
+        target: `creator:${creatorUserId}`,
+        metadata: { payoutEnabled: enabled, kycStatus: creator.kycStatus }
+      }
     });
     return creator;
   }
