@@ -46,11 +46,11 @@ void main() {
   group('usd', () {
     test('formats whole and fractional coin counts as 2dp dollars', () {
       expect(usd(0), r'$0.00');
-      expect(usd(620), r'$620.00');
-      expect(usd(1234.5), r'$1,234.50');
+      expect(usd(620), r'$6.20'); // 1 coin = $0.01 → 620 coins = $6.20
+      expect(usd(123450), r'$1,234.50'); // grouping + 2dp
     });
     test('keeps the sign for negatives', () {
-      expect(usd(-5), r'$-5.00');
+      expect(usd(-500), r'$-5.00');
     });
   });
 

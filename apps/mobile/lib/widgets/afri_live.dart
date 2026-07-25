@@ -613,7 +613,8 @@ class AfriBalanceCard extends StatelessWidget {
 
 /// USD display from coins (1 coin ≈ \$1 at the platform payout rate).
 String usd(num coins) {
-  final fixed = coins.abs().toStringAsFixed(2);
+  // 1 earned coin = $0.01 (buy price: 100 coins = $1) — show the USD cash value.
+  final fixed = (coins.abs() / 100).toStringAsFixed(2);
   final parts = fixed.split('.');
   final whole = parts.first;
   final grouped =

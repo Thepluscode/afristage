@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CreatorApprovalStatus, KycStatus, RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { coinFiatRate } from '../payouts/payouts.service';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ApplyCreatorDto } from './dto/apply-creator.dto';
@@ -151,10 +152,10 @@ export class CreatorsService {
       followers,
       totalWatchSeconds: watchAgg._sum.totalWatchSeconds ?? 0n,
       topSupporters,
-      // Published 💎→fiat conversion so clients can show earnings' cash value
-      // without hardcoding the rate. Same env the payout path applies at cash-out.
-      payoutRate: Number(process.env.COIN_TO_FIAT_MINOR_RATE || 100),
-      payoutCurrency: process.env.CREATOR_PAYOUT_CURRENCY || 'NGN'
+      // Published 💎→fiat conversion so clients show the real cash value — the
+      // SAME per-currency rate the payout path applies at cash-out (COIN_FIAT_RATES).
+      payoutCurrency: process.env.CREATOR_PAYOUT_CURRENCY || 'NGN',
+      payoutRate: coinFiatRate(process.env.CREATOR_PAYOUT_CURRENCY || 'NGN')
     };
   }
 

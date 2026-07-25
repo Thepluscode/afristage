@@ -525,7 +525,7 @@ void main() {
     await tester.pumpWidget(_wrapState(state, const WalletScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Available balance'), findsOneWidget);
-    expect(find.text(r'$620.00'), findsWidgets);
+    expect(find.text(r'$6.20'), findsWidgets); // 620 earned coins × $0.01/coin
     // Diamonds are the creator earning unit: 620 earned coins → "620 💎".
     expect(find.text('Gift diamonds'), findsOneWidget);
     expect(find.text('620 💎'), findsOneWidget);
