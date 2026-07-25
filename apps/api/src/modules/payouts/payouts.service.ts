@@ -20,6 +20,22 @@ const ALLOWED_TRANSITIONS: Record<PayoutStatus, PayoutStatus[]> = {
   PAID: []
 };
 
+// Per-currency coin -> fiat minor-units rate. COIN_FIAT_RATES is a JSON map of
+// currency -> minor units per coin (e.g. {"NGN":100,"USD":100,"GBP":80}); any
+// currency not listed falls back to COIN_TO_FIAT_MINOR_RATE. These are a pricing
+// decision — set them deliberately per payout currency.
+export function coinFiatRate(currency: string): number {
+  const fallback = Number(process.env.COIN_TO_FIAT_MINOR_RATE || 100);
+  let table: Record<string, unknown>;
+  try {
+    table = JSON.parse(process.env.COIN_FIAT_RATES || '{}');
+  } catch {
+    return fallback;
+  }
+  const r = Number(table[currency]);
+  return Number.isFinite(r) && r > 0 ? r : fallback;
+}
+
 @Injectable()
 export class PayoutsService {
   private readonly logger = new Logger(PayoutsService.name);
@@ -116,22 +132,24 @@ export class PayoutsService {
     // A supplied payout method must belong to the requesting creator — never
     // settle to someone else's destination. Snapshot its destination so the
     // reviewer can disburse even if the method is later deleted.
-    let destinationSnapshot: Prisma.PayoutRequestCreateInput | {} = {};
-    if (dto.payoutMethodId) {
-      const method = await this.prisma.payoutMethod.findFirst({ where: { id: dto.payoutMethodId, userId: creatorUserId } });
-      if (!method) throw new BadRequestException('Invalid payout method');
-      destinationSnapshot = {
-        payoutProvider: method.provider,
-        payoutDestinationLabel: method.label,
-        payoutDestinationReference: method.destinationReference,
-        payoutCountry: method.country
-      };
-    }
+    const method = dto.payoutMethodId
+      ? await this.prisma.payoutMethod.findFirst({ where: { id: dto.payoutMethodId, userId: creatorUserId } })
+      : null;
+    if (dto.payoutMethodId && !method) throw new BadRequestException('Invalid payout method');
+    const destinationSnapshot: Prisma.PayoutRequestCreateInput | {} = method
+      ? {
+          payoutProvider: method.provider,
+          payoutDestinationLabel: method.label,
+          payoutDestinationReference: method.destinationReference,
+          payoutCountry: method.country
+        }
+      : {};
 
-    // Explicit, snapshotted coin -> fiat conversion. Coins move on the ledger;
-    // the fiat amount is recorded for the actual disbursement.
-    const rate = Number(process.env.COIN_TO_FIAT_MINOR_RATE || 100); // fiat minor units per coin
-    const fiatCurrency = process.env.CREATOR_PAYOUT_CURRENCY || 'NGN';
+    // Explicit, snapshotted coin -> fiat conversion. Settle in the creator's own
+    // currency (from the payout method; falls back to the platform default) at that
+    // currency's published rate. Coins move on the ledger; fiat is the snapshot.
+    const fiatCurrency = method?.currency ?? (process.env.CREATOR_PAYOUT_CURRENCY || 'NGN');
+    const rate = coinFiatRate(fiatCurrency);
     const fiatMinor = BigInt(dto.coinAmount) * BigInt(rate);
 
     // Fraud hold: a new creator requesting a large payout is held for manual review

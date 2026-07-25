@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { Prisma } from '@prisma/client';
 import { MetricsService } from '../metrics/metrics.service';
 import { MoneyService } from '../money/money.service';
-import { PayoutsService } from './payouts.service';
+import { PayoutsService, coinFiatRate } from './payouts.service';
 
 function build() {
   const prisma: any = {
@@ -156,6 +156,27 @@ describe('PayoutsService', () => {
         })
       })
     );
+  });
+
+  it('settles in the payout method currency at its published rate', async () => {
+    const { service, prisma } = build();
+    process.env.COIN_FIAT_RATES = '{"GBP":80}';
+    prisma.payoutMethod = {
+      findFirst: jest.fn().mockResolvedValue({
+        provider: 'BANK', label: 'UK Bank', destinationReference: 'GB123', country: 'GB', currency: 'GBP'
+      })
+    };
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'APPROVED', createdAt: new Date() });
+    prisma.payoutRequest.create.mockResolvedValue({ id: 'p2' });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p2', status: 'UNDER_REVIEW' });
+    await service.request('c1', { coinAmount: 1000, idempotencyKey: 'gbp-1', payoutMethodId: 'm1' });
+    expect(prisma.payoutRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fiatCurrency: 'GBP', coinToFiatMinorRate: 80, fiatMinor: 80000n })
+      })
+    );
+    delete process.env.COIN_FIAT_RATES;
   });
 
   it('reject returns funds from hold to earnings', async () => {
@@ -336,5 +357,28 @@ describe('PayoutsService remaining branches', () => {
     expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ metadata: expect.objectContaining({ reason: 'admin hold' }) }) })
     );
+  });
+});
+
+describe('coinFiatRate', () => {
+  const saved = { table: process.env.COIN_FIAT_RATES, def: process.env.COIN_TO_FIAT_MINOR_RATE };
+  afterEach(() => {
+    saved.table === undefined ? delete process.env.COIN_FIAT_RATES : (process.env.COIN_FIAT_RATES = saved.table);
+    saved.def === undefined ? delete process.env.COIN_TO_FIAT_MINOR_RATE : (process.env.COIN_TO_FIAT_MINOR_RATE = saved.def);
+  });
+
+  it('uses the per-currency rate, else the env default, else 100', () => {
+    delete process.env.COIN_FIAT_RATES;
+    delete process.env.COIN_TO_FIAT_MINOR_RATE;
+    expect(coinFiatRate('NGN')).toBe(100); // no table + no default -> 100
+    process.env.COIN_TO_FIAT_MINOR_RATE = '120';
+    expect(coinFiatRate('NGN')).toBe(120); // default fallback (no table)
+    process.env.COIN_FIAT_RATES = '{"GBP":80}';
+    expect(coinFiatRate('GBP')).toBe(80); // table hit
+    expect(coinFiatRate('USD')).toBe(120); // table miss -> default
+    process.env.COIN_FIAT_RATES = '{"EUR":-5}';
+    expect(coinFiatRate('EUR')).toBe(120); // non-positive -> default
+    process.env.COIN_FIAT_RATES = 'not-json';
+    expect(coinFiatRate('GBP')).toBe(120); // invalid JSON -> default
   });
 });
