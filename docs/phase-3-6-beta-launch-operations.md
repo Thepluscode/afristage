@@ -14,7 +14,7 @@ against evidence — don't assume. State column is today's status.
 |---|---|---|---|
 | 1 | Launch gate passes | `npm run launch:beta:live` exits 0 (needs Postgres/Redis/LiveKit/API up) | ⬜ run at launch |
 | 2 | Ledger integrity green | `curl -s $API/metrics \| grep -E 'ledger_integrity_ok 1\|ledger_unbalanced.* 0'` | ✅ staging |
-| 3 | Outside-in monitor **scheduled + seen to fire** | `apps/api/scripts/beta-uptime.sh` runs on a schedule with `UPTIME_ALERT_WEBHOOK_URL` set; confirm a real Slack alert arrived (point it at a bad URL once) | ⬜ script done, not scheduled |
+| 3 | Outside-in monitor **scheduled + seen to fire** | `.github/workflows/synthetic-check.yml` runs `tools/monitoring/beta-uptime.sh` every 5 min; confirm a real Slack alert arrived (point it at a bad URL once) | 🟡 wired — needs **Actions billing on** OR an external uptime ping to actually run; set repo secret `ALERT_WEBHOOK` |
 | 4 | Real payments (only if real money flows) | `PAYSTACK_SECRET_KEY` set + one live card purchase credits coins; OR the beta is coins-free / mock-only | ⬜ staging = test key → 502 |
 | 5 | Admin can enable creator payouts + approvals staffed | `POST /api/admin/creators/:id/payout {enabled:true}` (verified #208) + an accountable operator on payout approvals | ✅ #208 (endpoint) |
 | 6 | No prod footguns | `REQUIRE_ADMIN_MFA=true`, `ENABLE_MOCK_PAYMENTS` unset, `ALLOW_SEEDED_PROD_LOGIN` unset, admin cookie secure (see **Production readiness flags**) | ⬜ pending |
@@ -98,7 +98,7 @@ Do not invite or expand beta users when any condition is true:
 
 The in-API `@Cron`s (revenue alert #185, payment synthetic #191, ledger-integrity)
 are blind to their own host: if the API crashes or a deploy never goes healthy,
-they die with it. `apps/api/scripts/beta-uptime.sh` runs **off** the API host and
+they die with it. `tools/monitoring/beta-uptime.sh` runs **off** the API host and
 probes the deployed public API — so it catches exactly that.
 
 Checks (each a real probe of the deployed URL): `/api/health` 200 + `"status":"ok"`,
@@ -109,8 +109,8 @@ bundled `synthetic_check.py`) and exits 1 so a scheduler flags it.
 ```bash
 # one probe (set the webhook to actually alert):
 UPTIME_ALERT_WEBHOOK_URL=https://hooks.slack.com/... \
-  bash apps/api/scripts/beta-uptime.sh
-bash apps/api/scripts/beta-uptime.sh --selftest   # verify detection without alerting
+  bash tools/monitoring/beta-uptime.sh
+bash tools/monitoring/beta-uptime.sh --selftest   # verify detection without alerting
 ```
 
 **Schedule it (pick one — a monitor that isn't scheduled is not a monitor):**

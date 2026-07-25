@@ -1,14 +1,18 @@
 # Q1 — outside-in synthetic health check ("a system that calls you").
-# The service serves its health route from INSIDE its own network, so it cannot tell you
-# the platform is unreachable to real users. This probes the public endpoint from OUTSIDE,
-# on a schedule, and fails the job (+ POSTs an alert) when it is down.
+# A service serves its health route from INSIDE its own network, so it cannot tell you the
+# platform is unreachable to real users. This probes the DEPLOYED public API from OUTSIDE,
+# on a schedule, and fails the job (+ POSTs a Slack alert) when a beta-critical path is down.
 #
-# CAVEAT: GitHub-hosted runners are region-limited (mostly US) — catches TOTAL outages, not
-# region-specific ones. For multi-region, also run tools/monitoring/synthetic_check.py as a
-# scheduled function in >=2 cloud regions, or use a synthetic-monitoring provider.
+# Runs tools/monitoring/beta-uptime.sh → three probes: /api/health, /live-rooms (servable),
+# and the ledger-integrity metric. Catches an API crash/deploy-fail the in-API @Crons can't.
 #
-# Setup (repo Settings): Variable SYNTHETIC_HEALTH_URL = https://<prod-domain>/health
-#                        Secret   ALERT_WEBHOOK        = Slack/PagerDuty inbound webhook
+# CAVEAT (honest): GitHub-hosted runners are region-limited (mostly US) — catches TOTAL
+# outages, not region-specific ones, and can't see a total-GitHub outage. Pair with a free
+# external uptime service on /api/health for belt-and-suspenders.
+#
+# Setup (repo Settings): Secret ALERT_WEBHOOK = Slack inbound webhook.
+#   (optional) Variable AFRISTAGE_MONITOR_BASE = https://<api-host>/api  — defaults to staging.
+# NOTE: scheduled workflows only run when GitHub Actions billing is enabled for this repo.
 
 name: synthetic-check
 on:
@@ -23,16 +27,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.x" }
-      - name: outside-in probe of the live platform
-        # Config via env (not inline ${{ }} in run:) so values are never interpolated into the shell.
+      - name: outside-in probe (health + live-rooms + ledger integrity)
+        # Config via env (never interpolated into the shell).
         env:
-          SYNTHETIC_HEALTH_URL: ${{ vars.SYNTHETIC_HEALTH_URL }}
-          ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
-        run: |
-          python3 tools/monitoring/synthetic_check.py \
-            --url "$SYNTHETIC_HEALTH_URL" \
-            --expect-status 200 \
-            --expect-body '"status":"ok"' \
-            --max-latency-ms 3000 \
-            --region "gh-actions" \
-            --alert-webhook "$ALERT_WEBHOOK"
+          AFRISTAGE_MONITOR_BASE: ${{ vars.AFRISTAGE_MONITOR_BASE }}   # optional; script defaults to staging
+          UPTIME_ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK }}
+          REGION: gh-actions
+        run: bash tools/monitoring/beta-uptime.sh
