@@ -1,0 +1,4 @@
+# Play Store target. The service-account JSON path comes from the environment
+# (gitignored file locally, or a CI secret) — never commit the key itself.
+json_key_file(ENV["PLAY_SERVICE_ACCOUNT_JSON"])
+package_name("live.afristage.afristage_mobile")

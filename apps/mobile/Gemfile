@@ -1,0 +1,5 @@
+# Shared fastlane toolchain for both android/ and ios/ (Bundler finds this Gemfile
+# from either subdir). Run lanes with `bundle exec fastlane ...`.
+source "https://rubygems.org"
+
+gem "fastlane"

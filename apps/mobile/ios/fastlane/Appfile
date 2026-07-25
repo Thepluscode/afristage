@@ -1,0 +1,6 @@
+# App Store target. app_identifier is stable; apple_id / team ids come from your
+# Apple Developer account — set them here or via ENV once enrolled.
+app_identifier("live.afristage.afristage_mobile")
+# apple_id(ENV["APPLE_ID"])
+# itc_team_id(ENV["ITC_TEAM_ID"])
+# team_id(ENV["APPLE_TEAM_ID"])

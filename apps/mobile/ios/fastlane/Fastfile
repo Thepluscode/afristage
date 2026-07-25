@@ -1,0 +1,19 @@
+# iOS release automation — NOT runnable yet: requires macOS + Xcode + an Apple
+# Developer Program membership + signing certs (see docs/mobile-release.md §6).
+# Scaffolded so it's one step away once those exist.
+#   build the archive first:  cd apps/mobile && flutter build ipa --release   (on a Mac)
+#   APP_STORE_CONNECT_API_KEY env → an App Store Connect API key (.p8 + ids)
+default_platform(:ios)
+
+IPA = "../build/ios/ipa/afristage_mobile.ipa"
+
+platform :ios do
+  desc "Upload the release IPA to TestFlight"
+  lane :beta do
+    upload_to_testflight(
+      ipa: IPA,
+      api_key_path: ENV["APP_STORE_CONNECT_API_KEY"],
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

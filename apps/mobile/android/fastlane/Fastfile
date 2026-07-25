@@ -1,0 +1,34 @@
+# Android release automation. Prereqs (see docs/mobile-release.md):
+#   - build the AAB first:  cd apps/mobile && flutter build appbundle --release
+#   - PLAY_SERVICE_ACCOUNT_JSON env → a Play Console "Release manager" service-account key
+#   - run from apps/mobile/android:  bundle exec fastlane internal
+default_platform(:android)
+
+# Flutter writes the bundle here; path is relative to apps/mobile/android/.
+AAB = "../build/app/outputs/bundle/release/app-release.aab"
+
+platform :android do
+  desc "Upload the release AAB to the Play internal testing track (as a draft)"
+  lane :internal do
+    upload_to_play_store(
+      track: "internal",
+      aab: AAB,
+      release_status: "draft",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Promote to production with a staged 10% rollout"
+  lane :production do
+    upload_to_play_store(
+      track: "production",
+      aab: AAB,
+      rollout: "0.1",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end

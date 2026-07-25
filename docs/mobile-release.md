@@ -77,28 +77,23 @@ keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab | g
 # should show YOUR upload key's CN, not "Android Debug"
 ```
 
-## 5. (Optional) Automate uploads with fastlane `supply`
+## 5. Automate uploads with fastlane (already scaffolded)
 
-Once §2–3 exist, a Play service-account JSON turns uploads into one command. Ready-to-use
-lane (add `apps/mobile/android/fastlane/Fastfile`):
+Fastlane is **committed and ready**: `apps/mobile/Gemfile`,
+`apps/mobile/android/fastlane/` (Appfile + Fastfile — lanes `internal`, `production`),
+`apps/mobile/ios/fastlane/` (lane `beta` → TestFlight). Once §2–3 exist and you have a
+Play service-account JSON:
 
-```ruby
-default_platform(:android)
-platform :android do
-  desc "Upload the AAB to the Play internal track"
-  lane :internal do
-    upload_to_play_store(
-      track: "internal",
-      aab: "../build/app/outputs/bundle/release/app-release.aab",
-      json_key: ENV["PLAY_SERVICE_ACCOUNT_JSON"],   # gitignored path or CI secret
-      skip_upload_metadata: true, skip_upload_images: true, skip_upload_screenshots: true
-    )
-  end
-end
+```bash
+cd apps/mobile && flutter build appbundle --release
+export PLAY_SERVICE_ACCOUNT_JSON=/abs/path/play-service-account.json   # gitignored / CI secret
+cd android && bundle install && bundle exec fastlane internal          # → Play internal track
+# later: bundle exec fastlane production   (staged 10% rollout)
 ```
 
-Get `PLAY_SERVICE_ACCOUNT_JSON`: Play Console → Setup → API access → create a service
-account with "Release manager" permission, download its JSON. Treat it as a secret.
+Get the JSON: Play Console → Setup → API access → create a service account with
+"Release manager" permission, download its key. Treat it as a secret (gitignored via
+`**/*service-account*.json`).
 
 ## 6. iOS / App Store (needs a Mac + Apple enrollment)
 

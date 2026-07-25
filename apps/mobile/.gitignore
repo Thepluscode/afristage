@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# fastlane generated artifacts
+**/fastlane/report.xml
+**/fastlane/README.md
+**/fastlane/Preview.html
+# store credentials — NEVER commit
+**/*service-account*.json
+**/*.p8
