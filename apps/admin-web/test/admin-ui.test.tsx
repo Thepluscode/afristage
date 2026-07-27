@@ -18,10 +18,14 @@ import {
   MoneyAmount,
   PageHeader,
   PayoutActionPanel,
+  Pagination,
+  pageWindow,
   PriorityBadge,
   PromptDialog,
+  QuickActions,
   RoomCell,
   SidebarGroup,
+  SystemStatus,
   StatusBadge,
   SuccessBanner,
   TicketThread,
@@ -29,10 +33,138 @@ import {
   WarningBanner
 } from '../app/admin-ui';
 
+describe('pageWindow', () => {
+  it('lists every page when the count is small', () => {
+    expect(pageWindow(1, 1)).toEqual([1]);
+    expect(pageWindow(3, 7)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('elides a run on the right when near the start', () => {
+    expect(pageWindow(1, 25)).toEqual([1, 2, 3, 4, 5, null, 25]);
+  });
+
+  it('elides a run on the left when near the end', () => {
+    expect(pageWindow(25, 25)).toEqual([1, null, 21, 22, 23, 24, 25]);
+  });
+
+  it('elides both sides in the middle and keeps a fixed width', () => {
+    expect(pageWindow(12, 25)).toEqual([1, null, 11, 12, 13, null, 25]);
+    // the control never grows past first + gap + window + gap + last
+    for (let p = 1; p <= 25; p++) expect(pageWindow(p, 25).length).toBeLessThanOrEqual(7);
+  });
+
+  it('always includes the first and last page', () => {
+    for (const p of [1, 5, 13, 25]) {
+      const w = pageWindow(p, 25);
+      expect(w[0]).toBe(1);
+      expect(w[w.length - 1]).toBe(25);
+    }
+  });
+});
+
+describe('Pagination', () => {
+  it('renders nothing when there is nothing to page', () => {
+    const { container } = render(<Pagination page={1} pageSize={10} total={0} onPage={() => {}} />);
+    expect(container.querySelector('.pagination')).toBeNull();
+  });
+
+  it('reports the visible range and clamps the last page', () => {
+    render(<Pagination page={3} pageSize={10} total={25} onPage={() => {}} noun="rooms" />);
+    // page 3 of 25 rows is 21-25, not 21-30
+    expect(screen.getByText('Showing 21 to 25 of 25 rooms')).toBeInTheDocument();
+  });
+
+  it('disables prev on the first page and next on the last', () => {
+    const first = render(<Pagination page={1} pageSize={10} total={30} onPage={() => {}} />);
+    expect(screen.getByLabelText('Previous page')).toBeDisabled();
+    expect(screen.getByLabelText('Next page')).toBeEnabled();
+    first.unmount();
+
+    render(<Pagination page={3} pageSize={10} total={30} onPage={() => {}} />);
+    expect(screen.getByLabelText('Previous page')).toBeEnabled();
+    expect(screen.getByLabelText('Next page')).toBeDisabled();
+  });
+
+  it('emits the requested page and marks the current one', () => {
+    const onPage = vi.fn();
+    const { container } = render(<Pagination page={2} pageSize={10} total={50} onPage={onPage} />);
+    expect(container.querySelector('.pager-btn.on')?.textContent).toBe('2');
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('2');
+
+    fireEvent.click(screen.getByLabelText('Next page'));
+    expect(onPage).toHaveBeenCalledWith(3);
+    fireEvent.click(screen.getByLabelText('Previous page'));
+    expect(onPage).toHaveBeenCalledWith(1);
+    fireEvent.click(screen.getByRole('button', { name: '4' }));
+    expect(onPage).toHaveBeenCalledWith(4);
+  });
+});
+
 describe('AdminShell', () => {
   it('renders children inside a shell', () => {
     render(<AdminShell><span>shell-child</span></AdminShell>);
     expect(screen.getByText('shell-child')).toBeInTheDocument();
+  });
+});
+
+describe('SidebarGroup badges', () => {
+  it('renders a badge only for a positive count and caps it at 99+', () => {
+    const { container } = render(
+      <SidebarGroup
+        heading="Nav"
+        pathname="/reports"
+        links={[['Reports', '/reports'], ['Payouts', '/payouts'], ['Users', '/users']]}
+        badges={{ '/reports': 7, '/payouts': 0, '/users': 250 }}
+      />
+    );
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('99+')).toBeInTheDocument();
+    // zero and unlisted routes get no badge -> exactly two badges rendered
+    expect(container.querySelectorAll('.nav-badge')).toHaveLength(2);
+  });
+
+  it('renders no badges when the badges map is omitted', () => {
+    const { container } = render(
+      <SidebarGroup heading="Nav" pathname="/x" links={[['Reports', '/reports']]} />
+    );
+    expect(container.querySelectorAll('.nav-badge')).toHaveLength(0);
+  });
+});
+
+describe('SystemStatus', () => {
+  it('never claims "operational" before the probe answers', () => {
+    const { container } = render(<SystemStatus ok={null} environment="Staging" />);
+    expect(screen.getByText(/Checking…/)).toBeInTheDocument();
+    expect(screen.getByText(/Staging/)).toBeInTheDocument();
+    expect(container.querySelector('.system-status.pending')).not.toBeNull();
+  });
+
+  it('reports operational and degraded states', () => {
+    const ok = render(<SystemStatus ok environment="Production" />);
+    expect(screen.getByText(/All systems operational/)).toBeInTheDocument();
+    expect(ok.container.querySelector('.system-status.ok')).not.toBeNull();
+    ok.unmount();
+
+    const bad = render(<SystemStatus ok={false} environment="Production" />);
+    expect(screen.getByText(/Degraded — needs review/)).toBeInTheDocument();
+    expect(bad.container.querySelector('.system-status.bad')).not.toBeNull();
+  });
+});
+
+describe('QuickActions', () => {
+  it('renders one toned link per action', () => {
+    const { container } = render(
+      <QuickActions
+        actions={[
+          { label: 'Approve creators', href: '/creators', tone: 'teal', icon: <span>i1</span> },
+          { label: 'Suspend a room', href: '/live-rooms', tone: 'danger', icon: <span>i2</span> }
+        ]}
+      />
+    );
+    expect(container.querySelectorAll('.quick-action')).toHaveLength(2);
+    expect(container.querySelector('.quick-action.teal')).toHaveAttribute('href', '/creators');
+    expect(container.querySelector('.quick-action.danger')).toHaveAttribute('href', '/live-rooms');
+    expect(screen.getByText('Approve creators')).toBeInTheDocument();
   });
 });
 
@@ -89,6 +221,55 @@ describe('MetricCard', () => {
     expect(container.querySelector('.metric-card.neutral')).not.toBeNull();
     expect(container.querySelector('small')).toBeNull();
     expect(container.querySelector('.metric-icon')).toBeNull();
+    expect(container.querySelector('.metric-card-foot')).toBeNull();
+  });
+
+  it('defaults to the gold accent and applies the requested one', () => {
+    const gold = render(<MetricCard label="G" value={1} />);
+    expect(gold.container.querySelector('.metric-card.accent-gold')).not.toBeNull();
+    gold.unmount();
+
+    for (const accent of ['teal', 'purple', 'danger', 'green'] as const) {
+      const r = render(<MetricCard label="A" value={1} accent={accent} />);
+      expect(r.container.querySelector(`.metric-card.accent-${accent}`)).not.toBeNull();
+      r.unmount();
+    }
+  });
+
+  it('shows a rising trend in green and a falling trend in red', () => {
+    const up = render(<MetricCard label="U" value={9} trendLabel="+18.6%" trend={[1, 2, 3]} />);
+    expect(up.container.querySelector('.trend-up')).not.toBeNull();
+    expect(up.container.querySelector('.trend-down')).toBeNull();
+    expect(up.container.querySelector('svg.metric-spark')).not.toBeNull();
+    up.unmount();
+
+    const down = render(<MetricCard label="D" value={9} trendLabel="-4.2%" trend={[3, 2, 1]} />);
+    expect(down.container.querySelector('.trend-down')).not.toBeNull();
+    expect(down.container.querySelector('.trend-up')).toBeNull();
+  });
+
+  it('renders a flat day as neutral, never as growth', () => {
+    for (const label of ['+0.0%', '-0.0%', '0%', '0.00%']) {
+      const r = render(<MetricCard label="F" value={1} trendLabel={label} />);
+      expect(r.container.querySelector('.trend-flat')).not.toBeNull();
+      expect(r.container.querySelector('.trend-up')).toBeNull();
+      expect(r.container.querySelector('.trend-down')).toBeNull();
+      r.unmount();
+    }
+    // a real change either side of zero still gets its direction
+    const up = render(<MetricCard label="U" value={1} trendLabel="+0.1%" />);
+    expect(up.container.querySelector('.trend-up')).not.toBeNull();
+    up.unmount();
+    const down = render(<MetricCard label="D" value={1} trendLabel="-0.1%" />);
+    expect(down.container.querySelector('.trend-down')).not.toBeNull();
+  });
+
+  it('renders the foot for a bare trend and drops a too-short series', () => {
+    const { container } = render(<MetricCard label="T" value={1} trend={[5]} />);
+    // foot exists (trend was supplied) but MiniSparkline bails on <2 points
+    expect(container.querySelector('.metric-card-foot')).not.toBeNull();
+    expect(container.querySelector('small')).toBeNull();
+    expect(container.querySelector('svg.metric-spark')).toBeNull();
   });
 });
 
@@ -99,8 +280,20 @@ describe('AlertCard', () => {
     );
     expect(container.querySelector('a.alert-card.danger')).toHaveAttribute('href', '/x');
     expect(screen.getByText('Crit')).toBeInTheDocument();
-    expect(screen.getByText('Review →')).toBeInTheDocument();
-    expect(screen.getByText('needs review')).toBeInTheDocument();
+    expect(screen.getByText('Review')).toBeInTheDocument();
+    // value and note share one line: "3 · needs review"
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText(/needs review/)).toBeInTheDocument();
+    // no icon supplied -> falls back to the tone dot
+    expect(container.querySelector('.alert-dot')).not.toBeNull();
+  });
+
+  it('renders the supplied icon instead of the tone dot', () => {
+    const { container } = render(
+      <AlertCard tone="good" title="OK" value="Balanced" note="reconciled" href="/y" action="View" icon={<svg data-testid="ic" />} />
+    );
+    expect(container.querySelector('.alert-icon')).not.toBeNull();
+    expect(container.querySelector('.alert-dot')).toBeNull();
   });
 });
 

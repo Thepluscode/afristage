@@ -2,6 +2,7 @@
 
 import { Children, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { MiniSparkline } from './Sparkline';
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   return <div className="shell">{children}</div>;
@@ -10,19 +11,61 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 export function SidebarGroup({
   heading,
   links,
-  pathname
+  pathname,
+  badges
 }: {
   heading: string;
   links: [string, string, React.ReactNode?][];
   pathname: string;
+  /** Route -> pending-work count. A zero or missing count renders no badge. */
+  badges?: Record<string, number>;
 }) {
   return (
     <div className="nav-group">
       <div className="nav-heading">{heading}</div>
-      {links.map(([label, href, icon]) => (
-        <Link key={href} href={href} className={pathname === href ? 'active' : ''}>
-          {icon ? <span className="nav-icon">{icon}</span> : null}
-          {label}
+      {links.map(([label, href, icon]) => {
+        const count = badges?.[href] ?? 0;
+        return (
+          <Link key={href} href={href} className={pathname === href ? 'active' : ''}>
+            {icon ? <span className="nav-icon">{icon}</span> : null}
+            {label}
+            {count > 0 ? (
+              <span className="nav-badge" aria-label={`${count} awaiting`}>{count > 99 ? '99+' : count}</span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+/// Sidebar footer heartbeat. `ok === null` means the probe has not answered yet,
+/// which must not read as "healthy".
+export function SystemStatus({ ok, environment }: { ok: boolean | null; environment: string }) {
+  const state = ok === null ? 'pending' : ok ? 'ok' : 'bad';
+  return (
+    <div className={`system-status ${state}`}>
+      <span className="system-dot" aria-hidden="true" />
+      <span>
+        <strong>System status</strong>
+        <small>
+          {ok === null ? 'Checking…' : ok ? 'All systems operational' : 'Degraded — needs review'}
+          {' · '}
+          {environment}
+        </small>
+      </span>
+    </div>
+  );
+}
+
+export function QuickActions({ actions }: { actions: { label: string; href: string; tone: 'teal' | 'danger' | 'gold' | 'purple'; icon: React.ReactNode }[] }) {
+  return (
+    <div className="quick-actions">
+      {actions.map((a) => (
+        <Link key={a.href + a.label} className={`quick-action ${a.tone}`} href={a.href}>
+          <span className="quick-action-icon">{a.icon}</span>
+          <span className="quick-action-label">{a.label}</span>
+          <span className="quick-action-arrow" aria-hidden="true">→</span>
         </Link>
       ))}
     </div>
@@ -49,27 +92,62 @@ export function PageHeader({
   );
 }
 
+const ACCENT_HEX: Record<MetricAccent, string> = {
+  teal: '#14b8a6',
+  purple: '#a78bfa',
+  gold: '#ffc857',
+  danger: '#ef4444',
+  green: '#22c55e'
+};
+
+export type MetricAccent = 'teal' | 'purple' | 'gold' | 'danger' | 'green';
+
 export function MetricCard({
   label,
   value,
   tone,
   delta,
-  icon
+  icon,
+  accent = 'gold',
+  trend,
+  trendLabel
 }: {
   label: string;
   value: string | number;
   tone?: 'good' | 'warn' | 'danger' | 'neutral';
+  /** Caption under the value. Prefixed with an arrow when `trendLabel` is set. */
   delta?: string;
   icon?: React.ReactNode;
+  accent?: MetricAccent;
+  /** Series for the in-card area micro-chart. Fewer than 2 points renders nothing. */
+  trend?: number[];
+  /** Signed change, e.g. `+18.6%`. Sign drives the up/down colour. */
+  trendLabel?: string;
 }) {
+  // A flat day reads as neither up nor down — a green ▲ on +0.0% claims growth
+  // that did not happen.
+  const flat = trendLabel != null && /^[+-]?0(\.0+)?%$/.test(trendLabel);
+  const down = !flat && (trendLabel?.startsWith('-') ?? false);
+  const trendClass = flat ? 'trend-flat' : down ? 'trend-down' : 'trend-up';
+  const trendArrow = flat ? '▬' : down ? '▼' : '▲';
   return (
-    <div className={`metric-card ${tone ?? 'neutral'}`}>
+    <div className={`metric-card ${tone ?? 'neutral'} accent-${accent}`}>
       <div className="metric-card-head">
-        <span>{label}</span>
         {icon ? <span className="metric-icon">{icon}</span> : null}
+        <span>{label}</span>
       </div>
       <strong>{value}</strong>
-      {delta ? <small>{delta}</small> : null}
+      {delta || trendLabel || trend ? (
+        <div className="metric-card-foot">
+          {delta || trendLabel ? (
+            <small>
+              {trendLabel ? <em className={trendClass}>{trendArrow} {trendLabel}</em> : null}
+              {delta ? <span>{delta}</span> : null}
+            </small>
+          ) : null}
+          {trend ? <MiniSparkline values={trend} accent={ACCENT_HEX[accent]} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -80,7 +158,8 @@ export function AlertCard({
   value,
   note,
   href,
-  action
+  action,
+  icon
 }: {
   tone: 'danger' | 'warn' | 'good';
   title: string;
@@ -88,17 +167,19 @@ export function AlertCard({
   note: string;
   href: string;
   action: string;
+  icon?: React.ReactNode;
 }) {
   return (
-    <a className={`alert-card ${tone}`} href={href}>
-      <div className="alert-card-head">
-        <span className="alert-dot" />
+    <Link className={`alert-card ${tone}`} href={href}>
+      {icon ? <span className="alert-icon">{icon}</span> : <span className="alert-dot" />}
+      <span className="alert-body">
         <span className="alert-title">{title}</span>
-        <span className="alert-action">{action} →</span>
-      </div>
-      <strong>{value}</strong>
-      <small>{note}</small>
-    </a>
+        <span className="alert-note">
+          <strong>{value}</strong> · {note}
+        </span>
+      </span>
+      <span className="alert-action">{action}</span>
+    </Link>
   );
 }
 
@@ -183,7 +264,7 @@ export function UserCell({ name, sub }: { name?: string | null; sub?: string | n
 export function RoomCell({ title, sub }: { title?: string | null; sub?: string | null }) {
   return (
     <span className="entity-cell">
-      <span className="room-dot">●</span>
+      <span className="room-dot">{(title || 'R').trim().slice(0, 1).toUpperCase()}</span>
       <span>
         <strong>{title || 'Untitled room'}</strong>
         {sub ? <small>{sub}</small> : null}
@@ -358,6 +439,71 @@ export function PromptDialog({
 
 export function ActionMenu({ children }: { children: React.ReactNode }) {
   return <div className="actions action-menu">{children}</div>;
+}
+
+/** Page numbers to render, with `null` marking an elided run.
+ *  Always shows the first and last page plus a window around the current one, so
+ *  the control stays a fixed width no matter how many pages exist. */
+export function pageWindow(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const out: (number | null)[] = [1];
+  const from = Math.max(2, Math.min(current - 1, total - 4));
+  const to = Math.min(total - 1, Math.max(current + 1, 5));
+  if (from > 2) out.push(null);
+  for (let p = from; p <= to; p++) out.push(p);
+  if (to < total - 1) out.push(null);
+  out.push(total);
+  return out;
+}
+
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onPage,
+  noun = 'results'
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (page: number) => void;
+  noun?: string;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (total === 0) return null;
+  const first = (page - 1) * pageSize + 1;
+  const lastShown = Math.min(page * pageSize, total);
+
+  return (
+    <div className="pagination">
+      <span className="muted">
+        Showing {first} to {lastShown} of {total.toLocaleString()} {noun}
+      </span>
+      <nav className="pager" aria-label="Pagination">
+        <button type="button" className="pager-btn" onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Previous page">
+          ‹
+        </button>
+        {pageWindow(page, pages).map((p, i) =>
+          p === null ? (
+            <span key={`gap-${i}`} className="pager-gap" aria-hidden="true">…</span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              className={p === page ? 'pager-btn on' : 'pager-btn'}
+              aria-current={p === page ? 'page' : undefined}
+              onClick={() => onPage(p)}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button type="button" className="pager-btn" onClick={() => onPage(page + 1)} disabled={page >= pages} aria-label="Next page">
+          ›
+        </button>
+      </nav>
+    </div>
+  );
 }
 
 export function EmptyState({ children }: { children: React.ReactNode }) {

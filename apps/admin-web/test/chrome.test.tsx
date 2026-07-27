@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api', () => ({
@@ -92,5 +92,83 @@ describe('AdminChrome', () => {
     render(<AdminChrome><div>site-child</div></AdminChrome>);
     expect(screen.getByText('site-child')).toBeInTheDocument();
     expect(screen.queryByText('Operations')).not.toBeInTheDocument();
+  });
+
+  it('badges the sidebar from the dashboard counts and reports the system healthy', async () => {
+    path = '/users';
+    vi.mocked(adminGet).mockImplementation((p: string) =>
+      p === '/admin/dashboard'
+        ? Promise.resolve({
+            criticalReports: 7,
+            pendingReports: 9,
+            pendingPayouts: 0,
+            failedPayments: 2,
+            openSupportTickets: 4,
+            pendingCreatorApprovals: 12
+          } as any)
+        : Promise.resolve({} as any)
+    );
+    const AdminChrome = await loadChrome();
+    const { container } = render(<AdminChrome><div /></AdminChrome>);
+
+    await waitFor(() => expect(container.querySelector('.system-status.ok')).not.toBeNull());
+    expect(await screen.findByText('All systems operational · Production')).toBeInTheDocument();
+    // reports 7, support 4, creators 12, payments 2 badge; payouts 0 does not
+    const badges = [...container.querySelectorAll('.nav-badge')].map((b) => b.textContent);
+    expect(badges.sort()).toEqual(['12', '2', '4', '7']);
+  });
+
+  it('marks the system degraded and drops the badges when the counts fetch fails', async () => {
+    path = '/users';
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(adminGet).mockImplementation((p: string) =>
+      p === '/admin/dashboard' ? Promise.reject(new Error('counts boom')) : Promise.resolve({} as any)
+    );
+    const AdminChrome = await loadChrome();
+    const { container } = render(<AdminChrome><div>body</div></AdminChrome>);
+
+    await waitFor(() => expect(container.querySelector('.system-status.bad')).not.toBeNull());
+    expect(screen.getByText(/Degraded — needs review/)).toBeInTheDocument();
+    expect(container.querySelectorAll('.nav-badge')).toHaveLength(0);
+    // navigation still works — the badges are decoration, not a dependency
+    expect(screen.getByText('body')).toBeInTheDocument();
+    expect(warn).toHaveBeenCalledWith('Sidebar counts unavailable', expect.any(Error));
+  });
+
+  it('does not set state after unmount on either settle path', async () => {
+    path = '/users';
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    for (const settle of [
+      () => Promise.resolve({ criticalReports: 5 } as any),
+      () => Promise.reject(new Error('late boom'))
+    ]) {
+      let release: () => void = () => {};
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      vi.mocked(adminGet).mockImplementation((p: string) =>
+        p === '/admin/dashboard' ? gate.then(settle) : Promise.resolve({} as any)
+      );
+      const AdminChrome = await loadChrome();
+      const { unmount } = render(<AdminChrome><div /></AdminChrome>);
+      unmount();
+      release();
+      await gate.then(settle).catch(() => {});
+      await Promise.resolve();
+    }
+
+    // React logs an "update on unmounted component" error if the guard is missing
+    expect(err).not.toHaveBeenCalledWith(expect.stringContaining('unmounted'), expect.anything());
+    warn.mockRestore();
+    err.mockRestore();
+  });
+
+  it('skips the counts fetch entirely on a chromeless route', async () => {
+    path = '/login';
+    const AdminChrome = await loadChrome();
+    render(<AdminChrome><div>login-child</div></AdminChrome>);
+    expect(vi.mocked(adminGet)).not.toHaveBeenCalledWith('/admin/dashboard');
   });
 });

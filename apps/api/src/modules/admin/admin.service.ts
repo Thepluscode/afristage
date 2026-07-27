@@ -157,13 +157,37 @@ export class AdminService {
     });
   }
 
-  liveRooms(status?: string) {
-    return this.prisma.liveRoom.findMany({
+  // Operators triage rooms by "who is noisy" and "who is earning", so both
+  // travel with the row. `reportsCount` was previously read by the admin UI but
+  // never returned by this query, so every room rendered 0 reports and the
+  // "reported rooms first" ordering was a no-op.
+  //
+  // ponytail: one extra groupBy over the listed rooms, not a per-row query.
+  // Gift revenue is a COIN sum (see GiftTransaction's note — not minor units).
+  async liveRooms(status?: string) {
+    const rooms = await this.prisma.liveRoom.findMany({
       where: status ? { status: status as any } : {},
       orderBy: { createdAt: 'desc' },
       take: 100,
-      include: { host: { include: { profile: true, creatorProfile: true } } }
+      include: {
+        host: { include: { profile: true, creatorProfile: true } },
+        _count: { select: { reports: true } }
+      }
     });
+    if (rooms.length === 0) return [];
+
+    const gifts = await this.prisma.giftTransaction.groupBy({
+      by: ['roomId'],
+      where: { roomId: { in: rooms.map((r) => r.id) } },
+      _sum: { totalCoinAmount: true }
+    });
+    const coinsByRoom = new Map(gifts.map((g) => [g.roomId, g._sum.totalCoinAmount ?? 0]));
+
+    return rooms.map(({ _count, ...room }) => ({
+      ...room,
+      reportsCount: _count.reports,
+      giftCoins: coinsByRoom.get(room.id) ?? 0
+    }));
   }
 
   payments() {
