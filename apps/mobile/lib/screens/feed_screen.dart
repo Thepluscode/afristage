@@ -140,6 +140,9 @@ class _FeedScreenState extends State<FeedScreen> {
   void _openRoom(LiveRoom room) => Navigator.push(
       context, MaterialPageRoute(builder: (_) => RoomScreen(room: room)));
 
+  void _openSearch() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const SearchScreen()));
+
   // Only ever called from the "Creators to watch" ring, which is built from
   // rooms with a non-null hostId, so the id is always present here.
   void _openCreator(LiveRoom room) {
@@ -262,7 +265,8 @@ class _FeedScreenState extends State<FeedScreen> {
                 // Live now rail, scoped All Stages / Local (viewer's region).
                 _SectionHeader(
                     title: _scope == 'Local' ? 'Live near you' : 'Live now',
-                    trailing: '${live.length} live'),
+                    trailing: '${live.length} live',
+                    onSeeAll: _openSearch),
                 const SizedBox(height: 8),
                 AfriCategoryChips(
                     items: _scopes,
@@ -324,10 +328,11 @@ class _FeedScreenState extends State<FeedScreen> {
 
                 if (creators.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  const _SectionHeader(title: 'Creators to watch'),
+                  _SectionHeader(
+                      title: 'Creators to watch', onSeeAll: _openSearch),
                   const SizedBox(height: 8),
                   SizedBox(
-                    height: 102,
+                    height: 122,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: creators.length,
@@ -669,9 +674,14 @@ class _WalletActionTile extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.trailing});
+  const _SectionHeader({required this.title, this.trailing, this.onSeeAll});
   final String title;
   final String? trailing;
+
+  /// When set, the header ends in a gold "See all" affordance instead of (or
+  /// alongside) the muted count — the mockups treat every rail as browsable.
+  final VoidCallback? onSeeAll;
+
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -680,7 +690,32 @@ class _SectionHeader extends StatelessWidget {
               fontSize: 17,
               fontWeight: FontWeight.w800,
               color: AfriColors.text)),
-      if (trailing != null)
+      if (onSeeAll != null)
+        Semantics(
+          button: true,
+          label: 'See all $title',
+          child: InkWell(
+            onTap: onSeeAll,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (trailing != null) ...[
+                  Text(trailing!,
+                      style: const TextStyle(
+                          fontSize: 12, color: AfriColors.mutedText)),
+                  const SizedBox(width: 8),
+                ],
+                const Text('See all',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AfriColors.gold)),
+              ]),
+            ),
+          ),
+        )
+      else if (trailing != null)
         Text(trailing!,
             style: const TextStyle(fontSize: 13, color: AfriColors.mutedText)),
     ]);

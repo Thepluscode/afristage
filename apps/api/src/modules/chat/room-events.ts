@@ -15,6 +15,10 @@ export interface RoomEvents {
     giftName: string;
     animationUrl: string | null;
     senderId: string;
+    /** Display name for the in-room gift line ("<name> sent Rose x5"). Null when
+     *  the sender has no profile row — clients fall back to a generic label
+     *  rather than exposing the raw id. */
+    senderName: string | null;
     quantity: number;
     totalCoinAmount: number;
     creatorEarningMinor: number;

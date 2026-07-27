@@ -18,9 +18,8 @@ io.Socket Function(String uri, dynamic opts) debugRoomSocketFactory = io.io;
 
 /// Builds the in-room video panel once a viewer/host connects. Production uses
 /// the real WebRTC [LiveKitRoomView]; tests override it to avoid a live session.
-Widget Function(
-        String url, String token, bool publish, bool micEnabled, bool cameraEnabled)
-    debugRoomVideoBuilder =
+Widget Function(String url, String token, bool publish, bool micEnabled,
+        bool cameraEnabled) debugRoomVideoBuilder =
     // coverage:ignore-start
     (url, token, publish, micEnabled, cameraEnabled) => LiveKitRoomView(
         url: url,
@@ -184,7 +183,7 @@ class _RoomScreenState extends State<RoomScreen> {
           final name = data['giftName'] as String? ?? 'a gift';
           final qty = int.tryParse('${data['quantity'] ?? 1}') ?? 1;
           _flashGift('$name x$qty', data['animationUrl'] as String?);
-          _addSystem('$name x$qty');
+          _addGiftLine(data['senderName'] as String?, name, qty);
           setState(() {
             _giftCount += qty;
           });
@@ -262,6 +261,24 @@ class _RoomScreenState extends State<RoomScreen> {
       return;
     }
     setState(() => _messages.add(ChatMessage(sender: '•', text: text)));
+    _scrollToEnd();
+  }
+
+  /// Gift events render as a named, highlighted chat row ("<sender> sent Rose
+  /// x5"). The socket payload may omit `senderName` (sender has no profile), in
+  /// which case we say "Someone" rather than leaking the raw user id.
+  void _addGiftLine(String? senderName, String giftName, int quantity) {
+    if (!_canUpdate) {
+      return;
+    }
+    setState(() => _messages.add(ChatMessage(
+          sender: (senderName == null || senderName.trim().isEmpty)
+              ? 'Someone'
+              : senderName,
+          text: '$giftName x$quantity',
+          giftName: giftName,
+          giftQuantity: quantity,
+        )));
     _scrollToEnd();
   }
 

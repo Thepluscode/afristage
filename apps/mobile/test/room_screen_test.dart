@@ -79,7 +79,8 @@ class _RoomApi extends ApiClient {
   }
 
   @override
-  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> delete(String path,
+      [Map<String, dynamic>? body]) async {
     if (failFollow && path.endsWith('/follow')) {
       throw const ApiException(500, 'unfollow failed');
     }
@@ -170,6 +171,39 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
+  testWidgets('gift.sent renders a named gift row, or "Someone" without a name',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final state = AppState(api: _RoomApi())..userId = 'v1';
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    socket.fire('connect', null);
+
+    socket.fire('gift.sent',
+        {'giftName': 'Rose', 'quantity': 5, 'senderName': 'KingSteve'});
+    await tester.pump();
+    expect(find.textContaining('KingSteve'), findsOneWidget);
+    expect(find.text('x5'), findsOneWidget);
+
+    // No senderName on the payload must not leak the raw id.
+    socket.fire('gift.sent',
+        {'giftName': 'Crown', 'quantity': 1, 'senderId': 'user-abc-123'});
+    await tester.pump();
+    expect(find.textContaining('Someone'), findsOneWidget);
+    expect(find.textContaining('user-abc-123'), findsNothing);
+
+    // A blank name is treated the same as a missing one.
+    socket.fire(
+        'gift.sent', {'giftName': 'Star', 'quantity': 1, 'senderName': '  '});
+    await tester.pump();
+    expect(find.textContaining('Someone'), findsNWidgets(2));
+
+    await tester.pump(const Duration(seconds: 6));
+  });
+
   testWidgets('viewer can type chat and open the gift sheet', (tester) async {
     _tall(tester);
     final socket = _FakeSocket();
@@ -191,7 +225,8 @@ void main() {
   // Regression (staging, 2026-07-14): the only publish affordance lived inside
   // the stage, where the host layout scales it to nothing on short screens —
   // the host could not go live. The controls panel now carries the button.
-  testWidgets('host panel Go Live button starts publishing (video builder invoked)',
+  testWidgets(
+      'host panel Go Live button starts publishing (video builder invoked)',
       (tester) async {
     _tall(tester);
     final original = debugRoomVideoBuilder;

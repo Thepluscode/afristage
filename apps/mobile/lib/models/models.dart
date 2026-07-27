@@ -12,7 +12,6 @@ int? asIntOrNull(dynamic v) =>
 num asNumOr(dynamic v, [num fallback = 0]) =>
     v is num ? v : num.tryParse('$v') ?? fallback;
 
-
 class LiveRoom {
   const LiveRoom({
     required this.id,
@@ -107,8 +106,21 @@ class Wallet {
 }
 
 class ChatMessage {
-  const ChatMessage({required this.sender, required this.text, this.senderId});
+  const ChatMessage({
+    required this.sender,
+    required this.text,
+    this.senderId,
+    this.giftName,
+    this.giftQuantity,
+  });
   final String sender;
   final String text;
   final String? senderId;
+
+  /// Set when the line is a gift event rather than a typed message; it renders
+  /// as the highlighted "<sender> sent <gift> xN" row instead of a chat bubble.
+  final String? giftName;
+  final int? giftQuantity;
+
+  bool get isGift => giftName != null;
 }

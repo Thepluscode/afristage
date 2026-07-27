@@ -160,8 +160,12 @@ Widget _app(AppState state, Key boundaryKey, Widget child) {
   );
 }
 
-Future<void> _capture(WidgetTester tester, Key key, String name) async {
-  await tester.pumpAndSettle(const Duration(milliseconds: 100));
+/// [settle] must be false for any state that is mid-animation: pumpAndSettle
+/// runs one-shot animations to their end, and a reaction that has finished
+/// rising has already faded to zero opacity.
+Future<void> _capture(WidgetTester tester, Key key, String name,
+    {bool settle = true}) async {
+  if (settle) await tester.pumpAndSettle(const Duration(milliseconds: 100));
   await tester.runAsync(
     () => Future<void>.delayed(const Duration(milliseconds: 250)),
   );
@@ -195,6 +199,14 @@ Future<void> _loadCaptureFonts() async {
       ).readAsBytes().then((bytes) => bytes.buffer.asByteData()),
     );
   await Future.wait([bodyLoader.load(), iconLoader.load()]);
+
+  // KNOWN CAPTURE LIMITATION: emoji render as tofu boxes in these PNGs.
+  // The test renderer only uses fonts registered here, and FontLoader cannot
+  // supply a colour-emoji font ("Apple Color Emoji.ttc" is a CBDT/sbix
+  // collection — loading it registers no usable glyphs). On device the platform
+  // font fallback handles emoji normally, so gift artwork and gift chat rows
+  // need device evidence; WHICH emoji a gift name maps to is unit-tested in
+  // helpers_test.dart (afriGiftEmoji).
 }
 
 void main() async {
@@ -233,10 +245,8 @@ void main() async {
       final chatScrollController = ScrollController();
       addTearDown(chatController.dispose);
       addTearDown(chatScrollController.dispose);
-      await tester.pumpWidget(_app(
-        state,
-        boundaryKey,
-        Stack(
+      final roomWithoutDrawer = Builder(
+        builder: (_) => Stack(
           children: [
             Positioned.fill(
               child: AfriLiveRoomShell(
@@ -276,9 +286,16 @@ void main() async {
                 chat: AfriChatOverlay(
                   controller: chatScrollController,
                   messages: const [
-                    ChatMessage(sender: 'Ama_Gh', text: 'Great energy!'),
-                    ChatMessage(sender: 'TosinB', text: 'This is fire!'),
-                    ChatMessage(sender: 'Nandi_Love', text: 'Voice on point!'),
+                    ChatMessage(sender: 'Ama_Gh', text: 'Great energy! 🔥🔥'),
+                    ChatMessage(sender: 'TosinB', text: 'This is fire! 🔥'),
+                    ChatMessage(
+                        sender: 'KingSteve',
+                        text: 'Rose x5',
+                        giftName: 'Rose',
+                        giftQuantity: 5),
+                    ChatMessage(
+                        sender: 'Nandi_Love', text: 'Voice on point! 🎶'),
+                    ChatMessage(sender: 'Sizwe', text: 'We outside! 🇿🇦'),
                   ],
                 ),
                 input: AfriChatInput(
@@ -290,6 +307,16 @@ void main() async {
                 ),
               ),
             ),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(_app(
+        state,
+        boundaryKey,
+        Stack(
+          children: [
+            Positioned.fill(child: roomWithoutDrawer),
             Align(
               alignment: Alignment.bottomCenter,
               child: Material(
@@ -320,6 +347,14 @@ void main() async {
         ),
       ));
       await _capture(tester, boundaryKey, 'live-room');
+
+      // The drawer covers the bottom half, so capture the room again without it
+      // — the chat overlay, hearts and input bar are only visible there.
+      await tester.pumpWidget(_app(state, boundaryKey, roomWithoutDrawer));
+      // Mid-flight: the reactions are part-way up the right edge and still
+      // opaque. Settling here would fade them out completely.
+      await tester.pump(const Duration(milliseconds: 700));
+      await _capture(tester, boundaryKey, 'live-room-chat', settle: false);
     },
     skip: !_captureDesign,
   );

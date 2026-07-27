@@ -115,33 +115,40 @@ void main() {
     });
   });
 
-  group('afriGiftIcon', () {
-    test('maps gift names to icons across all branches', () {
-      for (final n in [
-        'Rose',
-        'flower',
-        'Fire',
-        'flame',
-        'mic',
-        'Drum',
-        'music',
-        'Crown',
-        'king',
-        'royal',
-        'spotlight',
-        'light',
-        'star',
-        'Stage',
-        'concert',
-        'heart',
-        'love',
-        'diamond',
-        'gem',
-        'rocket',
-        'whatever'
-      ]) {
-        expect(afriGiftIcon(n), isA<IconData>());
-      }
+  group('afriGiftEmoji', () {
+    test('maps every catalogue name to its mockup emoji', () {
+      const expected = {
+        'Rose': '🌹',
+        'flower crown': '🌹',
+        'Fire': '🔥',
+        'flame': '🔥',
+        'Golden Mic': '🎤',
+        'Drum': '🥁',
+        'Crown': '👑',
+        'king': '👑',
+        'royal': '👑',
+        'Spotlight': '🔦',
+        'light': '🔦',
+        'Star': '⭐',
+        'Stage': '🎪',
+        'concert': '🎪',
+        'heart': '❤️',
+        'love': '❤️',
+        'diamond': '💎',
+        'gem': '💎',
+        'rocket': '🚀',
+        'trophy': '🏆',
+        'music': '🎵',
+        'whatever': '🎁',
+      };
+      expected.forEach((name, emoji) {
+        expect(afriGiftEmoji(name), emoji, reason: name);
+      });
+    });
+
+    test('is case-insensitive and never returns empty', () {
+      expect(afriGiftEmoji('ROSE'), afriGiftEmoji('rose'));
+      expect(afriGiftEmoji(''), '🎁');
     });
   });
 }
