@@ -149,3 +149,40 @@ Two stages, not competitors:
 - **Burp Suite Professional (paid) — quarterly / pre-major-launch.** Deep,
   authenticated, active penetration testing beyond automated baseline coverage.
   This is what third-party assessors use; budget for it before enterprise deals.
+
+## LiveKit Cloud static IP ranges
+
+**AfriStage does not currently allowlist LiveKit by IP, so these ranges are
+reference-only.** Recorded here so the list is on hand if ingress/egress
+filtering is ever introduced — and so the "do we need to act?" question does not
+have to be re-answered from scratch each time LiveKit announces a change.
+
+```
+143.223.88.0/21
+161.115.160.0/19
+153.57.128.0/18    # added 2026-08-24, EU/US/India; other regions to follow
+```
+
+All three are valid concurrently; LiveKit commits to substantial notice before
+retiring any. Traffic may originate from any of them at any time.
+
+Why no action was needed (audited 2026-07-27):
+
+- No CIDR blocks exist anywhere in the repo, and `railway.toml` defines no
+  network rules.
+- There is **no LiveKit webhook endpoint**. The only webhook receivers are
+  `payments/webhooks/{paystack,stripe}`, and both authenticate by HMAC
+  signature over the raw body — not by source IP.
+- LiveKit is used only for local token minting (`AccessToken.toJwt()` in
+  `apps/api/src/modules/live-rooms/livekit.service.ts`, no outbound call) and
+  for the `LIVEKIT_URL` handed to clients — so **end-user devices** dial
+  LiveKit directly, not our infrastructure.
+- No SIP trunking and no LiveKit Agents are in use.
+
+This changes the day any of the following becomes true — re-check then:
+
+- A LiveKit webhook endpoint is added, **and** it is restricted by source IP
+  rather than by signature.
+- SIP trunking or LiveKit Agents are adopted.
+- Egress filtering is placed in front of the API, or a WAF/Cloudflare IP rule is
+  placed in front of the domain.
