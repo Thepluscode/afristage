@@ -166,6 +166,172 @@ shape, but the ledger's idempotency key is scoped to the intent, so a webhook +
 pull-verify + sweep racing cannot double-credit — the status write is the only
 thing that can be redundant, and a redundant `SUCCEEDED → SUCCEEDED` loses
 nothing.
+## Session 2026-07-26 — admin + mobile aligned to the supplied Mission Control / mobile mockups
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Admin dashboard rebuilt as "Mission Control" against the supplied reference: per-metric accent icon chips (teal/purple/gold/danger/green), day-over-day trend deltas with in-card area micro-charts, compact icon+action alert strips, a real live-rooms table (initial thumb, category/status pills, live-pulse viewer count, reports, relative last-active), a quick-actions grid, sidebar pending-work count badges, and a sidebar system-status heartbeat | DEPLOYED | Live against the compose stack (`docker compose up -d api` + seeded DB, admin-web on :3210, logged in as `admin@afristage.local`): dark + light renders captured; row-alignment asserted in-browser (all 6 cells per row share one `getBoundingClientRect().top`); 390×844 stacks with no horizontal overflow. 372/372 admin tests; **100% lines and branches on all four changed files** (`app/page.tsx`, `app/admin-ui.tsx`, `app/chrome.tsx`, `app/Sparkline.tsx`); `tsc --noEmit` clean; optimized `next build` passes. Production verification pending. |
+| Three defects found and fixed while building the above: (1) `.muted` on a `<td>` set `display:block`, dropping the cell out of its row so "Last active" rendered visually offset — now scoped with `td.muted{display:table-cell}`; (2) a failed optional live-rooms fetch left the table saying "Loading…" forever — now a distinct `'error'` state that states the failure; (3) gold link text measured **1.5:1** on the light-theme surface — every gold *text* affordance now drops to amber-700 | DEPLOYED | Contrast re-measured in-browser after the fix: `rgb(161,98,7)` on `rgb(245,246,248)` = **4.55:1** (WCAG AA for normal text). Each fix has a covering test. |
+| Mobile: live-rail card LIVE/viewer pill collision fixed (they rendered as `LIV≗2.1K` at the 108px rail width — now one space-between row with scale-down pills), follower counts added under "Creators to watch" avatars, and section headers gained tappable gold "See all" affordances | DEPLOYED | `flutter analyze` clean; 341/341 mobile tests including a new regression test asserting `livePill.right ≤ viewerPill.left`, both pills inside the card, and zero `RenderFlex` overflow at width 108. The same overflow was silently failing `beta_flow_test.dart > feed renders gift wallet quick actions from home mockup`, which now passes. Re-captured `mobile-captures/home.png` shows the corrected rail. Device/production verification pending. |
+
+### Follow-up — mobile gift sheet + live-room chat overlay
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Gift catalogue tiles render **emoji artwork** (🌹🔥🎤🥁👑🔦⭐🎪) per the mockup instead of the monochrome Cupertino icon set. Configured raster `artworkUrl` still wins; emoji is the fallback, including on image-load error. `afriGiftIcon` is now unreachable and was deleted with its test. | DEPLOYED | `afriGiftEmoji` unit-tested over all 22 name branches + case-insensitivity + empty-string; drawer widget test asserts the 🔦 glyph for "Spotlight". **Emoji glyph rendering is NOT visually verified** — see the capture limitation below. |
+| Chat overlay rebuilt to the mockup: normal messages use a two-line layout (coloured name above the message, shadowed for legibility over video) instead of an inline `name text` run; gift events render as a teal→purple gradient pill — `<sender> sent <Gift> 🌹` with an `xN` multiplier chip that is hidden at quantity 1 | DEPLOYED | `mobile-captures/live-room-chat.png` (new capture, drawer removed — the old one hid the whole overlay behind the gift sheet). Widget tests assert the sender sits entirely above the message (`name.bottom ≤ body.top`, left-aligned), the gift row's sender/gift/emoji/`x5`, and that `x1`/null-quantity render no chip. |
+| Chat input matches the mockup: one rounded "Say something…" field with the reaction picker *inside* it, one purple round send button, and the gift moved out to a floating FAB above the bar — down from four competing round buttons | DEPLOYED | Widget tests tap `Send gift` / `Send message` by semantics label and assert the disabled path cannot send. Visible in the new capture. |
+| Reactions rise up the right edge of the stage (deterministic per-slot drift/size/fade) instead of sitting pinned in a static two-column grid | DEPLOYED | Capture taken **mid-flight** (`settle: false`) — `pumpAndSettle` runs the tween to its faded-out end, so the previous helper could never show them. Tests assert upward travel, the 6-glyph cap, the empty-room no-op, that `pumpAndSettle` terminates, and that `disableAnimations` mounts no tween at all. |
+| API: `gift.sent` now carries `senderName` (nullable) alongside `senderId` | DEPLOYED | The mobile gift row cannot name the sender otherwise, and the payload only had an opaque id. Additive field on the typed `RoomEvents` contract; `validateSend` already loaded the viewer, so this is one `include: { profile: true }`. 776/776 API tests, including new specs for the populated name and the null-profile case. Client falls back to "Someone" for null/blank — asserted, along with never surfacing the raw id. |
+
+**Capture-harness limitation (affects the two captures above):** emoji render as tofu boxes in `mobile-captures/*.png`. Flutter's test renderer uses only fonts registered via `FontLoader`, which cannot supply a colour-emoji font (`Apple Color Emoji.ttc` is a CBDT/sbix collection — it loads but registers no usable glyphs). Device font fallback handles this normally. A Flutter **web** build was made to try to prove it in CanvasKit, but reaching the gift sheet needs a logged-in session against a LIVE room and the local Docker image store has corrupted blobs (I/O errors on `postgres:16` and `afristage-api`), so the stack could not be restarted. **Emoji glyph rendering therefore remains unverified and needs device evidence.**
+
+### Follow-up 2 — the four Docker-free reference gaps
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Dashboard queue is now a **tabbed panel** (Live Rooms / Reports / Payouts) per the reference, each with its own columns and "Open all →" deep link. Switching tabs clears the status filter, since status values are per-queue and a carried-over value would silently empty the table. | DEPLOYED | 387/387 admin tests; a test drives all three tabs, asserts the filter reset and that "Open all" follows the active tab. |
+| **Filter row**: category (rooms only) + status, both populated from the data actually present so a filter can never offer a value matching nothing; a "Showing N of M" count; and **CSV Export** of every filtered row (not just the six previewed). | DEPLOYED | `lib/csv.ts` is RFC-4180 quoted and unit-tested for commas, embedded quotes, newlines, CR and null/undefined. Export tests assert 9 rows exported vs 6 rendered, per-tab headers, every name fallback, and that the object URL is revoked. Export is disabled at zero rows. |
+| **Per-room revenue** column, plus a real report count. `admin.liveRooms()` now returns `giftCoins` (a COIN sum via one `groupBy` over the listed rooms, not a query per row) and `reportsCount` (relation `_count`). | DEPLOYED | 781/781 API tests, incl. the empty-list short-circuit, the null-sum-to-zero case, and that the raw `_count` shape is not leaked to clients. |
+| **Trend deltas widened honestly.** Added `newRooms` / `newCreators` to the daily series and gave the flow cards real deltas. | DEPLOYED | 781/781 API tests incl. UTC-day bucketing and out-of-window exclusion for both new fields. A dashboard test asserts exactly four cards carry a delta and that each backlog counter carries none. |
+
+**Bug found and fixed:** `admin.liveRooms()` never returned `reportsCount`, yet the Live Rooms page and the dashboard table both read it — so **every room has displayed 0 reports**, the "reported rooms first" ordering was a no-op, and the "Reported live rooms are prioritised" banner never fired. Now returned and covered.
+
+**A dishonest metric I introduced in the previous pass and have corrected:** the "Gift volume" card showed the *all-time gross* with a *day-over-day* delta attached — two different quantities in one card. It is now "Gift volume today" (the daily flow) with the gross as its caption; all-time still shows in Live economy.
+
+**Why the other six cards have no trend:** a "vs yesterday" delta only means something for a flow. Open reports, pending payouts, open support and failed payments are point-in-time backlogs — a delta on them would read as a rate and mislead. Only rooms opened, creators joined, gift volume and new users are flows, and only those four carry deltas.
+
+---
+
+## Production-readiness audit: error handling / env separation / audit trail (2026-07-26)
+
+Audited against the three gaps most commonly found in AI-assisted apps. Two of the
+three were **already closed** here; claiming otherwise would have been theatre.
+
+| Gap | Verdict |
+|---|---|
+| **1. Error handling beyond the default** | **REAL GAP — now fixed.** Data-fetch failures were already handled well (`ErrorState`, loading and empty states, per-widget catch + warn). But neither Next app had `error.tsx`, `global-error.tsx` or `not-found.tsx`, so any *render* crash produced Next's bare "Application error: a client-side exception has occurred" — a white screen with no context and no way back. |
+| **2. Environment separation** | **MOSTLY ALREADY CLOSED — one real hole, now fixed.** `src/config/validate-env.ts` already refuses to boot production with missing/placeholder secrets, `ENABLE_MOCK_PAYMENTS=true`, `REQUIRE_ADMIN_MFA` off, or seeded-demo login enabled. The hole was `prisma/seed.ts`: no guard at all, so `npm run seed` against a production `DATABASE_URL` would upsert a SUPER_ADMIN **with a published password** plus demo viewers, creators and fake live rooms straight into the customer tables — and being an upsert, a re-run would silently succeed. |
+| **3. Audit trail on sensitive actions** | **ALREADY CLOSED — no change needed.** `adminAuditLog` is written on admin login, session revoke (single and all), password-reset issue and request, creator approve/reject (which is the only role mutation that exists), room end, chat moderation, moderation actions, payout decisions, and account soft/hard delete. There is no email-change or admin-role-assignment endpoint, so there is nothing unlogged to catch. Requests also already carry a correlation id (`x-request-id` returned on every response) with structured completion logging via `RequestLoggingInterceptor` + `JsonLogger`. |
+
+### What changed
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Route-level error boundaries in **admin-web** (`error.tsx`, `global-error.tsx`, `not-found.tsx`) and **web** (`error.tsx`, `not-found.tsx`). Each states what happened, confirms nothing was lost, offers retry plus a way back, and surfaces Next's `digest` as a support reference. The raw error is logged to console but never rendered. `global-error.tsx` renders its own `<html>/<body>` with inline styles, since a root-layout crash may mean the stylesheet never loaded. | DEPLOYED | admin 413/413, web 37/37, **100% lines and branches** on all boundary files. Tests assert the raw message is not rendered, the digest is, both recovery paths work, and the no-digest branch omits the reference line. Both production builds pass. |
+| **Seed production guard** (`src/config/seed-guard.ts`). Two independent signals: `NODE_ENV=production`, and the `DATABASE_URL` host against a local allow-list — because a local `NODE_ENV` with a copy-pasted production URL is the realistic accident, and only the host check catches that. Refuses rather than guessing when the URL is missing or unparseable. `ALLOW_DESTRUCTIVE_SEED=true` is the deliberate override. | DEPLOYED | API 788/788, 7 guard specs covering local hosts, production `NODE_ENV`, a remote host, the unparseable case, the override, and near-miss override values (`1`/`yes`/`TRUE` do **not** count). **Verified end to end:** running the real seed with a simulated Railway URL aborts with `Refusing to seed: DATABASE_URL points at "shortline.proxy.rlwy.net"…` before any write. |
+
+**Deliberately not done:** a global Nest exception filter. Nest already returns JSON
+(not stack traces) in production, and correlation ids plus structured error logging
+are already in place, so a filter would only normalise the envelope — not close a
+gap. Adding one would change every endpoint's error contract for no safety gain.
+
+---
+
+## Reference-vs-built inventory (audited 2026-07-26)
+
+Earlier sessions listed exclusions ad-hoc — whatever happened to be noticed while
+building. That under-reported the gap. This is a full element-by-element pass over
+all five supplied reference images. **Status is what is actually in the codebase**,
+not what was intended.
+
+### Reference A — mobile 4-up (home / live room + gift sheet / creator dashboard / wallet)
+
+| Element | Status |
+|---|---|
+| Hero live card: cover, Live-now pill, viewer pill, title, "With <creator>", Join now, carousel dots | BUILT |
+| "Live now" rail: LIVE + viewer pills, category chip, title, creator · country | BUILT |
+| Section headers with gold "See all" | BUILT |
+| Category chip row | BUILT |
+| "Creators to watch" ring rail with follower counts | BUILT |
+| Live room: top bar (chevron, avatar, name, Follow, viewers), LIVE/category/language tags | BUILT |
+| Live room: chat overlay (two-line messages), gift row with `xN`, rising reactions, chat input + gift FAB | BUILT |
+| Gift sheet: 2×4 grid, emoji artwork, coin prices, selected state, balance pill, Send bar | BUILT |
+| Creator dashboard: approved banner, Overview stat grid, Earnings + Payout, Top supporters, Go Live | BUILT |
+| Wallet: balance card, currency selector, Payout/Transactions, Earnings summary, settings rows | BUILT |
+| **Verified ✓ badge beside the creator name in the live-room top bar** | **NOT BUILT** — `AfriLiveTopBar` has no verified flag |
+| **Bottom nav "Activity" tab** | **NOT BUILT** — the viewer's 4th tab is Wallet, not Activity; there is no activity/notification feed tab |
+| **"..." room overflow menu for viewers** | **PARTIAL** — rendered only when `onReport` is passed, which `room_screen` does for hosts |
+
+### Reference B — mobile home (coin balance / Send Gift / Live now / Recommended)
+
+| Element | Status |
+|---|---|
+| Gift Wallet card with balance and Send Gift / Top Up / History actions | BUILT (sits at the **bottom** of home; the reference puts the balance at the **top**) |
+| "Live now" rail + "See all" | BUILT |
+| **Coin-balance header card with "Top up" at the top of home** | **NOT BUILT** — balance is only in the bottom panel and the app bar pill |
+| **"Send Gift — Show love. Support creators." standalone row** | **NOT BUILT** — exists only as a small action tile |
+| **"Recommended for you" rail** | **NOT BUILT** — home has Live now, Upcoming, Browse by category, Creators to watch; no recommendation rail |
+| **Notification badge count on the home bell** | BUILT |
+
+### Reference C — mobile home (Go Live CTA / gift counts / Gift Wallet)
+
+| Element | Status |
+|---|---|
+| Gift Wallet card with balance | BUILT |
+| "For You" rail | BUILT (as the "For You" category chip, not a separate rail) |
+| **"Go Live" primary button + purple "+" at the top of home** | **NOT BUILT** — going live is only reachable from the bottom nav |
+| **Gift totals on live cards (🎁 12.5K)** | **NOT BUILT** — `LiveRoom` carries no gift count; the API does not return one per room in the feed |
+| **"Request Payout" as a home wallet action** | **NOT BUILT** — the third tile is Top Up |
+
+### Reference D — admin "AfriStage Admin"
+
+| Element | Status |
+|---|---|
+| Grouped sidebar with icons | BUILT |
+| Topbar: search, theme toggle, notification badge, admin menu | BUILT |
+| Critical-reports alert strip | BUILT |
+| 4 KPI cards with icons | BUILT (8 cards) |
+| Tabbed table (Reports / Payouts / Live Rooms) | BUILT |
+| Ledger status card, Quick actions grid | BUILT |
+| Per-row action buttons (Review / Escalate) | BUILT |
+| **Dedicated "Payouts queue" card** (@handle · amount · status) | **NOT BUILT** — payouts are a tab instead |
+| **Sidebar: Moderation, Settings** | **NOT BUILT** — no such routes exist |
+
+### Reference E — admin "Mission Control"
+
+| Element | Status |
+|---|---|
+| Sidebar count badges (Approvals 12, Reports 7) | BUILT |
+| "System Status ● All Systems Operational" footer | BUILT |
+| 3 alert strips with inline action buttons | BUILT |
+| 4 KPI cards with sparkline + "% vs yesterday" | BUILT (4 flow cards; backlog cards deliberately have none) |
+| Status / category filters + Export | BUILT |
+| Table: category pill, status pill, live viewer dot, revenue, relative last-active | BUILT |
+| **Date-range picker ("May 16 – May 22, 2025")** | **NOT BUILT** — needs server-side range support |
+| **"All Countries" filter** | **NOT BUILT** — `country` is on the room record but not exposed as a filter |
+| **"Filters" (advanced) button** | **NOT BUILT** |
+| Pagination ("Showing 1 to 10 of N", elided page window) | BUILT |
+| Per-row actions (Suspend / End on rooms, Review / Escalate on reports) | BUILT — no "⋮" overflow; payouts link out instead of mutating money here |
+| **Room thumbnail photos in the table** | **NOT BUILT** — uses a lettered tile; no room cover reaches the admin API |
+| **⌘K hint in the global search** | **NOT BUILT** — search works, the affordance is unlabelled |
+| **Sidebar: Live Monitor, Approvals, Verifications, Categories, Tags, Transactions, Suspensions, Roles & Permissions, Settings** | **NOT BUILT** — none of these routes exist |
+
+### Follow-up 3 — row actions + pagination
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Row actions.** Live Rooms rows get Suspend / End (confirmation dialog, disabled when the action cannot apply); Reports rows get Review / Escalate (reason prompt, falling back to the action name when blank). Both reuse the existing endpoints the per-resource pages already call, and refresh only the queue they touched. | DEPLOYED | 407/407 admin tests, **100% lines and branches** on all five changed files. Tests cover both mutations, the disabled states, the blank-reason fallback, and the failure surface. Failure path also **proven in a browser**: a rejected suspend rendered `Suspend failed: POST /admin/live-rooms/r3/suspend failed: 404` in a `role="alert"` instead of silently doing nothing. |
+| **Pagination.** 10 rows per page with an elided page window (first + last always shown, ≤7 controls), prev/next disabled at the ends, `aria-current` on the active page, and "Showing X to Y of N". Page resets on tab and filter change, and clamps when the row count shrinks beneath it. | DEPLOYED | `pageWindow` unit-tested across the start/middle/end cases and for fixed width. Live check: 26 rooms → "Showing 1 to 10 of 26", page 3 → "21 to 26" with 6 rows, then filtering to 4 rooms returned to page 1 rather than stranding on an empty page. |
+
+**Deliberate scope calls:**
+- **Payout rows link out** to `/payouts?id=…` instead of carrying approve/reject. Moving money needs the ledger check, fraud score and destination masking that only the payouts page shows; a preview panel is the wrong place for it. A test asserts no approve/reject control exists on this surface.
+- **No "⋮" overflow menu** — with two actions per row it would hide them behind a click for no gain.
+- **Pagination is client-side** over the fetched rows. The admin API caps at 100 records, so when the fetch returns exactly 100 the panel now says "Showing the most recent 100 records — open the full page for older history", rather than letting "of 100" read as the whole dataset. True server-side paging would need `page`/`pageSize`/`total` on the admin endpoints and is not done.
+
+**Not verified:** the row-action *success* path. The stub API used for the browser check has no mutation endpoints and Docker is still unusable, so only the failure path has live evidence; success is unit-tested only.
+
+### Summary
+
+- **Mobile:** the four reference screens are substantially built. 8 discrete elements are missing, mostly home-screen composition (top-of-page balance, Go Live CTA, Recommended rail, per-room gift totals) and two small live-room details.
+- **Admin:** the dashboard shell matches. Row actions and pagination are now built (follow-up 3). **10 elements remain missing**: date-range and country filters, the advanced "Filters" button, room thumbnails, the ⌘K hint, a dedicated payouts-queue card, and **11 sidebar destinations that do not exist as routes** (Moderation, Settings, Live Monitor, Approvals, Verifications, Categories, Tags, Transactions, Suspensions, Roles & Permissions).
+
+None of the NOT BUILT items above have been started. Several are non-trivial
+(pagination and row actions need server-side paging and mutation wiring; the
+sidebar destinations are whole features, not UI). They are listed here so the
+gap is visible rather than discovered later.
+
+**Still blocked on environment, not code:** live verification of everything in this session. The volume hit 100% (121Mi free of 228Gi), which corrupted Docker's containerd blob store; `docker system prune` cannot even enumerate images. ~3.9Gi has since been reclaimed, but recovery now needs a Docker Desktop disk reset, which destroys all local images and volumes — an operator decision, not taken. Emoji glyph rendering also still needs device evidence.
 
 ---
 
