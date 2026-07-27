@@ -1,6 +1,7 @@
 import 'dotenv/config'; // load apps/api/.env so `npm run seed` works without inline DATABASE_URL
 import { PrismaClient, UserRole, CreatorCategory, WalletAccountType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { assertSeedTargetIsLocal } from '../src/config/seed-guard';
 
 const prisma = new PrismaClient();
 
@@ -65,6 +66,7 @@ async function seedDemoStage() {
 }
 
 async function main() {
+  assertSeedTargetIsLocal();
   await createUser('admin@afristage.local', 'Admin123!', UserRole.SUPER_ADMIN, 'admin', 'AfriStage Admin', 'https://i.pravatar.cc/400?img=8');
   await createUser('viewer@afristage.local', 'Viewer123!', UserRole.VIEWER, 'viewer', 'Demo Viewer', 'https://i.pravatar.cc/400?img=5');
   const creator = await createUser('creator@afristage.local', 'Creator123!', UserRole.CREATOR, 'creator', 'Demo Creator', 'https://i.pravatar.cc/400?img=15');
