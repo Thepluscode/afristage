@@ -40,6 +40,15 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-07-28 — reference gaps closed, and the API half they needed
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| The eight elements the 2026-07-26 audit listed as NOT BUILT: verified badge, viewer overflow action, Activity tab, top balance/top-up and Go Live controls, standalone Send Gift row, recommendation rail, per-room gift totals, creator Request Payout action. Plus the `/site` exposure and typography pass. | IMPLEMENTED | 353 mobile tests, `flutter analyze` clean, admin-web landing tests 7/7 and an optimized Next build; captures regenerated in `mobile-captures/`. No device or deployed evidence yet, so not VERIFIED. |
+| **The feed never returned the gift total the cards display.** `giftCoinTotal` was read by the mobile model, but `FeedEngine` only computed gift coins internally as a 10-minute velocity input to ranking — every live card would have rendered "0 gifts" while people were gifting into the room. The feed now returns the room's own take as a separate unwindowed aggregate (the velocity window answers a different question and must not be shared), fetched even for a single-room slice, which previously short-circuited all aggregation — during the beta one live room is the common case. | VERIFIED | Live against real Postgres: feed reads `giftCoinTotal=0` for four seeded rooms, a 37 × 10-coin gift goes to one, and that room reads **370** while the other three stay 0. 820/820 API tests; **100% lines and branches** on `feed-engine.service.ts`, including the single-room path, the cache round-trip, and that the total and velocity queries stay separate. |
+
+---
+
 ## Session 2026-07-27 — concurrent-write audit: last-write-wins removed where it lost data
 
 Audited every write in `apps/api` for the lost-update pattern (read → validate →
@@ -229,6 +238,10 @@ gap. Adding one would change every endpoint's error contract for no safety gain.
 ---
 
 ## Reference-vs-built inventory (audited 2026-07-26)
+
+> **Closed 2026-07-28** by "Reference gaps closed" below. The NOT BUILT rows in
+> this section are preserved as the audit found them — the audit is a
+> point-in-time record, not a live checklist.
 
 Earlier sessions listed exclusions ad-hoc — whatever happened to be noticed while
 building. That under-reported the gap. This is a full element-by-element pass over
