@@ -127,8 +127,36 @@ describe('CreatorsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve Creator' }));
     await waitFor(() =>
-      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/approve')
+      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/approve', { expectedStatus: 'PENDING' })
     );
+  });
+
+  // The reviewer's decision is conditional on the status they had on screen. If it
+  // is refused, the click must not just silently do nothing.
+  it('tells the reviewer when the application changed under them, and refreshes', async () => {
+    vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'PENDING' })]);
+    vi.mocked(adminPost).mockRejectedValueOnce(
+      new Error('POST /admin/creators/user-abcdefgh/approve failed: 409 {"message":"changed"}')
+    );
+    render(<CreatorsPage />);
+    await screen.findByText('Stage Name');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Creator' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/changed since this list was loaded/i);
+    // the list is reloaded so the reviewer sees the current state
+    await waitFor(() => expect(adminGet).toHaveBeenCalledTimes(2));
+  });
+
+  it('surfaces a non-conflict failure instead of swallowing it', async () => {
+    vi.mocked(adminGet).mockResolvedValue([creator({ approvalStatus: 'PENDING' })]);
+    vi.mocked(adminPost).mockRejectedValueOnce(
+      new Error('POST /admin/creators/user-abcdefgh/approve failed: 500 boom')
+    );
+    render(<CreatorsPage />);
+    await screen.findByText('Stage Name');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Creator' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/could not approve/i);
   });
 
   it('rejects a creator using a typed reason', async () => {
@@ -141,7 +169,7 @@ describe('CreatorsPage', () => {
     fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'bad behaviour' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reject' })); // confirm
     await waitFor(() =>
-      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/reject', { reason: 'bad behaviour' })
+      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/reject', { reason: 'bad behaviour', expectedStatus: 'PENDING' })
     );
   });
 
@@ -154,7 +182,7 @@ describe('CreatorsPage', () => {
     // submit with an empty reason -> default fallback
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reject' }));
     await waitFor(() =>
-      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/reject', { reason: 'Rejected by admin' })
+      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/reject', { reason: 'Rejected by admin', expectedStatus: 'PENDING' })
     );
   });
 
@@ -178,7 +206,7 @@ describe('CreatorsPage', () => {
     fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'policy breach' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Suspend' })); // confirm
     await waitFor(() =>
-      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/suspend', { reason: 'policy breach' })
+      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/suspend', { reason: 'policy breach', expectedStatus: 'APPROVED' })
     );
   });
 
@@ -191,7 +219,7 @@ describe('CreatorsPage', () => {
     // submit with an empty reason -> default fallback
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Suspend' }));
     await waitFor(() =>
-      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/suspend', { reason: 'Suspended by admin' })
+      expect(adminPost).toHaveBeenCalledWith('/admin/creators/user-abcdefgh/suspend', { reason: 'Suspended by admin', expectedStatus: 'APPROVED' })
     );
   });
 });
