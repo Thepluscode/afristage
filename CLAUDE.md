@@ -35,6 +35,11 @@ Do not relabel historical entries as a side effect of unrelated work. If an old
 `DEPLOYED` entry needs a current label, re-check its evidence first and say what
 you checked.
 
+`npm run validate:tracker` enforces the machine-checkable half of this in CI: a
+status must be a real label, and `VERIFIED` / `PILOT-READY` / `PRODUCTION-READY`
+must carry evidence that is not merely "tests pass" or "build succeeded". Whether
+the evidence is *good* is your judgement, not the linter's.
+
 ## Repository facts an agent needs
 
 - Monorepo: NestJS + Prisma API (`apps/api`), Next.js admin (`apps/admin-web`),
