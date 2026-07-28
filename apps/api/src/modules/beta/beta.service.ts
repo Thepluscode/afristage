@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BetaInvite, BetaInviteStatus, BetaInviteType } from '@prisma/client';
+import { BetaInvite, BetaInviteStatus, BetaInviteType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { EmailService } from '../../common/email.service';
@@ -94,10 +94,21 @@ export class BetaService {
         await this.prisma.betaInvite.update({ where: { id: invite.id }, data: { status: BetaInviteStatus.EXPIRED } });
         throw new BadRequestException('Invite has expired');
       }
-      const accepted = await this.prisma.betaInvite.update({
-        where: { id: invite.id },
-        data: { status: BetaInviteStatus.ACCEPTED, acceptedById, acceptedAt: new Date() }
-      });
+      // Conditional on the invite still being PENDING: two people redeeming the
+      // same code raced here, and the second write overwrote acceptedById — one
+      // invite let two accounts in and the first redeemer's record vanished.
+      let accepted: BetaInvite;
+      try {
+        accepted = await this.prisma.betaInvite.update({
+          where: { id: invite.id, status: BetaInviteStatus.PENDING },
+          data: { status: BetaInviteStatus.ACCEPTED, acceptedById, acceptedAt: new Date() }
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          throw new BadRequestException('Invalid or already-used invite code');
+        }
+        throw e;
+      }
       // A CREATOR invite grants the right to APPLY as creator — not automatic approval.
       return this.redact(accepted);
     }

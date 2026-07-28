@@ -53,6 +53,58 @@ export class PayoutsService {
     }
   }
 
+  // Compare-and-set the status: the update only lands if the row is STILL in the
+  // status we validated against, so of two reviewers acting on the same payout
+  // exactly one wins and the other gets a 409 instead of silently overwriting.
+  //
+  // Why this matters: reading, validating and then writing left a window where
+  // approve and reject could both pass assertTransition on the same UNDER_REVIEW
+  // payout. Reject returned the coins to EARNING while approve won the write, so
+  // the payout sat APPROVED over an empty hold — and markPaid then drained that
+  // hold negative and paid a creator who had already been made whole.
+  //
+  // The claim is taken BEFORE the money move (it is the lock), and released if
+  // the move fails so the payout is retryable rather than stranded mid-state.
+  private async claim(
+    id: string,
+    to: PayoutStatus,
+    data: Prisma.PayoutRequestUncheckedUpdateInput, // 'unchecked' = scalar FK fields (reviewedBy) writable directly
+    move?: (payout: PayoutRequest) => Promise<unknown>
+  ): Promise<{ before: PayoutRequest; after: PayoutRequest }> {
+    const before = await this.prisma.payoutRequest.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('Payout not found');
+    this.assertTransition(before, to);
+
+    let after: PayoutRequest;
+    try {
+      after = await this.prisma.payoutRequest.update({
+        where: { id, status: before.status }, // <- the compare half of compare-and-set
+        data: { ...data, status: to }
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        throw new ConflictException('Payout was changed by another reviewer — reload and retry');
+      }
+      throw e;
+    }
+
+    if (move) {
+      try {
+        await move(before);
+      } catch (e) {
+        // Release the claim so the payout is retryable — but never let a failure
+        // in the release replace the real cause in the logs.
+        try {
+          await this.prisma.payoutRequest.updateMany({ where: { id, status: to }, data: { status: before.status } });
+        } catch (releaseErr) {
+          this.logger.error(`failed to release the ${to} claim on payout ${id}: ${(releaseErr as Error).message}`);
+        }
+        throw e;
+      }
+    }
+    return { before, after };
+  }
+
   // Best-effort: a notification failure must never block or roll back a money
   // state change (optional dependency — Rule 9). Fire after the state is committed.
   private async notify(userId: string, title: string, body: string) {
@@ -224,10 +276,7 @@ export class PayoutsService {
 
   // Put an UNDER_REVIEW payout on hold for further investigation (funds stay in hold).
   async hold(reviewedBy: string, id: string, reason?: string) {
-    const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
-    if (!payout) throw new NotFoundException('Payout not found');
-    this.assertTransition(payout, PayoutStatus.HELD);
-    const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.HELD, reviewedBy, reviewedAt: new Date() } });
+    const { before: payout, after: updated } = await this.claim(id, PayoutStatus.HELD, { reviewedBy, reviewedAt: new Date() });
     await this.audit(reviewedBy, 'payout.held', id, { reason: reason ?? 'admin hold' });
     await this.notify(payout.creatorUserId, 'Payout on hold', `Your payout of ${payout.coinAmount} coins is on hold while we review it.`);
     return updated;
@@ -235,31 +284,34 @@ export class PayoutsService {
 
   // Release a fraud hold back into the review queue (HELD -> UNDER_REVIEW).
   async release(reviewedBy: string, id: string) {
-    const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
-    if (!payout) throw new NotFoundException('Payout not found');
-    this.assertTransition(payout, PayoutStatus.UNDER_REVIEW);
-    const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.UNDER_REVIEW, reviewedBy, reviewedAt: new Date() } });
+    const { after: updated } = await this.claim(id, PayoutStatus.UNDER_REVIEW, { reviewedBy, reviewedAt: new Date() });
     await this.audit(reviewedBy, 'payout.released', id, {});
     return updated;
   }
 
   async approve(reviewedBy: string, id: string) {
-    const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
-    if (!payout) throw new NotFoundException('Payout not found');
-    this.assertTransition(payout, PayoutStatus.APPROVED);
-    const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.APPROVED, reviewedBy, reviewedAt: new Date() } });
+    const { before: payout, after: updated } = await this.claim(id, PayoutStatus.APPROVED, { reviewedBy, reviewedAt: new Date() });
     await this.audit(reviewedBy, 'payout.approved', id, { coinAmount: payout.coinAmount.toString() });
     await this.notify(payout.creatorUserId, 'Payout approved', `Your payout of ${payout.coinAmount} coins is approved and will be sent shortly.`);
     return updated;
   }
 
   async reject(reviewedBy: string, id: string, reason: string) {
-    const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
-    if (!payout) throw new NotFoundException('Payout not found');
-    this.assertTransition(payout, PayoutStatus.REJECTED);
-
-    await this.money.payoutReject({ payoutId: id, creatorUserId: payout.creatorUserId, coinAmount: payout.coinAmount, reason });
-    const updated = await this.prisma.payoutRequest.update({ where: { id }, data: { status: PayoutStatus.REJECTED, reviewedBy, reviewedAt: new Date(), rejectionReason: reason } });
+    // Claim REJECTED first, then return the held coins — a reviewer who lost the
+    // race never moves money for a decision that didn't stick.
+    // ponytail: REJECTED is terminal and has no in-flight state to park in, so a
+    // process death between the claim and the reversal leaves the coins in the
+    // hold, recoverable only by an ADJUSTMENT post. That is still the safer of
+    // the two orderings — moving the money first would, on the same crash, return
+    // the coins while the payout still read UNDER_REVIEW, letting the creator
+    // request them a second time. Stuck beats duplicated. Give reject a
+    // REJECTING state (as markPaid has PROCESSING) if this window ever bites.
+    const { before: payout, after: updated } = await this.claim(
+      id,
+      PayoutStatus.REJECTED,
+      { reviewedBy, reviewedAt: new Date(), rejectionReason: reason },
+      (p) => this.money.payoutReject({ payoutId: id, creatorUserId: p.creatorUserId, coinAmount: p.coinAmount, reason })
+    );
     await this.audit(reviewedBy, 'payout.rejected', id, { coinAmount: payout.coinAmount.toString(), reason });
     await this.notify(payout.creatorUserId, 'Payout rejected', `Your payout of ${payout.coinAmount} coins was rejected: ${reason}. The coins are back in your earnings.`);
     return updated;
@@ -267,15 +319,31 @@ export class PayoutsService {
 
   // providerReference is the external transfer id (bank/Paystack) — the proof a real
   // disbursement happened. Recorded so PAID is always reconcilable to a transfer.
+  // Disbursement is two-phase, because PAID is terminal. Claiming PAID up front
+  // would block a second reviewer correctly but strand the payout if the process
+  // died before the transfer posted: the row would read PAID with the coins still
+  // in the hold, and no legal transition back out to retry from. So PROCESSING is
+  // claimed first — that claim is what excludes the other reviewer — then the
+  // transfer posts, then PROCESSING -> PAID. A crash leaves PROCESSING, which is
+  // a legal state to resume from, and the ledger's idempotency key makes the
+  // re-post a no-op. A transfer that merely fails also stays PROCESSING, which is
+  // the honest description of an in-flight disbursement.
   async markPaid(reviewedBy: string, id: string, providerReference?: string) {
     const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
     if (!payout) throw new NotFoundException('Payout not found');
-    this.assertTransition(payout, PayoutStatus.PAID); // blocks double-pay and REQUESTED/REJECTED -> PAID
+
+    // Already PROCESSING means a previous attempt died mid-flight — resume it
+    // rather than re-claiming, which APPROVED -> PROCESSING would reject.
+    if (payout.status !== PayoutStatus.PROCESSING) {
+      await this.claim(id, PayoutStatus.PROCESSING, { reviewedBy }); // blocks double-pay and REQUESTED/REJECTED -> PAID
+    }
 
     await this.money.payoutPaid({ payoutId: id, creatorUserId: payout.creatorUserId, coinAmount: payout.coinAmount, providerReference });
-    const updated = await this.prisma.payoutRequest.update({
-      where: { id },
-      data: { status: PayoutStatus.PAID, reviewedBy, paidAt: new Date(), providerReference: providerReference?.trim() || null }
+
+    const { after: updated } = await this.claim(id, PayoutStatus.PAID, {
+      reviewedBy,
+      paidAt: new Date(),
+      providerReference: providerReference?.trim() || null
     });
     await this.audit(reviewedBy, 'payout.paid', id, { coinAmount: payout.coinAmount.toString(), providerReference: providerReference ?? null });
     const ref = providerReference?.trim();

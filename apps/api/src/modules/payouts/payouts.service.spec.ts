@@ -6,7 +6,7 @@ import { PayoutsService, coinFiatRate } from './payouts.service';
 
 function build() {
   const prisma: any = {
-    payoutRequest: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    payoutRequest: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     creatorProfile: { findUnique: jest.fn() },
     adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
   };
@@ -185,6 +185,118 @@ describe('PayoutsService', () => {
     prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'REJECTED' });
     await expect(service.reject('admin', 'p1', 'fraud')).resolves.toMatchObject({ status: 'REJECTED' });
     expect(ledger.postTransaction).toHaveBeenCalled(); // hold -> earnings reversal
+  });
+});
+
+// The lost-update guard: two reviewers acting on the same payout. The write is
+// conditional on the status that was validated, so the loser is rejected instead
+// of overwriting the winner — and never reaches the money move.
+describe('PayoutsService concurrent reviewers', () => {
+  // What Prisma throws when the compare-and-set where clause matches no row.
+  const raceLost = new Prisma.PrismaClientKnownRequestError('Record to update not found', { code: 'P2025', clientVersion: '5' });
+
+  it('the transition is conditional on the status that was validated', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'APPROVED' });
+    await service.approve('admin', 'p1');
+    expect(prisma.payoutRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1', status: 'UNDER_REVIEW' } })
+    );
+  });
+
+  it('a reviewer who lost the race gets a conflict, not a silent overwrite', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockRejectedValue(raceLost);
+    await expect(service.approve('admin', 'p1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  // The bug this whole guard exists for: approve and reject both passing the
+  // stale-read check meant the coins went back to EARNING *and* the payout ended
+  // APPROVED, so markPaid later drained an empty hold and paid twice.
+  it('a lost reject never returns the coins to earnings', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockRejectedValue(raceLost);
+    await expect(service.reject('admin', 'p1', 'fraud')).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+
+  it('a lost markPaid never disburses', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'APPROVED', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockRejectedValue(raceLost);
+    await expect(service.markPaid('admin', 'p1')).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
+  });
+
+  // PAID is terminal, so claiming it before the transfer would strand the payout
+  // if the process died in between: PAID on the row, coins still in the hold, no
+  // legal transition to retry from. PROCESSING is the in-flight state instead.
+  it('claims PROCESSING before disbursing, then settles PAID', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'APPROVED', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update
+      .mockResolvedValueOnce({ id: 'p1', status: 'PROCESSING' })
+      .mockResolvedValueOnce({ id: 'p1', status: 'PAID' });
+    await expect(service.markPaid('admin', 'p1')).resolves.toMatchObject({ status: 'PAID' });
+    const statuses = prisma.payoutRequest.update.mock.calls.map((c: any[]) => c[0].data.status);
+    expect(statuses).toEqual(['PROCESSING', 'PAID']);
+  });
+
+  it('resumes a disbursement that died mid-flight instead of rejecting it', async () => {
+    const { service, prisma, ledger } = build();
+    // What a crash between the claim and the transfer leaves behind.
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'PROCESSING', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PAID' });
+    await expect(service.markPaid('admin', 'p1')).resolves.toMatchObject({ status: 'PAID' });
+    // Only the settling write — PROCESSING is not re-claimed.
+    expect(prisma.payoutRequest.update.mock.calls.map((c: any[]) => c[0].data.status)).toEqual(['PAID']);
+    expect(ledger.postTransaction).toHaveBeenCalled(); // idempotent re-post
+  });
+
+  it('a failed transfer leaves the payout PROCESSING, not reverted', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'APPROVED', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PROCESSING' });
+    ledger.postTransaction.mockRejectedValue(new Error('transfer down'));
+    await expect(service.markPaid('admin', 'p1')).rejects.toThrow('transfer down');
+    expect(prisma.payoutRequest.update.mock.calls.map((c: any[]) => c[0].data.status)).toEqual(['PROCESSING']);
+  });
+
+  it('the release of a failed claim never masks the original failure', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'REJECTED' });
+    ledger.postTransaction.mockRejectedValue(new Error('ledger down'));
+    prisma.payoutRequest.updateMany.mockRejectedValue(new Error('release also failed'));
+    await expect(service.reject('admin', 'p1', 'fraud')).rejects.toThrow('ledger down');
+  });
+
+  it('releases the claim when the money move fails, so the payout is retryable', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'REJECTED' });
+    ledger.postTransaction.mockRejectedValue(new Error('ledger down'));
+    await expect(service.reject('admin', 'p1', 'fraud')).rejects.toThrow('ledger down');
+    expect(prisma.payoutRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: 'p1', status: 'REJECTED' },
+      data: { status: 'UNDER_REVIEW' }
+    });
+  });
+
+  it('rethrows a non-race update failure untouched', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockRejectedValue(new Error('db down'));
+    await expect(service.approve('admin', 'p1')).rejects.toThrow('db down');
+  });
+
+  it('a missing payout is still a 404, not a conflict', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    await expect(service.approve('admin', 'nope')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

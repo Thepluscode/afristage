@@ -31,8 +31,11 @@ describe('AdminController', () => {
     c.approveCreator(u, 'c1'); c.rejectCreator(u, 'c1'); c.rejectCreator(u, 'c1', 'bad');
     c.suspendCreator(u, 'c1'); c.suspendCreator(u, 'c1', 'tos'); c.endRoom(u, 'r1');
     c.setPayoutEligibility(u, 'c1'); c.setPayoutEligibility(u, 'c1', false);
-    expect(creators.rejectCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Rejected');
-    expect(creators.suspendCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Suspended');
+    expect(creators.rejectCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Rejected', undefined);
+    expect(creators.suspendCreator).toHaveBeenNthCalledWith(1, 'a1', 'c1', 'Suspended', undefined);
+    // The optimistic-review token is forwarded when the reviewer's client sends it.
+    c.approveCreator(u, 'c1', 'PENDING' as any);
+    expect(creators.approveCreator).toHaveBeenLastCalledWith('a1', 'c1', 'PENDING');
     expect(creators.setPayoutEligibility).toHaveBeenNthCalledWith(1, 'a1', 'c1', true); // enabled defaults to true
     expect(creators.setPayoutEligibility).toHaveBeenNthCalledWith(2, 'a1', 'c1', false);
     expect(rooms.adminEnd).toHaveBeenCalledWith('a1', 'r1');

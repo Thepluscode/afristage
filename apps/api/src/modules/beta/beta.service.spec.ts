@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { BetaService } from './beta.service';
 
@@ -31,10 +32,38 @@ describe('BetaService.accept', () => {
       { id: 'i1', codeHash: await bcrypt.hash(code, 10), status: 'PENDING', expiresAt: future }
     ]);
     const res = await service.accept('user1', code);
+    // The where clause carries the PENDING guard, so redeeming is compare-and-set.
     expect(prisma.betaInvite.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'i1' }, data: expect.objectContaining({ status: 'ACCEPTED', acceptedById: 'user1' }) })
+      expect.objectContaining({
+        where: { id: 'i1', status: 'PENDING' },
+        data: expect.objectContaining({ status: 'ACCEPTED', acceptedById: 'user1' })
+      })
     );
     expect((res as any).codeHash).toBeUndefined(); // never leak the hash
+  });
+
+  // Two people redeeming the same code at once: the loser is rejected instead of
+  // overwriting acceptedById and letting one invite admit two accounts.
+  it('rejects the loser of a concurrent redemption of the same code', async () => {
+    const { service, prisma } = build();
+    const code = 'shared1';
+    prisma.betaInvite.findMany.mockResolvedValue([
+      { id: 'i1', codeHash: await bcrypt.hash(code, 10), status: 'PENDING', expiresAt: future }
+    ]);
+    prisma.betaInvite.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found', { code: 'P2025', clientVersion: '5' })
+    );
+    await expect(service.accept('user2', code)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rethrows a non-race redemption failure instead of blaming the code', async () => {
+    const { service, prisma } = build();
+    const code = 'dbdown1';
+    prisma.betaInvite.findMany.mockResolvedValue([
+      { id: 'i1', codeHash: await bcrypt.hash(code, 10), status: 'PENDING', expiresAt: future }
+    ]);
+    prisma.betaInvite.update.mockRejectedValue(new Error('db down'));
+    await expect(service.accept('u', code)).rejects.toThrow('db down');
   });
 
   it('rejects an expired code (and marks it EXPIRED)', async () => {
