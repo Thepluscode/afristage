@@ -408,3 +408,39 @@ html, body {
   80% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-26px) scale(1); }
 }
+
+/* Crash / not-found panel. Public surface: calm, no internals, always a way back. */
+.crash-panel {
+  max-width: 34rem;
+  margin: 4rem auto;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
+.crash-panel h1 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+.crash-panel p { margin: 0 0 1rem; line-height: 1.6; opacity: 0.82; }
+.crash-panel .crash-ref { font-size: 0.85rem; opacity: 0.6; }
+.crash-panel code { color: var(--stage-gold); }
+.crash-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.crash-actions button,
+.crash-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border: 1px solid rgba(233, 180, 76, 0.4);
+  border-radius: 999px;
+  background: rgba(233, 180, 76, 0.14);
+  color: var(--stage-gold);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.crash-actions button:hover,
+.crash-actions a:hover { background: rgba(233, 180, 76, 0.24); }

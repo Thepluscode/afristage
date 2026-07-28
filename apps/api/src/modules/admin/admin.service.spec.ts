@@ -11,7 +11,10 @@ function build(giftSum: number | null = null) {
     supportTicket: { count },
     paymentIntent: { count, findMany: jest.fn().mockResolvedValue([]) },
     user: { count, findMany: jest.fn().mockResolvedValue([]) },
-    giftTransaction: { aggregate: jest.fn().mockResolvedValue({ _sum: { totalCoinAmount: giftSum } }) },
+    giftTransaction: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { totalCoinAmount: giftSum } }),
+      groupBy: jest.fn().mockResolvedValue([])
+    },
     ledgerTransaction: { findMany: jest.fn().mockResolvedValue([]) },
     adminAuditLog: { findMany: jest.fn().mockResolvedValue([]) }
   };
@@ -79,6 +82,45 @@ describe('AdminService list filters', () => {
     expect(prisma.liveRoom.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'LIVE' } }));
     await service.liveRooms();
     expect(prisma.liveRoom.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: {} }));
+  });
+
+  it('liveRooms() returns an empty list without querying gifts', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findMany.mockResolvedValue([]);
+    expect(await service.liveRooms()).toEqual([]);
+    // no rooms -> no point aggregating gift revenue
+    expect(prisma.giftTransaction.groupBy).not.toHaveBeenCalled();
+  });
+
+  it('liveRooms() attaches the report count and gift revenue to each room', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findMany.mockResolvedValue([
+      { id: 'r1', title: 'Friday Jam', _count: { reports: 3 } },
+      { id: 'r2', title: 'Quiet Room', _count: { reports: 0 } }
+    ]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: 285600 } }]);
+
+    const rooms = await service.liveRooms();
+
+    // reportsCount was read by the admin UI but never returned before this
+    expect(rooms[0]).toMatchObject({ id: 'r1', reportsCount: 3, giftCoins: 285600 });
+    // a room with no gift rows reports zero revenue, not undefined
+    expect(rooms[1]).toMatchObject({ id: 'r2', reportsCount: 0, giftCoins: 0 });
+    // the raw relation-count shape is not leaked to clients
+    expect(rooms[0]).not.toHaveProperty('_count');
+    // one aggregate over the listed rooms, not one query per row
+    expect(prisma.giftTransaction.groupBy).toHaveBeenCalledTimes(1);
+    expect(prisma.giftTransaction.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ['roomId'], where: { roomId: { in: ['r1', 'r2'] } } })
+    );
+  });
+
+  it('liveRooms() treats a null gift sum as zero revenue', async () => {
+    const { service, prisma } = build();
+    prisma.liveRoom.findMany.mockResolvedValue([{ id: 'r1', _count: { reports: 0 } }]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: null } }]);
+    const rooms = await service.liveRooms();
+    expect(rooms[0].giftCoins).toBe(0);
   });
 
   it('payments/ledgerTransactions/auditLogs return bounded recent lists', async () => {

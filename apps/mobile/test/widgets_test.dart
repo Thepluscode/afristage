@@ -2,6 +2,7 @@ import 'package:afristage_mobile/core/afri_theme.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -519,6 +520,74 @@ void main() {
     expect(find.byType(AfriChatBubble), findsOneWidget);
   });
 
+  testWidgets('AfriChatBubble gift row names the sender, gift and multiplier',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 320,
+      child: AfriChatBubble(
+        message: ChatMessage(
+            sender: 'KingSteve',
+            text: 'Rose x5',
+            giftName: 'Rose',
+            giftQuantity: 5),
+      ),
+    )));
+
+    expect(find.textContaining('KingSteve'), findsOneWidget);
+    expect(find.textContaining('sent'), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.heart_circle_fill), findsOneWidget);
+    expect(find.text('x5'), findsOneWidget);
+  });
+
+  testWidgets('AfriChatBubble hides the multiplier for a single gift',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 320,
+      child: AfriChatBubble(
+        message: ChatMessage(
+            sender: 'Ama', text: 'Rose x1', giftName: 'Rose', giftQuantity: 1),
+      ),
+    )));
+    expect(find.text('x1'), findsNothing);
+    expect(find.textContaining('Ama'), findsOneWidget);
+  });
+
+  testWidgets('AfriChatBubble defaults a null quantity to a single gift',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 320,
+      child: AfriChatBubble(
+        message: ChatMessage(sender: 'Ama', text: 'Rose', giftName: 'Rose'),
+      ),
+    )));
+    expect(find.text('x1'), findsNothing);
+  });
+
+  testWidgets('AfriChatBubble puts the sender above the message text',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+      width: 320,
+      child: AfriChatBubble(
+        message: ChatMessage(sender: 'Nandi_Love', text: 'Voice on point!'),
+      ),
+    )));
+
+    final name = tester.getRect(find.text('Nandi_Love'));
+    final body = tester.getRect(find.text('Voice on point!'));
+    // two-line layout: the name sits entirely above the message, not inline
+    expect(name.bottom, lessThanOrEqualTo(body.top));
+    expect(name.left, closeTo(body.left, 0.5));
+  });
+
+  testWidgets('AfriChatBubble still renders a system line as a gold pill',
+      (tester) async {
+    await tester.pumpWidget(_host(const AfriChatBubble(
+        message: ChatMessage(sender: '•', text: 'Room is now live'))));
+    expect(find.text('Room is now live'), findsOneWidget);
+    // system lines have no avatar
+    expect(find.byType(CircleAvatar), findsNothing);
+  });
+
   testWidgets('AfriCreatorStatusBanner renders each status', (tester) async {
     for (final s in ['APPROVED', 'REJECTED', 'SUSPENDED', 'PENDING']) {
       await tester
@@ -609,6 +678,47 @@ void main() {
     expect(sent, isTrue);
   });
 
+  testWidgets('AfriChatInput exposes send and gift as labelled buttons',
+      (tester) async {
+    var sent = 0;
+    var gifted = 0;
+    final c = TextEditingController();
+    addTearDown(c.dispose);
+    await tester.pumpWidget(_host(AfriChatInput(
+        controller: c,
+        enabled: true,
+        onSend: () => sent++,
+        onGift: () => gifted++,
+        onReaction: (_) {})));
+
+    expect(find.text('Say something…'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Send gift'));
+    await tester.tap(find.bySemanticsLabel('Send message'));
+    expect(gifted, 1);
+    expect(sent, 1);
+    // the reaction picker lives inside the field, not as a fourth round button
+    expect(find.byType(AfriReactionButton), findsOneWidget);
+  });
+
+  testWidgets('AfriChatInput will not send while chat is disabled',
+      (tester) async {
+    var sent = 0;
+    final c = TextEditingController();
+    addTearDown(c.dispose);
+    await tester.pumpWidget(_host(AfriChatInput(
+        controller: c,
+        enabled: false,
+        mutedLabel: 'You are muted here.',
+        onSend: () => sent++,
+        onGift: () {},
+        onReaction: (_) {})));
+
+    expect(find.text('You are muted here.'), findsOneWidget);
+    expect(find.text('Chat unavailable'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Send message'));
+    expect(sent, 0);
+  });
+
   testWidgets('AfriReactionButton picks a reaction', (tester) async {
     String? picked;
     await tester
@@ -634,6 +744,53 @@ void main() {
           'clap'
         ]))));
     expect(find.byType(AfriReactionLayer), findsOneWidget);
+    // seven sent, six drawn
+    expect(find.byType(Icon), findsNWidgets(6));
+  });
+
+  testWidgets('AfriReactionLayer draws nothing for an empty room',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+        width: 300, height: 400, child: AfriReactionLayer(reactions: []))));
+    expect(find.byType(Icon), findsNothing);
+  });
+
+  testWidgets('AfriReactionLayer rises and settles rather than looping forever',
+      (tester) async {
+    await tester.pumpWidget(_host(const SizedBox(
+        width: 300,
+        height: 400,
+        child: AfriReactionLayer(reactions: ['heart']))));
+
+    final start = tester.getRect(find.byType(Icon)).top;
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(tester.getRect(find.byType(Icon)).top, lessThan(start),
+        reason: 'the glyph should travel upward');
+
+    // A repeating controller would hang here; the one-shot tween must finish.
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('AfriReactionLayer stacks statically when animations are off',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: true),
+        child: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 300,
+              height: 400,
+              child: AfriReactionLayer(reactions: ['heart', 'fire']),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.byType(Icon), findsNWidgets(2));
+    // no tween is mounted at all in the reduced-motion path
+    expect(find.byType(TweenAnimationBuilder<double>), findsNothing);
   });
 
   testWidgets('AfriGiftAnimationLayer with artwork + label', (tester) async {
@@ -893,5 +1050,6 @@ void main() {
 
 class _ThrowingAssetBundle extends CachingAssetBundle {
   @override
-  Future<ByteData> load(String key) async => throw FlutterError('no asset: $key');
+  Future<ByteData> load(String key) async =>
+      throw FlutterError('no asset: $key');
 }

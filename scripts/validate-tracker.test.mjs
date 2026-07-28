@@ -42,6 +42,16 @@ check('the historical vocabulary is still accepted', '| Thing | DEPLOYED | |\n',
 // blank lines, and a parser that stops at the first blank checks almost nothing.
 check('a row after a blank line is still checked', '| A | VERIFIED | real proof |\n\n| B | VERIFIED | |\n', 1);
 
+// An element inventory also uses a "Status" column, for BUILT / NOT BUILT /
+// PARTIAL. It answers a different question and has nothing to back a claim with,
+// so it is out of scope — but a FEATURE table must never dodge the gate this way.
+writeFileSync(file, '| Element | Status |\n|---|---|\n| Verified badge | NOT BUILT |\n');
+{
+  const { status } = spawnSync(process.execPath, [LINTER, file], { encoding: 'utf8' });
+  if (status === 0) { pass++; console.log('  PASS  an element inventory (Status, no Evidence) is not linted'); }
+  else { fail++; console.log(`  FAIL  an element inventory should be skipped (got exit ${status})`); }
+}
+
 console.log(`\n========================\n  RESULT: ${pass} passed, ${fail} failed\n========================`);
 try {
   unlinkSync(file);

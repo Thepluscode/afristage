@@ -30,10 +30,11 @@ class _CaptureApi extends ApiClient {
       'language': 'English',
       'status': 'LIVE',
       'viewerCount': 3200,
+      'giftCoinTotal': 12500,
       'host': {
         'id': 'zola',
         'profile': {'displayName': 'Zola Kim'},
-        'creatorProfile': {'stageName': 'Zola Kim'},
+        'creatorProfile': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
       },
     },
     {
@@ -44,6 +45,7 @@ class _CaptureApi extends ApiClient {
       'language': 'English',
       'status': 'LIVE',
       'viewerCount': 2100,
+      'giftCoinTotal': 8400,
       'host': {
         'id': 'kofi',
         'profile': {'displayName': 'Kofi Blaze'},
@@ -58,6 +60,7 @@ class _CaptureApi extends ApiClient {
       'language': 'Zulu',
       'status': 'LIVE',
       'viewerCount': 1400,
+      'giftCoinTotal': 5900,
       'host': {
         'id': 'nandi',
         'profile': {'displayName': 'Nandi'},
@@ -72,6 +75,7 @@ class _CaptureApi extends ApiClient {
       'language': 'Swahili',
       'status': 'LIVE',
       'viewerCount': 980,
+      'giftCoinTotal': 3200,
       'host': {
         'id': 'tflow',
         'profile': {'displayName': 'T-Flow'},
@@ -160,8 +164,12 @@ Widget _app(AppState state, Key boundaryKey, Widget child) {
   );
 }
 
-Future<void> _capture(WidgetTester tester, Key key, String name) async {
-  await tester.pumpAndSettle(const Duration(milliseconds: 100));
+/// [settle] must be false for any state that is mid-animation: pumpAndSettle
+/// runs one-shot animations to their end, and a reaction that has finished
+/// rising has already faded to zero opacity.
+Future<void> _capture(WidgetTester tester, Key key, String name,
+    {bool settle = true}) async {
+  if (settle) await tester.pumpAndSettle(const Duration(milliseconds: 100));
   await tester.runAsync(
     () => Future<void>.delayed(const Duration(milliseconds: 250)),
   );
@@ -195,6 +203,9 @@ Future<void> _loadCaptureFonts() async {
       ).readAsBytes().then((bytes) => bytes.buffer.asByteData()),
     );
   await Future.wait([bodyLoader.load(), iconLoader.load()]);
+
+  // Gift artwork uses Cupertino glyphs so captures and devices render the same
+  // catalogue silhouettes without relying on platform emoji fallback.
 }
 
 void main() async {
@@ -217,6 +228,14 @@ void main() async {
         );
       const boundaryKey = ValueKey('capture-boundary');
 
+      final viewerState = AppState(api: api)
+        ..role = 'VIEWER'
+        ..userId = 'viewer'
+        ..wallet = state.wallet;
+      await tester
+          .pumpWidget(_app(viewerState, boundaryKey, const HomeShell()));
+      await _capture(tester, boundaryKey, 'home-viewer');
+
       await tester.pumpWidget(_app(state, boundaryKey, const HomeShell()));
       await _capture(tester, boundaryKey, 'home');
 
@@ -233,10 +252,8 @@ void main() async {
       final chatScrollController = ScrollController();
       addTearDown(chatController.dispose);
       addTearDown(chatScrollController.dispose);
-      await tester.pumpWidget(_app(
-        state,
-        boundaryKey,
-        Stack(
+      final roomWithoutDrawer = Builder(
+        builder: (_) => Stack(
           children: [
             Positioned.fill(
               child: AfriLiveRoomShell(
@@ -253,10 +270,12 @@ void main() async {
                     creatorName: 'Zola Kim',
                     category: 'Music',
                     language: 'EN',
+                    verified: true,
                     following: false,
                     viewerCount: 3200,
                     onClose: () {},
                     onFollow: () {},
+                    onReport: () {},
                   ),
                   reactionLayer: const AfriReactionLayer(
                     reactions: ['heart', 'fire', 'heart'],
@@ -278,7 +297,13 @@ void main() async {
                   messages: const [
                     ChatMessage(sender: 'Ama_Gh', text: 'Great energy!'),
                     ChatMessage(sender: 'TosinB', text: 'This is fire!'),
+                    ChatMessage(
+                        sender: 'KingSteve',
+                        text: 'Rose x5',
+                        giftName: 'Rose',
+                        giftQuantity: 5),
                     ChatMessage(sender: 'Nandi_Love', text: 'Voice on point!'),
+                    ChatMessage(sender: 'Sizwe', text: 'We outside!'),
                   ],
                 ),
                 input: AfriChatInput(
@@ -290,6 +315,16 @@ void main() async {
                 ),
               ),
             ),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(_app(
+        state,
+        boundaryKey,
+        Stack(
+          children: [
+            Positioned.fill(child: roomWithoutDrawer),
             Align(
               alignment: Alignment.bottomCenter,
               child: Material(
@@ -320,6 +355,14 @@ void main() async {
         ),
       ));
       await _capture(tester, boundaryKey, 'live-room');
+
+      // The drawer covers the bottom half, so capture the room again without it
+      // — the chat overlay, hearts and input bar are only visible there.
+      await tester.pumpWidget(_app(state, boundaryKey, roomWithoutDrawer));
+      // Mid-flight: the reactions are part-way up the right edge and still
+      // opaque. Settling here would fade them out completely.
+      await tester.pump(const Duration(milliseconds: 700));
+      await _capture(tester, boundaryKey, 'live-room-chat', settle: false);
     },
     skip: !_captureDesign,
   );

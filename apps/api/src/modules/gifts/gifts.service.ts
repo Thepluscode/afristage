@@ -131,7 +131,7 @@ export class GiftsService {
     if (!room || room.status !== RoomStatus.LIVE) throw new BadRequestException('Room is not live');
     if (room.hostUserId === viewerId) throw new BadRequestException('You cannot gift yourself');
 
-    const viewer = await this.prisma.user.findUnique({ where: { id: viewerId } });
+    const viewer = await this.prisma.user.findUnique({ where: { id: viewerId }, include: { profile: true } });
     if (!viewer || viewer.status !== UserStatus.ACTIVE) throw new ForbiddenException('Account is not active');
 
     const gift = await this.prisma.gift.findUnique({ where: { id: dto.giftId }, include: { event: true } });
@@ -148,6 +148,7 @@ export class GiftsService {
       room,
       gift,
       agency,
+      senderName: viewer.profile?.displayName ?? null,
       total: gift.coinPrice * dto.quantity,
       creatorShareBps: Number(process.env.CREATOR_SHARE_BPS || 6000)
     };
@@ -197,6 +198,7 @@ export class GiftsService {
       giftName: ctx.gift.name,
       animationUrl: ctx.gift.animationUrl ?? null,
       senderId: viewerId,
+      senderName: ctx.senderName,
       quantity: dto.quantity,
       totalCoinAmount: move.totalMinor,
       creatorEarningMinor: move.creatorNetMinor,

@@ -3,7 +3,9 @@ import { AnalyticsService } from './analytics.service';
 function build() {
   const prisma: any = {
     user: { findMany: jest.fn().mockResolvedValue([]) },
-    giftTransaction: { findMany: jest.fn().mockResolvedValue([]) }
+    giftTransaction: { findMany: jest.fn().mockResolvedValue([]) },
+    liveRoom: { findMany: jest.fn().mockResolvedValue([]) },
+    creatorProfile: { findMany: jest.fn().mockResolvedValue([]) }
   };
   return { svc: new AnalyticsService(prisma), prisma };
 }
@@ -22,9 +24,36 @@ describe('AnalyticsService.dailySeries', () => {
     const { svc } = build();
     const series = await svc.dailySeries(7);
     expect(series).toHaveLength(7);
-    expect(series.every((b) => b.newUsers === 0 && b.giftCount === 0 && b.giftVolumeCoins === 0)).toBe(true);
+    expect(
+      series.every(
+        (b) => b.newUsers === 0 && b.giftCount === 0 && b.giftVolumeCoins === 0 && b.newRooms === 0 && b.newCreators === 0
+      )
+    ).toBe(true);
     // ascending, contiguous days
     expect(series[6].day > series[0].day).toBe(true);
+  });
+
+  it('buckets rooms opened and creators onboarded into their UTC day', async () => {
+    const { svc, prisma } = build();
+    const today = daysAgo(0);
+    const threeAgo = daysAgo(3);
+    prisma.liveRoom.findMany.mockResolvedValue([{ createdAt: today }, { createdAt: threeAgo }, { createdAt: threeAgo }]);
+    prisma.creatorProfile.findMany.mockResolvedValue([{ createdAt: today }]);
+
+    const byDay = Object.fromEntries((await svc.dailySeries(7)).map((b) => [b.day, b]));
+    expect(byDay[keyOf(today)].newRooms).toBe(1);
+    expect(byDay[keyOf(today)].newCreators).toBe(1);
+    expect(byDay[keyOf(threeAgo)].newRooms).toBe(2);
+    expect(byDay[keyOf(threeAgo)].newCreators).toBe(0);
+  });
+
+  it('ignores rooms and creators created outside the requested window', async () => {
+    const { svc, prisma } = build();
+    // 40 days back is outside a 7-day window; it must not land in any bucket
+    prisma.liveRoom.findMany.mockResolvedValue([{ createdAt: daysAgo(40) }]);
+    prisma.creatorProfile.findMany.mockResolvedValue([{ createdAt: daysAgo(40) }]);
+    const series = await svc.dailySeries(7);
+    expect(series.reduce((n, b) => n + b.newRooms + b.newCreators, 0)).toBe(0);
   });
 
   it('buckets signups and gift volume into their UTC day', async () => {
@@ -70,8 +99,7 @@ describe('AnalyticsService.overview', () => {
 
 describe('AnalyticsService.dailySeries defaults', () => {
   it('uses the default 30-day window when called with no argument', async () => {
-    const prisma: any = { user: { findMany: jest.fn().mockResolvedValue([]) }, giftTransaction: { findMany: jest.fn().mockResolvedValue([]) } };
-    const svc = new AnalyticsService(prisma);
+    const { svc } = build();
     expect(await svc.dailySeries()).toHaveLength(30);
   });
 });

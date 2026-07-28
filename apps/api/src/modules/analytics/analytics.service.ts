@@ -25,18 +25,23 @@ export class AnalyticsService {
     start.setUTCHours(0, 0, 0, 0);
     start.setUTCDate(start.getUTCDate() - (n - 1)); // n buckets including today
 
-    const [users, gifts] = await Promise.all([
+    const [users, gifts, rooms, creators] = await Promise.all([
       this.prisma.user.findMany({ where: { createdAt: { gte: start } }, select: { createdAt: true } }),
-      this.prisma.giftTransaction.findMany({ where: { createdAt: { gte: start } }, select: { createdAt: true, totalCoinAmount: true } })
+      this.prisma.giftTransaction.findMany({ where: { createdAt: { gte: start } }, select: { createdAt: true, totalCoinAmount: true } }),
+      this.prisma.liveRoom.findMany({ where: { createdAt: { gte: start } }, select: { createdAt: true } }),
+      this.prisma.creatorProfile.findMany({ where: { createdAt: { gte: start } }, select: { createdAt: true } })
     ]);
 
     const dayKey = (d: Date) => d.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-    const buckets = new Map<string, { day: string; newUsers: number; giftCount: number; giftVolumeCoins: number }>();
+    const buckets = new Map<
+      string,
+      { day: string; newUsers: number; giftCount: number; giftVolumeCoins: number; newRooms: number; newCreators: number }
+    >();
     for (let i = 0; i < n; i++) {
       const d = new Date(start);
       d.setUTCDate(start.getUTCDate() + i);
       const key = dayKey(d);
-      buckets.set(key, { day: key, newUsers: 0, giftCount: 0, giftVolumeCoins: 0 });
+      buckets.set(key, { day: key, newUsers: 0, giftCount: 0, giftVolumeCoins: 0, newRooms: 0, newCreators: 0 });
     }
     for (const u of users) {
       const b = buckets.get(dayKey(u.createdAt));
@@ -48,6 +53,17 @@ export class AnalyticsService {
         b.giftCount++;
         b.giftVolumeCoins += g.totalCoinAmount;
       }
+    }
+    // Rooms opened and creators onboarded per day. These are FLOW metrics —
+    // unlike the dashboard's backlog counters (open reports, pending payouts),
+    // a day-over-day delta is meaningful for them.
+    for (const r of rooms) {
+      const b = buckets.get(dayKey(r.createdAt));
+      if (b) b.newRooms++;
+    }
+    for (const c of creators) {
+      const b = buckets.get(dayKey(c.createdAt));
+      if (b) b.newCreators++;
     }
     return [...buckets.values()];
   }

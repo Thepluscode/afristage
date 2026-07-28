@@ -9,6 +9,13 @@
 // It deliberately checks only what a machine can actually know: that a label is
 // a real label, and that a claim of proof is accompanied by something. Whether
 // the evidence is *good* is a human judgement and is not simulated here.
+//
+// Only tables carrying BOTH a Status and an Evidence column are linted. "Status"
+// is also used for element inventories (BUILT / NOT BUILT / PARTIAL), which are a
+// different vocabulary answering a different question — and an evidence-backed
+// claim is exactly what this checks, so a table with nothing to back a claim with
+// is not the subject. Tables skipped for that reason are counted and printed, so
+// the exemption stays visible rather than becoming a way to dodge the gate.
 import { readFileSync } from 'node:fs';
 
 const FILE = process.argv[2] || 'FEATURE_TRACKER.md';
@@ -58,6 +65,7 @@ function lint(text) {
   let evidenceAt = -1;
   let width = 0;
   let unattributed = 0;
+  let skippedTables = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -73,8 +81,11 @@ function lint(text) {
 
     if (isSeparator(lines[i + 1] ?? '')) {
       const header = splitRow(line).map((h) => h.toLowerCase());
-      statusAt = header.findIndex((h) => h === 'status');
+      const sAt = header.findIndex((h) => h === 'status');
       evidenceAt = header.findIndex((h) => h.includes('evidence'));
+      // A status column with no evidence column is an inventory, not a claim.
+      statusAt = evidenceAt === -1 ? -1 : sAt;
+      if (sAt !== -1 && evidenceAt === -1) skippedTables++;
       width = header.length;
       continue;
     }
@@ -113,15 +124,16 @@ function lint(text) {
       }
     }
   }
-  return { problems, counts, unattributed };
+  return { problems, counts, unattributed, skippedTables };
 }
 
-const { problems, counts, unattributed } = lint(readFileSync(FILE, 'utf8'));
+const { problems, counts, unattributed, skippedTables } = lint(readFileSync(FILE, 'utf8'));
 
 const legacy = HISTORICAL.reduce((n, l) => n + (counts[l] || 0), 0);
 const total = Object.values(counts).reduce((a, b) => a + b, 0);
 console.log(`  ${total} status entries in ${FILE}`);
 if (legacy) console.log(`  ${legacy} still use the historical vocabulary (documented in the tracker header, not an error)`);
+if (skippedTables) console.log(`  ${skippedTables} status tables have no evidence column (element inventories) and were NOT checked`);
 if (unattributed) console.log(`  ${unattributed} status-bearing rows do not match the column count of any header above them and were NOT checked`);
 
 for (const p of problems) console.log(`  FAIL  ${p}`);

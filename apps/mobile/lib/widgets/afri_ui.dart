@@ -720,7 +720,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                     child: Row(
                       children: [
                         const AfriLiveBadge(),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         AfriChip(label: country),
                         const Spacer(),
                         const Icon(CupertinoIcons.person_fill,
@@ -793,22 +793,20 @@ class AfriLiveRoomCard extends StatelessWidget {
   }
 }
 
-/// Maps a gift's name to a recognisable icon. Keyword-based so new gifts get a
-/// sensible glyph without a code change; unknown names fall back to a gift box.
+/// Maps gift names to bundled platform icons. Configured raster artwork still
+/// wins; this fallback is deterministic in tests and on every supported device.
 IconData afriGiftIcon(String name) {
   final n = name.toLowerCase();
   if (n.contains('rose') || n.contains('flower')) {
-    return CupertinoIcons.heart_fill;
+    return CupertinoIcons.heart_circle_fill;
   }
   if (n.contains('fire') || n.contains('flame')) {
     return CupertinoIcons.flame_fill;
   }
   if (n.contains('mic')) return CupertinoIcons.mic_fill;
-  if (n.contains('drum') || n.contains('music')) {
-    return CupertinoIcons.music_note_2;
-  }
+  if (n.contains('drum')) return CupertinoIcons.music_albums_fill;
   if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
-    return CupertinoIcons.star_fill;
+    return CupertinoIcons.star_circle_fill;
   }
   if (n.contains('spotlight') || n.contains('light')) {
     return CupertinoIcons.lightbulb_fill;
@@ -824,6 +822,8 @@ IconData afriGiftIcon(String name) {
     return CupertinoIcons.sparkles;
   }
   if (n.contains('rocket')) return CupertinoIcons.rocket_fill;
+  if (n.contains('trophy')) return CupertinoIcons.sportscourt_fill;
+  if (n.contains('music')) return CupertinoIcons.music_note_2;
   return CupertinoIcons.gift_fill;
 }
 
@@ -850,15 +850,20 @@ class AfriGiftTile extends StatelessWidget {
   final Color accent;
   final bool selected;
 
+  Widget _fallbackIcon() => Icon(
+        afriGiftIcon(gift.name),
+        size: 27,
+        color: accent,
+        semanticLabel: gift.name,
+      );
+
   Widget _artwork() {
     final url = gift.artworkUrl;
     final rasterArtwork = url != null &&
         url.isNotEmpty &&
         RegExp(r'\.(png|jpe?g|webp|gif)(\?.*)?$', caseSensitive: false)
             .hasMatch(url);
-    if (!rasterArtwork) {
-      return Icon(afriGiftIcon(gift.name), color: accent, size: 23);
-    }
+    if (!rasterArtwork) return _fallbackIcon();
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Image.network(
@@ -866,8 +871,7 @@ class AfriGiftTile extends StatelessWidget {
         width: 42,
         height: 42,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
-            Icon(afriGiftIcon(gift.name), color: accent, size: 23),
+        errorBuilder: (_, __, ___) => _fallbackIcon(),
       ),
     );
   }
@@ -1141,47 +1145,106 @@ class AfriChatBubble extends StatelessWidget {
             style: const TextStyle(color: AfriColors.gold, fontSize: 12.5)),
       );
     }
-    // Gift announcements ("X sent Rose") get a purple highlight pill.
-    final lower = message.text.toLowerCase();
-    final isGift = lower.contains('sent ') ||
-        message.text.contains('🎁') ||
-        lower.contains('gift');
     final nameColor = _chatNameColor(message.sender);
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: isGift
-          ? BoxDecoration(
-              color: AfriColors.purple.withValues(alpha: 0.32),
-              borderRadius: BorderRadius.circular(12))
-          : null,
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        CircleAvatar(
-          radius: 12,
-          backgroundColor: nameColor.withValues(alpha: 0.6),
-          child: Text(
-            message.sender.characters.firstOrNull?.toUpperCase() ?? '?',
-            style: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+    final avatar = CircleAvatar(
+      radius: 12,
+      backgroundColor: nameColor.withValues(alpha: 0.6),
+      child: Text(
+        message.sender.characters.firstOrNull?.toUpperCase() ?? '?',
+        style: const TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+      ),
+    );
+
+    // Gift events are the loudest line in the room: a teal→purple gradient pill
+    // naming the sender and the gift, with the multiplier called out on the end.
+    if (message.isGift) {
+      final qty = message.giftQuantity ?? 1;
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AfriColors.teal.withValues(alpha: 0.42),
+              AfriColors.purple.withValues(alpha: 0.62),
+            ],
           ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AfriColors.purple.withValues(alpha: 0.55)),
         ),
+        child: Row(children: [
+          avatar,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: const TextStyle(
+                    fontSize: 13, color: Colors.white, height: 1.25),
+                children: [
+                  TextSpan(
+                      text: message.sender,
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                  const TextSpan(text: ' sent '),
+                  TextSpan(
+                      text: message.giftName,
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                ],
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Icon(afriGiftIcon(message.giftName!),
+              size: 16, color: AfriColors.gold),
+          if (qty > 1) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0x44000000),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('x$qty',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white)),
+            ),
+          ],
+        ]),
+      );
+    }
+
+    // Normal chat: name on its own line above the message, per the mockup —
+    // an inline "name  text" run makes long names and long messages collide.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        avatar,
         const SizedBox(width: 8),
         Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: DefaultTextStyle.of(context).style.copyWith(
-                    fontSize: 13,
-                    color: Colors.white,
-                    height: 1.25,
-                  ),
-              children: [
-                TextSpan(
-                    text: '${message.sender}  ',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800, color: nameColor)),
-                TextSpan(text: message.text),
-              ],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message.sender,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: nameColor)),
+              Text(message.text,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.25,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(color: Color(0xB3000000), blurRadius: 6)
+                      ])),
+            ],
           ),
         ),
       ]),
@@ -1748,7 +1811,8 @@ class AfriVideoStage extends StatelessWidget {
                           AfriCover(
                               imageUrl: coverImageUrl,
                               category: coverCategory ?? '',
-                              initial: coverInitial),
+                              initial: coverInitial,
+                              alignment: const Alignment(0.35, -1)),
                         _VideoWaitingState(
                           ready: ready,
                           isHost: isHost,
@@ -1890,6 +1954,7 @@ class AfriLiveTopBar extends StatelessWidget {
     this.avatarUrl,
     this.category,
     this.language,
+    this.verified = false,
   });
 
   final String creatorName;
@@ -1903,6 +1968,7 @@ class AfriLiveTopBar extends StatelessWidget {
   final String? avatarUrl;
   final String? category;
   final String? language;
+  final bool verified;
 
   @override
   Widget build(BuildContext context) {
@@ -1924,6 +1990,11 @@ class AfriLiveTopBar extends StatelessWidget {
               IconButton(
                   tooltip: 'Close room',
                   onPressed: onClose,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
                   icon: const Icon(CupertinoIcons.chevron_down,
                       color: Colors.white, size: 24)),
               Expanded(
@@ -1942,7 +2013,7 @@ class AfriLiveTopBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
-                          radius: 18,
+                          radius: 16,
                           backgroundColor: AfriColors.purple,
                           backgroundImage:
                               hasPhoto ? NetworkImage(avatarUrl!) : null,
@@ -1950,13 +2021,25 @@ class AfriLiveTopBar extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Flexible(
-                          child: Text(creatorName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white)),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(creatorName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                              if (verified) ...[
+                                const SizedBox(width: 2),
+                                const Icon(CupertinoIcons.checkmark_seal_fill,
+                                    size: 13, color: AfriColors.purple),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -1968,7 +2051,7 @@ class AfriLiveTopBar extends StatelessWidget {
                 onTap: onFollow,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
                     color: following ? Colors.transparent : AfriColors.purple,
                     borderRadius: BorderRadius.circular(999),
@@ -1985,7 +2068,7 @@ class AfriLiveTopBar extends StatelessWidget {
               const SizedBox(width: 6),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                 decoration: BoxDecoration(
                   color: const Color(0x55000000),
                   borderRadius: BorderRadius.circular(999),
@@ -2005,6 +2088,11 @@ class AfriLiveTopBar extends StatelessWidget {
                 IconButton(
                     tooltip: 'Room options',
                     onPressed: onReport,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 34,
+                    ),
                     icon: const Icon(CupertinoIcons.ellipsis,
                         color: Colors.white, size: 20)),
             ],
@@ -2235,31 +2323,86 @@ class AfriChatInput extends StatelessWidget {
           if (!enabled)
             AfriMutedStateNotice(
                 label: mutedLabel ?? 'Chat is not available right now.'),
+          // Gift sits above the bar as its own floating action, so the input row
+          // is just "type" + "send" instead of four competing round buttons.
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.fromLTRB(8, 0, 12, 6),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Semantics(
+                button: true,
+                label: 'Send gift',
+                child: GestureDetector(
+                  onTap: onGift,
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AfriColors.elevated.withValues(alpha: 0.92),
+                      border: Border.all(
+                          color: AfriColors.gold.withValues(alpha: 0.45)),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x66000000), blurRadius: 14),
+                      ],
+                    ),
+                    child: const Icon(CupertinoIcons.gift_fill,
+                        color: AfriColors.gold, size: 22),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: controller,
                     enabled: enabled,
+                    style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: enabled ? 'Send a message' : 'Chat unavailable',
+                      hintText: enabled ? 'Say something…' : 'Chat unavailable',
                       isDense: true,
+                      filled: true,
+                      fillColor: AfriColors.elevated.withValues(alpha: 0.88),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: BorderSide.none,
+                      ),
+                      // The reaction picker lives inside the field, where the
+                      // mockup puts the emoji affordance.
+                      suffixIcon: AfriReactionButton(onReaction: onReaction),
+                      suffixIconConstraints:
+                          const BoxConstraints(minWidth: 44, minHeight: 44),
                     ),
                     onSubmitted: (_) => onSend(),
                   ),
                 ),
-                IconButton.filledTonal(
-                  tooltip: 'Send message',
-                  onPressed: enabled ? onSend : null,
-                  icon: const Icon(CupertinoIcons.paperplane_fill),
-                ),
-                AfriReactionButton(onReaction: onReaction),
-                IconButton.filled(
-                  tooltip: 'Send gift',
-                  onPressed: onGift,
-                  icon: const Icon(CupertinoIcons.gift_fill),
+                const SizedBox(width: 8),
+                Semantics(
+                  button: true,
+                  enabled: enabled,
+                  label: 'Send message',
+                  child: GestureDetector(
+                    onTap: enabled ? onSend : null,
+                    child: Opacity(
+                      opacity: enabled ? 1 : 0.45,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AfriColors.purple,
+                        ),
+                        child: const Icon(CupertinoIcons.paperplane_fill,
+                            color: Colors.white, size: 19),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2286,50 +2429,58 @@ class AfriReactionButton extends StatelessWidget {
         PopupMenuItem(value: 'clap', child: Text('Clap')),
         PopupMenuItem(value: 'laugh', child: Text('Laugh')),
       ],
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 4),
-        child: CircleAvatar(
-          radius: 20,
-          backgroundColor: AfriColors.elevated,
-          child: Icon(CupertinoIcons.heart_fill, color: AfriColors.gold),
-        ),
+      // Borderless: this now sits *inside* the chat field, so a filled circle
+      // would read as a second send button.
+      child: const SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(CupertinoIcons.smiley, color: AfriColors.gold, size: 21),
       ),
     );
   }
 }
 
+/// Reactions rising up the right edge of the stage, as in the mockup.
+///
+/// Each glyph animates **once** on the frame it appears and the room screen
+/// drains the list behind it. Deliberately not a repeating controller: reactions
+/// are transient, a perpetual ticker would burn battery in every open room, and
+/// `pumpAndSettle` never terminates against one. Honours
+/// `MediaQuery.disableAnimations`, in which case the glyphs are simply stacked.
 class AfriReactionLayer extends StatelessWidget {
   const AfriReactionLayer({super.key, required this.reactions});
 
   final List<String> reactions;
 
+  /// Only the most recent few are drawn; a busy room would otherwise stack
+  /// hundreds of glyphs over the stage.
+  static const maxVisible = 6;
+
   @override
   Widget build(BuildContext context) {
-    final visible = reactions.length > 6
-        ? reactions.sublist(reactions.length - 6)
+    if (reactions.isEmpty) return const SizedBox.shrink();
+    final visible = reactions.length > maxVisible
+        ? reactions.sublist(reactions.length - maxVisible)
         : reactions;
-    return Stack(
-      children: [
-        for (var i = 0; i < visible.length; i++)
-          Positioned(
-            right: 24.0 + (i % 2) * 34,
-            bottom: 42.0 + i * 34,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 220),
-              opacity: 1,
-              child: Icon(
-                _reactionIcon(visible[i]),
-                size: 27,
-                color: _reactionColor(visible[i]),
-                shadows: const [
-                  Shadow(color: Color(0x99000000), blurRadius: 8),
-                ],
-              ),
+    final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          for (var i = 0; i < visible.length; i++)
+            _Riser(
+              key: ValueKey('$i-${visible[i]}'),
+              index: i,
+              still: still,
+              reaction: visible[i],
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
+
+  static IconData reactionIcon(String value) => _reactionIcon(value);
+  static Color reactionColor(String value) => _reactionColor(value);
 
   static IconData _reactionIcon(String value) {
     switch (value) {
@@ -2357,6 +2508,62 @@ class AfriReactionLayer extends StatelessWidget {
       default:
         return const Color(0xFFFF4664);
     }
+  }
+}
+
+class _Riser extends StatelessWidget {
+  const _Riser({
+    super.key,
+    required this.index,
+    required this.still,
+    required this.reaction,
+  });
+
+  final int index;
+  final bool still;
+  final String reaction;
+
+  @override
+  Widget build(BuildContext context) {
+    // Deterministic per-slot variation — no RNG, so a rebuild never reshuffles
+    // the column and widget tests stay reproducible.
+    final drift = (index.isEven ? 1 : -1) * (6.0 + (index % 3) * 7);
+    final size = 22.0 + (index % 3) * 5;
+    final glyph = Icon(
+      AfriReactionLayer.reactionIcon(reaction),
+      size: size,
+      color: AfriReactionLayer.reactionColor(reaction),
+      shadows: const [Shadow(color: Color(0x99000000), blurRadius: 8)],
+    );
+
+    if (still) {
+      return Positioned(right: 24, bottom: 60.0 + index * 34, child: glyph);
+    }
+    // Positioned must be the DIRECT child of the enclosing Stack — nesting it
+    // inside the builder makes the Stack treat this as an unpositioned child
+    // and the offsets are silently ignored. So anchor here and let the tween
+    // drive a Transform instead.
+    //
+    // TweenAnimationBuilder runs once from 0->1 when this key first mounts and
+    // tears its own ticker down — no controller to leak or forget to dispose.
+    return Positioned(
+      right: 24,
+      bottom: 50,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 2400),
+        curve: Curves.easeOut,
+        builder: (context, t, child) => Transform.translate(
+          offset: Offset(-drift * t, -190 * t),
+          // Fade in over the first fifth, hold, then fade out over the last.
+          child: Opacity(
+            opacity: t < 0.2 ? t / 0.2 : (t > 0.8 ? (1 - t) / 0.2 : 1),
+            child: Transform.scale(scale: 0.85 + 0.25 * (1 - t), child: child),
+          ),
+        ),
+        child: glyph,
+      ),
+    );
   }
 }
 
@@ -2534,7 +2741,7 @@ class AfriHostControlsPanel extends StatelessWidget {
           children: [
             AfriChip(label: '$viewerCount viewers', selected: true),
             AfriChip(label: '$giftCount gifts'),
-            AfriChip(label: '$earningsEstimate 💎'),
+            AfriChip(label: '$earningsEstimate diamonds'),
             FilterChip(
               selected: cameraOn,
               onSelected: onCameraChanged,

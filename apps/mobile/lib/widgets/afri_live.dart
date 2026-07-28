@@ -59,11 +59,16 @@ List<Color> categoryGradient(String category) {
 /// creator's initial. Always topped with a bottom scrim for legible overlays.
 class AfriCover extends StatelessWidget {
   const AfriCover(
-      {super.key, this.imageUrl, required this.category, this.initial});
+      {super.key,
+      this.imageUrl,
+      required this.category,
+      this.initial,
+      this.alignment = Alignment.topCenter});
 
   final String? imageUrl;
   final String category;
   final String? initial;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +79,9 @@ class AfriCover extends StatelessWidget {
       children: [
         if (imageUrl != null && imageUrl!.isNotEmpty)
           Image.network(imageUrl!,
-              fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
+              fit: BoxFit.cover,
+              alignment: alignment,
+              errorBuilder: (_, __, ___) => fallback)
         else
           fallback,
         // bottom scrim for text legibility
@@ -97,7 +104,7 @@ class AfriCover extends StatelessWidget {
           _gradient(grad),
           Image.asset(stageFallback(initial),
               fit: BoxFit.cover,
-              alignment: Alignment.topCenter, errorBuilder: (_, error, __) {
+              alignment: alignment, errorBuilder: (_, error, __) {
             debugPrint('Stage artwork failed to load: $error');
             return const SizedBox.shrink();
           }),
@@ -124,20 +131,28 @@ class AfriCover extends StatelessWidget {
 }
 
 class AfriLivePill extends StatelessWidget {
-  const AfriLivePill({super.key});
+  const AfriLivePill({super.key, this.compact = false});
+
+  /// Tighter padding/type for the narrow rail card, where two pills share one row.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 9, vertical: 4),
       // Teal LIVE pill per the mockups (cards/room). Red is the hero-only AfriLiveNowPill.
       decoration: BoxDecoration(
           color: AfriColors.teal, borderRadius: BorderRadius.circular(8)),
-      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(CupertinoIcons.circle_fill, size: 7, color: Colors.white),
-        SizedBox(width: 5),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        // The teal chip already reads as "live"; on the narrow rail card the
+        // dot is dropped so both pills fit the row without overflowing.
+        if (!compact) ...[
+          const Icon(CupertinoIcons.circle_fill, size: 7, color: Colors.white),
+          const SizedBox(width: 5),
+        ],
         Text('LIVE',
             style: TextStyle(
-                fontSize: 11,
+                fontSize: compact ? 9 : 11,
                 fontWeight: FontWeight.w900,
                 color: Colors.white)),
       ]),
@@ -146,23 +161,32 @@ class AfriLivePill extends StatelessWidget {
 }
 
 class AfriViewerPill extends StatelessWidget {
-  const AfriViewerPill({super.key, required this.count});
+  const AfriViewerPill({super.key, required this.count, this.compact = false});
   final int count;
+
+  /// Tighter padding/type for the narrow rail card, where two pills share one row.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: 4),
       decoration: BoxDecoration(
-          color: const Color(0x66000000),
+          color: const Color(0x8C000000),
           borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(CupertinoIcons.person, size: 13, color: Colors.white),
-        const SizedBox(width: 4),
-        Text(formatCount(count),
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Colors.white)),
+        Icon(CupertinoIcons.person,
+            size: compact ? 9 : 13, color: Colors.white),
+        SizedBox(width: compact ? 2 : 4),
+        Flexible(
+          child: Text(formatCount(count),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: compact ? 9 : 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
+        ),
       ]),
     );
   }
@@ -319,6 +343,7 @@ class AfriLiveCard extends StatelessWidget {
       this.country,
       this.imageUrl,
       this.viewerCount = 0,
+      this.giftCoinTotal = 0,
       this.onTap,
       this.width = 156});
 
@@ -328,6 +353,7 @@ class AfriLiveCard extends StatelessWidget {
   final String? country;
   final String? imageUrl;
   final int viewerCount;
+  final int giftCoinTotal;
   final VoidCallback? onTap;
   final double width;
 
@@ -356,11 +382,37 @@ class AfriLiveCard extends StatelessWidget {
                 children: [
                   AfriCover(
                       imageUrl: imageUrl, category: category, initial: creator),
-                  const Positioned(top: 10, left: 10, child: AfriLivePill()),
+                  // One row, space-between: on a narrow rail card the two pills
+                  // used to be independently positioned and overlapped into
+                  // "LIV≗2.1K". Laying them out together makes that impossible;
+                  // Flexible lets the viewer pill ellipsize instead of colliding.
                   Positioned(
-                      top: 10,
-                      right: 10,
-                      child: AfriViewerPill(count: viewerCount)),
+                    top: 8,
+                    left: 8,
+                    right: 8,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // scaleDown keeps both pills inside the row at any card
+                        // width instead of overflowing once the count grows.
+                        const Flexible(
+                          child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: AfriLivePill(compact: true)),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: AfriViewerPill(
+                                  count: viewerCount, compact: true)),
+                        ),
+                      ],
+                    ),
+                  ),
                   Positioned(
                     left: 0,
                     right: 0,
@@ -387,14 +439,29 @@ class AfriLiveCard extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                   color: Colors.white)),
                           const SizedBox(height: 5),
-                          Text(
-                              '${creator ?? 'Creator'}${countryLabel.isNotEmpty ? ' · $countryLabel' : ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFD4D4D8))),
+                          Row(children: [
+                            Expanded(
+                              child: Text(
+                                  '${creator ?? 'Creator'}${countryLabel.isNotEmpty ? ' · $countryLabel' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFD4D4D8))),
+                            ),
+                            if (giftCoinTotal > 0) ...[
+                              const SizedBox(width: 4),
+                              const Icon(CupertinoIcons.gift_fill,
+                                  size: 10, color: AfriColors.gold),
+                              const SizedBox(width: 2),
+                              Text(formatCount(giftCoinTotal),
+                                  style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white)),
+                            ],
+                          ]),
                         ],
                       ),
                     ),
@@ -478,8 +545,27 @@ class AfriCreatorRing extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AfriColors.secondaryText)),
+                    fontWeight: FontWeight.w700,
+                    color: AfriColors.text)),
+            // Audience size is the reason to tap a creator, so it belongs on the
+            // avatar rail rather than only inside the profile.
+            if (viewerCount != null) ...[
+              const SizedBox(height: 2),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(CupertinoIcons.person_2_fill,
+                    size: 10, color: AfriColors.mutedText),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(formatCount(viewerCount!),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AfriColors.mutedText)),
+                ),
+              ]),
+            ],
           ],
         ),
       ),

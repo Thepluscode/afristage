@@ -40,7 +40,12 @@ const FEED_GEN_KEY = 'feed:gen';
 
 // A candidate room with its safe public host payload — the shape everything
 // in the feed pipeline (and the API response) carries.
-export type FeedRoom = Prisma.LiveRoomGetPayload<{ include: typeof PUBLIC_HOST_INCLUDE }>;
+export type FeedRoom = Prisma.LiveRoomGetPayload<{ include: typeof PUBLIC_HOST_INCLUDE }> & {
+  // What the room has taken in gifts, shown on the live card. Deliberately NOT
+  // the 10-minute gift-velocity window used for ranking: a viewer reading
+  // "🎁 12.5K" means the session's take, not its recent rate.
+  giftCoinTotal: number;
+};
 
 // Viewer-neutral room features — everything that does NOT depend on who asks.
 type NeutralFeatures = Omit<RoomFeatures, 'languageMatch' | 'countryMatch' | 'followsHost'>;
@@ -117,7 +122,7 @@ export class FeedEngine {
     query: { country?: string; category?: any },
     q: string | undefined
   ): Promise<FeedSlice> {
-    const rooms: FeedRoom[] = await this.prisma.liveRoom.findMany({
+    const candidates = await this.prisma.liveRoom.findMany({
       where: {
         status: RoomStatus.LIVE,
         country: query.country,
@@ -136,8 +141,23 @@ export class FeedEngine {
       take: RANK_CANDIDATE_POOL,
       include: PUBLIC_HOST_INCLUDE
     });
+    // The gift total is display data, not a ranking feature, so it is fetched
+    // even for a single-room slice — during the beta that IS the common case,
+    // and a lone live room showing "0 gifts" while people are gifting into it
+    // is the kind of quiet wrongness nobody reports.
+    const giftTotals = new Map(
+      (
+        await this.prisma.giftTransaction.groupBy({
+          by: ['roomId'],
+          where: { roomId: { in: candidates.map((r) => r.id) } },
+          _sum: { totalCoinAmount: true }
+        })
+      ).map((g) => [g.roomId, g._sum.totalCoinAmount ?? 0])
+    );
+    const rooms: FeedRoom[] = candidates.map((room) => ({ ...room, giftCoinTotal: giftTotals.get(room.id) ?? 0 }));
+
     if (rooms.length <= 1) {
-      // Trivial slice: no aggregation needed, neutral features are all zero.
+      // Trivial slice: no ranking aggregation needed, neutral features are all zero.
       return { rooms, features: new Map(rooms.map((r) => [r.id, this.zeroFeatures(r)])) };
     }
 

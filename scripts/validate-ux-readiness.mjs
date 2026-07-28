@@ -52,7 +52,7 @@ contains('apps/mobile/lib/screens/report_screen.dart', ['Report ', 'Submit Repor
 
 console.log('\n=== ADMIN OPERATIONS UX ===');
 contains('apps/admin-web/app/chrome.tsx', ['Operations', 'People', 'Money', 'System', 'Ledger Integrity'], 'admin navigation is grouped by operational domain');
-contains('apps/admin-web/app/page.tsx', ['live room health', 'Critical reports', 'Pending payouts', 'AuditTimeline'], 'admin dashboard surfaces health, risk, money, and audit context');
+contains('apps/admin-web/app/page.tsx', ['Live room health', 'Critical reports', 'Pending payouts', 'AuditTimeline'], 'admin dashboard surfaces health, risk, money, and audit context');
 contains('apps/admin-web/app/live-rooms/page.tsx', ['ConfirmDialog', 'Suspend', 'End', 'Audit Trail'], 'live room moderation actions require confirmation and audit access');
 contains('apps/admin-web/app/reports/page.tsx', ['priority', 'reason', 'ESCALATE', 'SUSPEND_ROOM', 'SUSPEND_USER'], 'report queue supports filtering and critical moderation actions');
 contains('apps/admin-web/app/payouts/page.tsx', ['Ledger imbalance detected', 'Hold reason', 'Rejection reason', 'Mark payout paid', 'ConfirmDialog'], 'payout queue has ledger warning, reasons, and paid confirmation');

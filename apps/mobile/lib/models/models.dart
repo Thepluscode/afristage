@@ -12,7 +12,6 @@ int? asIntOrNull(dynamic v) =>
 num asNumOr(dynamic v, [num fallback = 0]) =>
     v is num ? v : num.tryParse('$v') ?? fallback;
 
-
 class LiveRoom {
   const LiveRoom({
     required this.id,
@@ -26,6 +25,8 @@ class LiveRoom {
     this.hostAvatarUrl,
     this.coverImageUrl,
     this.viewerCount = 0,
+    this.giftCoinTotal = 0,
+    this.isVerified = false,
   });
 
   final String id;
@@ -39,6 +40,8 @@ class LiveRoom {
   final String? hostAvatarUrl;
   final String? coverImageUrl;
   final int viewerCount;
+  final int giftCoinTotal;
+  final bool isVerified;
 
   factory LiveRoom.fromJson(Map<String, dynamic> json) {
     final host = json['host'] as Map<String, dynamic>?;
@@ -58,6 +61,8 @@ class LiveRoom {
       coverImageUrl:
           json['coverImageUrl'] as String? ?? json['thumbnailUrl'] as String?,
       viewerCount: asInt(json['viewerCount']),
+      giftCoinTotal: asInt(json['giftCoinTotal']),
+      isVerified: creator?['status'] == 'APPROVED',
     );
   }
 }
@@ -107,8 +112,21 @@ class Wallet {
 }
 
 class ChatMessage {
-  const ChatMessage({required this.sender, required this.text, this.senderId});
+  const ChatMessage({
+    required this.sender,
+    required this.text,
+    this.senderId,
+    this.giftName,
+    this.giftQuantity,
+  });
   final String sender;
   final String text;
   final String? senderId;
+
+  /// Set when the line is a gift event rather than a typed message; it renders
+  /// as the highlighted "<sender> sent <gift> xN" row instead of a chat bubble.
+  final String? giftName;
+  final int? giftQuantity;
+
+  bool get isGift => giftName != null;
 }

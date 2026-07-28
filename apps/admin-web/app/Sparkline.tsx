@@ -26,3 +26,31 @@ export function Sparkline({ values, label, accent = 'var(--accent, #6ad)' }: { v
     </div>
   );
 }
+
+/// Decorative area micro-chart that sits inside a KPI card. No axes, no labels —
+/// the card's value and delta carry the meaning, this only shows the shape.
+export function MiniSparkline({ values, accent }: { values: number[]; accent: string }) {
+  if (values.length < 2) return null;
+  const w = 100;
+  const h = 34;
+  const max = Math.max(1, ...values);
+  const step = w / (values.length - 1);
+  const pts = values.map((v, i) => [i * step, h - (v / max) * (h - 3) - 1.5] as const);
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  // ponytail: gradient id is derived from the accent, so two cards with the same
+  // accent share one def — collisions are harmless, they render identically.
+  const gid = `spark-${accent.replace(/[^a-z0-9]/gi, '')}`;
+
+  return (
+    <svg className="metric-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.34" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,${h} ${line} ${w},${h}`} fill={`url(#${gid})`} />
+      <polyline points={line} fill="none" stroke={accent} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}

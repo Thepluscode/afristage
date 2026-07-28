@@ -131,7 +131,7 @@ void main() {
     expect(find.text('128,450'), findsOneWidget);
     expect(find.text('Send Gift'), findsOneWidget);
     expect(find.text('Top Up'), findsOneWidget);
-    expect(find.text('History'), findsOneWidget);
+    expect(find.text('Request payout'), findsOneWidget);
   });
 
   testWidgets('gift drawer shows balance, buy coins, prices, and send action',
@@ -177,6 +177,37 @@ void main() {
     expect(find.byIcon(CupertinoIcons.person), findsOneWidget);
     expect(find.text('Friday Afrobeats Live'), findsOneWidget);
     expect(find.textContaining('Zola Kim'), findsOneWidget);
+  });
+
+  testWidgets('live card pills stay apart at the narrow rail width',
+      (tester) async {
+    // Regression: at the feed rail's 108px the LIVE and viewer pills were
+    // independently positioned and overlapped into "LIV≗2.1K". They now share
+    // one space-between row, so the viewer pill must start after the LIVE pill
+    // ends and neither may paint outside the card.
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: AfriLiveCard(
+            title: 'Good Vibes Only',
+            category: 'Music',
+            creator: 'Kofi Blaze',
+            country: 'GH',
+            viewerCount: 2100,
+            width: 108,
+          ),
+        ),
+      ),
+    ));
+
+    final card = tester.getRect(find.byType(AfriLiveCard));
+    final livePill = tester.getRect(find.byType(AfriLivePill));
+    final viewerPill = tester.getRect(find.byType(AfriViewerPill));
+
+    expect(livePill.right, lessThanOrEqualTo(viewerPill.left));
+    expect(livePill.left, greaterThanOrEqualTo(card.left));
+    expect(viewerPill.right, lessThanOrEqualTo(card.right));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('live card exposes a screen-reader label', (tester) async {

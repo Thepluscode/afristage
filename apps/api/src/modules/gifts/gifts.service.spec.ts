@@ -100,16 +100,31 @@ describe('GiftsService.send', () => {
   });
 
   it('broadcasts gift.sent into the room on a fresh gift and queues a fraud re-score', async () => {
-    const { service, prisma, chat, fraud } = build();
+    const { service, prisma, chat, fraud } = build({ viewer: { id: 'v1', status: 'ACTIVE', profile: { displayName: 'KingSteve' } } });
     prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
     await service.send('v1', 'r1', dto);
     expect(chat.emit).toHaveBeenCalledWith(
       'r1',
       'gift.sent',
-      expect.objectContaining({ giftTransactionId: 'gt1', giftName: 'Rose', senderId: 'v1', totalCoinAmount: 10 })
+      expect.objectContaining({
+        giftTransactionId: 'gt1',
+        giftName: 'Rose',
+        senderId: 'v1',
+        // clients render "<senderName> sent Rose xN"; without it they can only
+        // show a nameless line, so the display name travels with the event
+        senderName: 'KingSteve',
+        totalCoinAmount: 10
+      })
     );
     // R5 §9 #4: the money event keeps the creator's assessment warm, async
     expect(fraud.queueReassess).toHaveBeenCalledWith('creator');
+  });
+
+  it('broadcasts a null senderName when the sender has no profile row', async () => {
+    const { service, prisma, chat } = build({ viewer: { id: 'v1', status: 'ACTIVE', profile: null } });
+    prisma.giftTransaction.create.mockResolvedValue({ id: 'gt1', createdAt: new Date(0) });
+    await service.send('v1', 'r1', dto);
+    expect(chat.emit).toHaveBeenCalledWith('r1', 'gift.sent', expect.objectContaining({ senderName: null }));
   });
 
   it('sends GIFT_RECOGNITION when this gift makes the sender the top supporter', async () => {
