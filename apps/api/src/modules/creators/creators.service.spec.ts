@@ -169,6 +169,82 @@ describe('CreatorsService approval workflow', () => {
   });
 });
 
+// A deliberate, flagged weakening of the review gate. These pin that it is OFF
+// unless asked for, that it never rescues a suspended creator, and that the
+// trail it writes never implies a human reviewed anything.
+describe('CreatorsService beta auto-approval', () => {
+  const FLAG = 'BETA_AUTO_APPROVE_CREATORS';
+  afterEach(() => { delete process.env[FLAG]; });
+
+  it('is off by default — a first application still lands PENDING', async () => {
+    const { service, prisma } = build();
+    const res: any = await service.apply('u1', dto);
+    expect(res.approvalStatus).toBe('PENDING');
+    expect(prisma.user.update).not.toHaveBeenCalled(); // no promotion
+  });
+
+  it('approves and promotes a first-time applicant when enabled', async () => {
+    process.env[FLAG] = 'true';
+    const { service, prisma } = build();
+    await service.apply('u1', dto);
+    expect(prisma.creatorProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ approvalStatus: 'APPROVED' }) })
+    );
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: { role: 'CREATOR' } }));
+  });
+
+  it('attributes the approval to a non-human actor, not to the applicant', async () => {
+    process.env[FLAG] = 'true';
+    const { service, prisma } = build();
+    await service.apply('u1', dto);
+    const audit = prisma.adminAuditLog.create.mock.calls.map((c: any[]) => c[0].data);
+    const auto = audit.find((d: any) => d.action === 'CREATOR_AUTO_APPROVED');
+    expect(auto).toBeDefined();
+    expect(auto.actorId).toBe('system:beta-auto-approve');
+    expect(auto.actorId).not.toBe('u1');
+    expect(auto.metadata.reason).toBe('BETA_AUTO_APPROVE_CREATORS');
+  });
+
+  it('approves a rejected applicant who re-applies', async () => {
+    process.env[FLAG] = 'true';
+    const { service, prisma } = build({ approvalStatus: 'REJECTED', reviewedById: 'admin' });
+    await service.apply('u1', dto);
+    const statuses = prisma.creatorProfile.update.mock.calls.map((c: any[]) => c[0].data.approvalStatus);
+    expect(statuses).toContain('APPROVED');
+  });
+
+  it('approves a pending applicant who amends their application', async () => {
+    process.env[FLAG] = 'true';
+    const { service, prisma } = build({ approvalStatus: 'PENDING' });
+    await service.apply('u1', dto);
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: { role: 'CREATOR' } }));
+  });
+
+  // The flag is a queue shortcut, not an amnesty.
+  it('never rescues a suspended creator', async () => {
+    process.env[FLAG] = 'true';
+    const { service, prisma } = build({ approvalStatus: 'SUSPENDED' });
+    await expect(service.apply('u1', dto)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('does not re-approve or re-promote an already-approved creator amending details', async () => {
+    process.env[FLAG] = 'true';
+    const { service, prisma } = build({ approvalStatus: 'APPROVED', reviewedById: 'admin' });
+    await service.apply('u1', { ...dto, stageName: 'Renamed' });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    const audit = prisma.adminAuditLog.create.mock.calls.map((c: any[]) => c[0].data.action);
+    expect(audit).not.toContain('CREATOR_AUTO_APPROVED');
+  });
+
+  it('treats any value other than the literal "true" as off', async () => {
+    process.env[FLAG] = 'yes';
+    const { service, prisma } = build();
+    await service.apply('u1', dto);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('CreatorsService.myRooms', () => {
   it('returns [] and skips the gift query when the creator has no rooms', async () => {
     const { service, prisma } = build();

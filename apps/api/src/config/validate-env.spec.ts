@@ -84,6 +84,40 @@ describe('validateEnv — season additions', () => {
     });
   });
 
+  it('warns loudly on every boot while auto-approval is enabled', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const prevNode = process.env.NODE_ENV;
+    const prevFlag = process.env.BETA_AUTO_APPROVE_CREATORS;
+    try {
+      (process.env as any).NODE_ENV = 'development';
+      process.env.BETA_AUTO_APPROVE_CREATORS = 'true';
+      validateEnv();
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/WITHOUT human review/));
+      warn.mockClear();
+      delete process.env.BETA_AUTO_APPROVE_CREATORS;
+      validateEnv();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      (process.env as any).NODE_ENV = prevNode;
+      if (prevFlag === undefined) delete process.env.BETA_AUTO_APPROVE_CREATORS;
+      else process.env.BETA_AUTO_APPROVE_CREATORS = prevFlag;
+      warn.mockRestore();
+    }
+  });
+
+  // Auto-approval decides who may broadcast to an audience. Defensible for an
+  // invited beta on staging; in production it means anyone who signs up can go
+  // live unreviewed. Blocked at boot so a copied staging env can't carry it over.
+  it('refuses to start production with BETA_AUTO_APPROVE_CREATORS=true', () => {
+    withEnv({ BETA_AUTO_APPROVE_CREATORS: 'true' }, () => {
+      expect(() => validateEnv()).toThrow(/BETA_AUTO_APPROVE_CREATORS/);
+    });
+    withEnv({ BETA_AUTO_APPROVE_CREATORS: undefined }, () => {
+      delete process.env.BETA_AUTO_APPROVE_CREATORS;
+      expect(() => validateEnv()).not.toThrow();
+    });
+  });
+
   it('refuses to start production with ALLOW_SEEDED_PROD_LOGIN=true', () => {
     withEnv({ ALLOW_SEEDED_PROD_LOGIN: 'true' }, () => {
       expect(() => validateEnv()).toThrow(/ALLOW_SEEDED_PROD_LOGIN/);
