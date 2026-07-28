@@ -49,6 +49,72 @@ describe('LiveRoomsService.create (guards)', () => {
     await expect(service.create('h1', dto)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  // A recruited creator registers, applies, and then hits this wall. Telling
+  // them only "you are not a creator" strands them mid-funnel: they just filed
+  // an application and are told nothing about it.
+  describe('the refusal says where the applicant actually is', () => {
+    const applicant = { id: 'h1', role: 'VIEWER', status: 'ACTIVE' };
+
+    it('a pending application is named as pending', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(applicant);
+      prisma.creatorProfile.findUnique.mockResolvedValue({ approvalStatus: 'PENDING' });
+      await expect(service.create('h1', dto)).rejects.toThrow(/under review/i);
+    });
+
+    it('a rejected application carries the reviewer’s reason and the way back', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(applicant);
+      prisma.creatorProfile.findUnique.mockResolvedValue({ approvalStatus: 'REJECTED', rejectionReason: 'blurry ID' });
+      await expect(service.create('h1', dto)).rejects.toThrow(/blurry ID.*re-apply/is);
+    });
+
+    it('a rejection with no recorded reason still explains the next step', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(applicant);
+      prisma.creatorProfile.findUnique.mockResolvedValue({ approvalStatus: 'REJECTED', rejectionReason: null });
+      await expect(service.create('h1', dto)).rejects.toThrow(/not approved\. You can update/);
+    });
+
+    it('a suspended creator is pointed at support, not at re-applying', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(applicant);
+      prisma.creatorProfile.findUnique.mockResolvedValue({ approvalStatus: 'SUSPENDED' });
+      await expect(service.create('h1', dto)).rejects.toThrow(/suspended.*support/is);
+    });
+
+    it('someone who never applied is told to apply', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(applicant);
+      prisma.creatorProfile.findUnique.mockResolvedValue(null);
+      await expect(service.create('h1', dto)).rejects.toThrow(/Apply to become a creator/);
+    });
+
+    // The permission itself must not have moved.
+    it('still refuses — this changes the explanation, not the gate', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(applicant);
+      prisma.creatorProfile.findUnique.mockResolvedValue({ approvalStatus: 'PENDING' });
+      await expect(service.create('h1', dto)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.liveRoom.create).not.toHaveBeenCalled();
+    });
+
+    // Reachable when approval is revoked after promotion.
+    it('a promoted creator whose approval was revoked gets the same explanation', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(approvedCreator);
+      prisma.creatorProfile.findUnique.mockResolvedValue({ approvalStatus: 'SUSPENDED' });
+      await expect(service.create('h1', dto)).rejects.toThrow(/suspended/i);
+    });
+
+    it('a promoted creator with no profile row at all is told to apply', async () => {
+      const { service, prisma } = build();
+      prisma.user.findUnique.mockResolvedValue(approvedCreator);
+      prisma.creatorProfile.findUnique.mockResolvedValue(null);
+      await expect(service.create('h1', dto)).rejects.toThrow(/Apply to become a creator/);
+    });
+  });
+
   it('rejects a creator who already has an active live room', async () => {
     const { service, prisma } = build();
     prisma.user.findUnique.mockResolvedValue(approvedCreator);
