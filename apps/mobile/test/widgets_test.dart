@@ -2,6 +2,7 @@ import 'package:afristage_mobile/core/afri_theme.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -534,8 +535,7 @@ void main() {
 
     expect(find.textContaining('KingSteve'), findsOneWidget);
     expect(find.textContaining('sent'), findsOneWidget);
-    // gift emoji is rendered inline with the gift name
-    expect(find.textContaining('🌹'), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.heart_circle_fill), findsOneWidget);
     expect(find.text('x5'), findsOneWidget);
   });
 

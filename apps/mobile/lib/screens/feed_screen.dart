@@ -143,6 +143,15 @@ class _FeedScreenState extends State<FeedScreen> {
   void _openSearch() => Navigator.push(
       context, MaterialPageRoute(builder: (_) => const SearchScreen()));
 
+  void _openCreatorTools(AppState state) => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => state.isCreator
+              ? const CreatorScreen()
+              : const CreatorApplyScreen(),
+        ),
+      );
+
   // Only ever called from the "Creators to watch" ring, which is built from
   // rooms with a non-null hostId, so the id is always present here.
   void _openCreator(LiveRoom room) {
@@ -248,6 +257,16 @@ class _FeedScreenState extends State<FeedScreen> {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
+                _HomeUtilityBar(
+                  coins: coins,
+                  isCreator: state.isCreator,
+                  onWallet: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const WalletScreen()),
+                  ),
+                  onGoLive: () => _openCreatorTools(state),
+                ),
+                const SizedBox(height: 12),
                 // Hero featured live card.
                 if (hero != null)
                   AfriHeroLive(
@@ -304,11 +323,19 @@ class _FeedScreenState extends State<FeedScreen> {
                         imageUrl:
                             rail[i].coverImageUrl ?? rail[i].hostAvatarUrl,
                         viewerCount: rail[i].viewerCount,
+                        giftCoinTotal: rail[i].giftCoinTotal,
                         width: 108,
                         onTap: () => _openRoom(rail[i]),
                       ),
                     ),
                   ),
+                if (hero != null) ...[
+                  const SizedBox(height: 12),
+                  _SupportCreatorRow(
+                    creator: hero.hostName ?? 'this creator',
+                    onTap: () => _openRoom(hero),
+                  ),
+                ],
 
                 // Upcoming.
                 if (_upcoming.isNotEmpty) ...[
@@ -325,6 +352,37 @@ class _FeedScreenState extends State<FeedScreen> {
                     items: _categories,
                     selected: _category,
                     onSelected: (v) => setState(() => _category = v)),
+
+                if (rooms.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  _SectionHeader(
+                    title: 'Recommended for you',
+                    onSeeAll: _openSearch,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 196,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: rooms.take(4).length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (_, i) {
+                        final room = rooms.reversed.elementAt(i);
+                        return AfriLiveCard(
+                          title: room.title,
+                          category: room.category,
+                          creator: room.hostName,
+                          country: room.country,
+                          imageUrl: room.coverImageUrl ?? room.hostAvatarUrl,
+                          viewerCount: room.viewerCount,
+                          giftCoinTotal: room.giftCoinTotal,
+                          width: 144,
+                          onTap: () => _openRoom(room),
+                        );
+                      },
+                    ),
+                  ),
+                ],
 
                 if (creators.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -352,13 +410,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 const SizedBox(height: 24),
                 _FeatureDock(
                   isCreator: state.isCreator,
-                  onCreate: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => state.isCreator
-                            ? const CreatorScreen()
-                            : const CreatorApplyScreen()),
-                  ),
+                  onCreate: () => _openCreatorTools(state),
                   onEvents: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const EventsScreen())),
                   onCircles: () => Navigator.push(context,
@@ -371,6 +423,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 const SizedBox(height: 24),
                 _HomeWalletPanel(
                   coins: coins,
+                  isCreator: state.isCreator,
                   onWallet: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const WalletScreen())),
                   onSendGift: hero == null ? null : () => _openRoom(hero),
@@ -421,6 +474,148 @@ class _FeedScreenState extends State<FeedScreen> {
                     child: const Text('Remind me'),
                   ),
           ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _HomeUtilityBar extends StatelessWidget {
+  const _HomeUtilityBar({
+    required this.coins,
+    required this.isCreator,
+    required this.onWallet,
+    required this.onGoLive,
+  });
+
+  final int coins;
+  final bool isCreator;
+  final VoidCallback onWallet;
+  final VoidCallback onGoLive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: AfriColors.elevated,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AfriColors.border),
+      ),
+      child: Row(children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AfriColors.gold.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(CupertinoIcons.money_dollar_circle_fill,
+              color: AfriColors.gold, size: 23),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            onTap: onWallet,
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Gift balance',
+                    style:
+                        TextStyle(fontSize: 11, color: AfriColors.mutedText)),
+                Text('${_formatCoins(coins)} coins',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: AfriColors.text)),
+              ],
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: onWallet,
+          child: const Text('Top up'),
+        ),
+        const SizedBox(width: 4),
+        Semantics(
+          button: true,
+          label: isCreator ? 'Go Live' : 'Apply to Go Live',
+          child: InkWell(
+            onTap: onGoLive,
+            borderRadius: BorderRadius.circular(13),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AfriColors.purple,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                isCreator
+                    ? CupertinoIcons.video_camera_solid
+                    : CupertinoIcons.add,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _SupportCreatorRow extends StatelessWidget {
+  const _SupportCreatorRow({required this.creator, required this.onTap});
+
+  final String creator;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: const ValueKey('home-send-gift-row'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AfriColors.elevated,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AfriColors.border),
+        ),
+        child: Row(children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AfriColors.purple.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(CupertinoIcons.gift_fill,
+                color: AfriColors.gold, size: 21),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Send Gift',
+                    style: TextStyle(
+                        color: AfriColors.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900)),
+                Text('Show love. Support $creator.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AfriColors.mutedText, fontSize: 11)),
+              ],
+            ),
+          ),
+          const Icon(CupertinoIcons.chevron_right,
+              color: AfriColors.gold, size: 18),
         ]),
       ),
     );
@@ -540,11 +735,13 @@ class _FeatureAction extends StatelessWidget {
 class _HomeWalletPanel extends StatelessWidget {
   const _HomeWalletPanel({
     required this.coins,
+    required this.isCreator,
     required this.onWallet,
     required this.onSendGift,
   });
 
   final int coins;
+  final bool isCreator;
   final VoidCallback onWallet;
   final VoidCallback? onSendGift;
 
@@ -614,8 +811,10 @@ class _HomeWalletPanel extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
             child: _WalletActionTile(
-                icon: CupertinoIcons.clock_fill,
-                label: 'History',
+                icon: isCreator
+                    ? CupertinoIcons.arrow_up_circle_fill
+                    : CupertinoIcons.clock_fill,
+                label: isCreator ? 'Request payout' : 'History',
                 onTap: onWallet)),
       ]),
     ]);

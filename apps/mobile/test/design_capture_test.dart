@@ -30,10 +30,11 @@ class _CaptureApi extends ApiClient {
       'language': 'English',
       'status': 'LIVE',
       'viewerCount': 3200,
+      'giftCoinTotal': 12500,
       'host': {
         'id': 'zola',
         'profile': {'displayName': 'Zola Kim'},
-        'creatorProfile': {'stageName': 'Zola Kim'},
+        'creatorProfile': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
       },
     },
     {
@@ -44,6 +45,7 @@ class _CaptureApi extends ApiClient {
       'language': 'English',
       'status': 'LIVE',
       'viewerCount': 2100,
+      'giftCoinTotal': 8400,
       'host': {
         'id': 'kofi',
         'profile': {'displayName': 'Kofi Blaze'},
@@ -58,6 +60,7 @@ class _CaptureApi extends ApiClient {
       'language': 'Zulu',
       'status': 'LIVE',
       'viewerCount': 1400,
+      'giftCoinTotal': 5900,
       'host': {
         'id': 'nandi',
         'profile': {'displayName': 'Nandi'},
@@ -72,6 +75,7 @@ class _CaptureApi extends ApiClient {
       'language': 'Swahili',
       'status': 'LIVE',
       'viewerCount': 980,
+      'giftCoinTotal': 3200,
       'host': {
         'id': 'tflow',
         'profile': {'displayName': 'T-Flow'},
@@ -200,13 +204,8 @@ Future<void> _loadCaptureFonts() async {
     );
   await Future.wait([bodyLoader.load(), iconLoader.load()]);
 
-  // KNOWN CAPTURE LIMITATION: emoji render as tofu boxes in these PNGs.
-  // The test renderer only uses fonts registered here, and FontLoader cannot
-  // supply a colour-emoji font ("Apple Color Emoji.ttc" is a CBDT/sbix
-  // collection — loading it registers no usable glyphs). On device the platform
-  // font fallback handles emoji normally, so gift artwork and gift chat rows
-  // need device evidence; WHICH emoji a gift name maps to is unit-tested in
-  // helpers_test.dart (afriGiftEmoji).
+  // Gift artwork uses Cupertino glyphs so captures and devices render the same
+  // catalogue silhouettes without relying on platform emoji fallback.
 }
 
 void main() async {
@@ -228,6 +227,14 @@ void main() async {
           payoutHoldBalance: 0,
         );
       const boundaryKey = ValueKey('capture-boundary');
+
+      final viewerState = AppState(api: api)
+        ..role = 'VIEWER'
+        ..userId = 'viewer'
+        ..wallet = state.wallet;
+      await tester
+          .pumpWidget(_app(viewerState, boundaryKey, const HomeShell()));
+      await _capture(tester, boundaryKey, 'home-viewer');
 
       await tester.pumpWidget(_app(state, boundaryKey, const HomeShell()));
       await _capture(tester, boundaryKey, 'home');
@@ -263,10 +270,12 @@ void main() async {
                     creatorName: 'Zola Kim',
                     category: 'Music',
                     language: 'EN',
+                    verified: true,
                     following: false,
                     viewerCount: 3200,
                     onClose: () {},
                     onFollow: () {},
+                    onReport: () {},
                   ),
                   reactionLayer: const AfriReactionLayer(
                     reactions: ['heart', 'fire', 'heart'],
@@ -286,16 +295,15 @@ void main() async {
                 chat: AfriChatOverlay(
                   controller: chatScrollController,
                   messages: const [
-                    ChatMessage(sender: 'Ama_Gh', text: 'Great energy! 🔥🔥'),
-                    ChatMessage(sender: 'TosinB', text: 'This is fire! 🔥'),
+                    ChatMessage(sender: 'Ama_Gh', text: 'Great energy!'),
+                    ChatMessage(sender: 'TosinB', text: 'This is fire!'),
                     ChatMessage(
                         sender: 'KingSteve',
                         text: 'Rose x5',
                         giftName: 'Rose',
                         giftQuantity: 5),
-                    ChatMessage(
-                        sender: 'Nandi_Love', text: 'Voice on point! 🎶'),
-                    ChatMessage(sender: 'Sizwe', text: 'We outside! 🇿🇦'),
+                    ChatMessage(sender: 'Nandi_Love', text: 'Voice on point!'),
+                    ChatMessage(sender: 'Sizwe', text: 'We outside!'),
                   ],
                 ),
                 input: AfriChatInput(

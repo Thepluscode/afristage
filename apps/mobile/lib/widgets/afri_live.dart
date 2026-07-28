@@ -59,11 +59,16 @@ List<Color> categoryGradient(String category) {
 /// creator's initial. Always topped with a bottom scrim for legible overlays.
 class AfriCover extends StatelessWidget {
   const AfriCover(
-      {super.key, this.imageUrl, required this.category, this.initial});
+      {super.key,
+      this.imageUrl,
+      required this.category,
+      this.initial,
+      this.alignment = Alignment.topCenter});
 
   final String? imageUrl;
   final String category;
   final String? initial;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +79,9 @@ class AfriCover extends StatelessWidget {
       children: [
         if (imageUrl != null && imageUrl!.isNotEmpty)
           Image.network(imageUrl!,
-              fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
+              fit: BoxFit.cover,
+              alignment: alignment,
+              errorBuilder: (_, __, ___) => fallback)
         else
           fallback,
         // bottom scrim for text legibility
@@ -97,7 +104,7 @@ class AfriCover extends StatelessWidget {
           _gradient(grad),
           Image.asset(stageFallback(initial),
               fit: BoxFit.cover,
-              alignment: Alignment.topCenter, errorBuilder: (_, error, __) {
+              alignment: alignment, errorBuilder: (_, error, __) {
             debugPrint('Stage artwork failed to load: $error');
             return const SizedBox.shrink();
           }),
@@ -336,6 +343,7 @@ class AfriLiveCard extends StatelessWidget {
       this.country,
       this.imageUrl,
       this.viewerCount = 0,
+      this.giftCoinTotal = 0,
       this.onTap,
       this.width = 156});
 
@@ -345,6 +353,7 @@ class AfriLiveCard extends StatelessWidget {
   final String? country;
   final String? imageUrl;
   final int viewerCount;
+  final int giftCoinTotal;
   final VoidCallback? onTap;
   final double width;
 
@@ -430,14 +439,29 @@ class AfriLiveCard extends StatelessWidget {
                                   fontWeight: FontWeight.w900,
                                   color: Colors.white)),
                           const SizedBox(height: 5),
-                          Text(
-                              '${creator ?? 'Creator'}${countryLabel.isNotEmpty ? ' · $countryLabel' : ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFD4D4D8))),
+                          Row(children: [
+                            Expanded(
+                              child: Text(
+                                  '${creator ?? 'Creator'}${countryLabel.isNotEmpty ? ' · $countryLabel' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFD4D4D8))),
+                            ),
+                            if (giftCoinTotal > 0) ...[
+                              const SizedBox(width: 4),
+                              const Icon(CupertinoIcons.gift_fill,
+                                  size: 10, color: AfriColors.gold),
+                              const SizedBox(width: 2),
+                              Text(formatCount(giftCoinTotal),
+                                  style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white)),
+                            ],
+                          ]),
                         ],
                       ),
                     ),

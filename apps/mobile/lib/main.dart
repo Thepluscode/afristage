@@ -10,6 +10,7 @@ import 'screens/feed_screen.dart';
 import 'screens/go_live_setup_screen.dart';
 import 'screens/live_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'widgets/afri_ui.dart';
@@ -89,7 +90,8 @@ class _GoLiveButton extends StatelessWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  // Tabs match the consumer navigation: Home · Live · Go Live · Wallet · Profile.
+  // Viewer navigation matches the discovery reference; creators keep the
+  // earnings destination needed for their dashboard workflow.
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +108,7 @@ class _HomeShellState extends State<HomeShell> {
             const FeedScreen(),
             const LiveScreen(),
             const CreatorApplyScreen(),
-            const WalletScreen(),
+            const NotificationsScreen(),
             const ProfileScreen(),
           ];
     final destinations = <NavigationDestination>[
@@ -132,9 +134,12 @@ class _HomeShellState extends State<HomeShell> {
         label: 'Go Live',
       ),
       NavigationDestination(
-          icon: const Icon(CupertinoIcons.creditcard),
-          selectedIcon: const Icon(CupertinoIcons.creditcard_fill),
-          label: isCreator ? 'Earn' : 'Wallet'),
+          icon:
+              Icon(isCreator ? CupertinoIcons.creditcard : CupertinoIcons.bell),
+          selectedIcon: Icon(isCreator
+              ? CupertinoIcons.creditcard_fill
+              : CupertinoIcons.bell_fill),
+          label: isCreator ? 'Earn' : 'Activity'),
       const NavigationDestination(
           icon: Icon(CupertinoIcons.person),
           selectedIcon: Icon(CupertinoIcons.person_fill),

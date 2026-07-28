@@ -131,7 +131,7 @@ void main() {
     expect(find.text('128,450'), findsOneWidget);
     expect(find.text('Send Gift'), findsOneWidget);
     expect(find.text('Top Up'), findsOneWidget);
-    expect(find.text('History'), findsOneWidget);
+    expect(find.text('Request payout'), findsOneWidget);
   });
 
   testWidgets('gift drawer shows balance, buy coins, prices, and send action',
@@ -151,8 +151,7 @@ void main() {
 
     expect(find.text('Send Gift'), findsOneWidget);
     expect(find.text('100'), findsOneWidget);
-    // Catalogue tiles render emoji artwork, per the mockup
-    expect(find.text('🔦'), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.lightbulb_fill), findsOneWidget);
     expect(find.text('Spotlight'), findsWidgets);
     expect(find.text('50 coins'), findsWidgets);
     expect(find.text('Buy coins'), findsOneWidget);

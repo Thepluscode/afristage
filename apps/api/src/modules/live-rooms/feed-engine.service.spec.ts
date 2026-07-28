@@ -202,3 +202,69 @@ describe('FeedEngine null gift sum', () => {
     expect(res).toHaveLength(2);
   });
 });
+
+// The live card shows a room's gift take. It is display data, not a ranking
+// feature, so it must survive the single-room short-circuit and the cache —
+// the mobile feed reads `giftCoinTotal`, and a silent 0 there looks like a room
+// nobody is gifting into rather than a missing field.
+describe('FeedEngine gift totals on the card', () => {
+  it('returns each room its own gift total', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ id: 'r1' }), liveRoom({ id: 'r2' })]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([
+      { roomId: 'r1', _sum: { totalCoinAmount: 12500 } },
+      { roomId: 'r2', _sum: { totalCoinAmount: 40 } }
+    ]);
+    const feed = await service.list({});
+    expect(Object.fromEntries(feed.map((r: any) => [r.id, r.giftCoinTotal]))).toEqual({ r1: 12500, r2: 40 });
+  });
+
+  it('reports zero for a room with no gifts rather than omitting the field', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ id: 'r1' }), liveRoom({ id: 'r2' })]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: 5 } }]);
+    const feed = await service.list({});
+    expect(feed.find((r: any) => r.id === 'r2')?.giftCoinTotal).toBe(0);
+  });
+
+  it('null sums count as zero', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ id: 'r1' }), liveRoom({ id: 'r2' })]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: null } }]);
+    const feed = await service.list({});
+    expect(feed.find((r: any) => r.id === 'r1')?.giftCoinTotal).toBe(0);
+  });
+
+  // The case the fix exists for: during the beta a single live room is normal,
+  // and that path used to skip aggregation entirely.
+  it('still returns the total when only one room is live', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ id: 'solo' })]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'solo', _sum: { totalCoinAmount: 777 } }]);
+    const feed = await service.list({});
+    expect(feed[0].giftCoinTotal).toBe(777);
+  });
+
+  // The total is the room's take, NOT the 10-minute velocity window the ranker
+  // uses — those are different questions and must not share a query.
+  it('asks for the room total unwindowed, separately from the velocity window', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ id: 'r1' }), liveRoom({ id: 'r2' })]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([]);
+    await service.list({});
+    const wheres = prisma.giftTransaction.groupBy.mock.calls.map((c: any[]) => c[0].where);
+    expect(wheres.some((w: any) => !w.createdAt)).toBe(true); // the total
+    expect(wheres.some((w: any) => w.createdAt?.gte instanceof Date)).toBe(true); // the velocity window
+  });
+
+  it('survives the slice cache', async () => {
+    const { service, prisma } = buildFeed();
+    prisma.liveRoom.findMany.mockResolvedValue([liveRoom({ id: 'r1' }), liveRoom({ id: 'r2' })]);
+    prisma.giftTransaction.groupBy.mockResolvedValue([{ roomId: 'r1', _sum: { totalCoinAmount: 99 } }]);
+    await service.list({}); // populates the cache
+    prisma.liveRoom.findMany.mockClear();
+    const cached = await service.list({});
+    expect(prisma.liveRoom.findMany).not.toHaveBeenCalled(); // served from cache
+    expect(cached.find((r: any) => r.id === 'r1')?.giftCoinTotal).toBe(99);
+  });
+});

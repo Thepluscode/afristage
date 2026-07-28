@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   ArrowRight,
   CircleDollarSign,
@@ -13,100 +13,109 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
-} from 'lucide-react';
-import styles from './site.module.css';
+} from "lucide-react";
+import styles from "./site.module.css";
 
 // The public web viewer (apps/web) — where "watch live, free, no card" actually
 // happens. Overridable per environment; defaults to the deployed staging service.
-const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL || 'https://web-production-4ee7e.up.railway.app';
+const WEB_URL =
+  process.env.NEXT_PUBLIC_WEB_URL ||
+  "https://web-production-4ee7e.up.railway.app";
 
 const features = [
   {
-    kicker: 'Live rooms',
-    title: 'A stage that feels alive before the stream even starts.',
-    body: 'Cinematic discovery, creator-led rooms, chat, reactions, gifts, and safety controls share one native-feeling flow.',
+    kicker: "Live rooms",
+    title: "A stage that feels alive before the stream even starts.",
+    body: "Cinematic discovery, creator-led rooms, chat, reactions, gifts, and safety controls share one native-feeling flow.",
     icon: MonitorPlay,
-    image: '/site/feature-live-rooms.jpg',
-    imageAlt: 'A singer performing for a live camera in a warmly lit home studio.'
+    image: "/site/feature-live-rooms.jpg",
+    imageAlt:
+      "A singer performing for a live camera in a warmly lit home studio.",
   },
   {
-    kicker: 'Creator economy',
-    title: 'Gifts, wallets, payouts, and ledgers built as one money spine.',
-    body: 'Every coin movement is traceable from purchase to gift split to payout hold, review, approval, and paid confirmation.',
+    kicker: "Creator economy",
+    title: "Gifts, wallets, payouts, and ledgers built as one money spine.",
+    body: "Every coin movement is traceable from purchase to gift split to payout hold, review, approval, and paid confirmation.",
     icon: CircleDollarSign,
-    image: '/site/feature-creator-economy.jpg',
-    imageAlt: 'A music creator reviewing earnings on a phone backstage after a performance.'
+    image: "/site/feature-creator-economy.jpg",
+    imageAlt:
+      "A music creator reviewing earnings on a phone backstage after a performance.",
   },
   {
-    kicker: 'Trust operations',
-    title: 'Moderation and payout pressure sit where operators decide.',
-    body: 'Reports, fraud holds, support tickets, audit logs, and ledger integrity are surfaced as launch-day command signals.',
+    kicker: "Trust operations",
+    title: "Moderation and payout pressure sit where operators decide.",
+    body: "Reports, fraud holds, support tickets, audit logs, and ledger integrity are surfaced as launch-day command signals.",
     icon: ShieldCheck,
-    image: '/site/feature-trust-operations.jpg',
-    imageAlt: 'A live-event operator monitoring a broadcast from a dark control room.'
+    image: "/site/feature-trust-operations.jpg",
+    imageAlt:
+      "A live-event operator monitoring a broadcast from a dark control room.",
   },
   {
-    kicker: 'Creator control',
-    title: 'The performer sees the room, the audience, and the money clearly.',
-    body: 'Go-live setup, audience controls, creator analytics, supporter context, and payout readiness live in one coherent mobile workflow.',
+    kicker: "Creator control",
+    title: "The performer sees the room, the audience, and the money clearly.",
+    body: "Go-live setup, audience controls, creator analytics, supporter context, and payout readiness live in one coherent mobile workflow.",
     icon: Sparkles,
-    image: '/site/feature-creator-control.jpg',
-    imageAlt: 'A musician preparing a camera, microphone, and tablet before going live.'
-  }
+    image: "/site/feature-creator-control.jpg",
+    imageAlt:
+      "A musician preparing a camera, microphone, and tablet before going live.",
+  },
 ];
 
 const proof = [
-  ['41+', 'green MVP validation checks'],
-  ['9', 'core beta operating surfaces'],
-  ['60/40', 'creator gift split model'],
-  ['<15m', 'critical moderation response target']
+  ["41+", "green MVP validation checks"],
+  ["9", "core beta operating surfaces"],
+  ["60/40", "creator gift split model"],
+  ["<15m", "critical moderation response target"],
 ];
 
 const steps = [
   {
-    label: 'Invite',
-    title: 'Curate the room before the first user arrives.',
-    body: 'Closed beta invites, creator approvals, and waitlist review keep the early network intentional.'
+    label: "Invite",
+    title: "Curate the room before the first user arrives.",
+    body: "Closed beta invites, creator approvals, and waitlist review keep the early network intentional.",
   },
   {
-    label: 'Go live',
-    title: 'Creators launch with context, not chaos.',
-    body: 'Room setup, region, language, LiveKit tokens, chat, reactions, and gift rails come online as one sequence.'
+    label: "Go live",
+    title: "Creators launch with context, not chaos.",
+    body: "Room setup, region, language, LiveKit tokens, chat, reactions, and gift rails come online as one sequence.",
   },
   {
-    label: 'Monetise',
-    title: 'Support becomes accountable money movement.',
-    body: 'Gift volume, wallet balances, payout holds, and provider state are readable before finance approves anything.'
+    label: "Monetise",
+    title: "Support becomes accountable money movement.",
+    body: "Gift volume, wallet balances, payout holds, and provider state are readable before finance approves anything.",
   },
   {
-    label: 'Govern',
-    title: 'Safety and operations are part of the product surface.',
-    body: 'Moderators see priority reports, support owners see SLA pressure, and every sensitive action writes an audit trail.'
-  }
+    label: "Govern",
+    title: "Safety and operations are part of the product surface.",
+    body: "Moderators see priority reports, support owners see SLA pressure, and every sensitive action writes an audit trail.",
+  },
 ];
 
 const offers = [
   {
-    title: 'Closed beta launch',
-    subtitle: 'For first creator cohorts',
-    body: 'Invite gates, creator approvals, support desk, moderation workflow, and launch-day runbook.',
-    image: '/site/offer-closed-beta.jpg',
-    imageAlt: 'Three creators preparing a closed beta stream together in a production studio.'
+    title: "Closed beta launch",
+    subtitle: "For first creator cohorts",
+    body: "Invite gates, creator approvals, support desk, moderation workflow, and launch-day runbook.",
+    image: "/site/offer-closed-beta.jpg",
+    imageAlt:
+      "Three creators preparing a closed beta stream together in a production studio.",
   },
   {
-    title: 'Live economy',
-    subtitle: 'For monetised rooms',
-    body: 'Gift catalogue, wallet ledger, Paystack payments, payout review, fraud holds, and reconciliation evidence.',
-    image: '/site/offer-live-economy.jpg',
-    imageAlt: 'A creator reviewing her phone backstage while an audience waits beyond the curtain.'
+    title: "Live economy",
+    subtitle: "For monetised rooms",
+    body: "Gift catalogue, wallet ledger, Paystack payments, payout review, fraud holds, and reconciliation evidence.",
+    image: "/site/offer-live-economy.jpg",
+    imageAlt:
+      "A creator reviewing her phone backstage while an audience waits beyond the curtain.",
   },
   {
-    title: 'Operating system',
-    subtitle: 'For scale-up control',
-    body: 'Admin mission control, audit logs, analytics, SLA queues, incidents, and owner-led daily rhythm.',
-    image: '/site/offer-operating-system.jpg',
-    imageAlt: 'Two live-platform operators coordinating a broadcast from mission control.'
-  }
+    title: "Operating system",
+    subtitle: "For scale-up control",
+    body: "Admin mission control, audit logs, analytics, SLA queues, incidents, and owner-led daily rhythm.",
+    image: "/site/offer-operating-system.jpg",
+    imageAlt:
+      "Two live-platform operators coordinating a broadcast from mission control.",
+  },
 ];
 
 export default function AfriStageSitePage() {
@@ -116,8 +125,10 @@ export default function AfriStageSitePage() {
 
   useEffect(() => {
     setMotionReady(true);
-    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
-    if (!('IntersectionObserver' in window)) {
+    const sections = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-reveal]"),
+    );
+    if (!("IntersectionObserver" in window)) {
       sections.forEach((section) => section.classList.add(styles.revealed));
       return;
     }
@@ -129,18 +140,22 @@ export default function AfriStageSitePage() {
           observer.unobserve(entry.target);
         });
       },
-      { rootMargin: '0px 0px -12% 0px', threshold: 0.12 }
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.12 },
     );
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
   }, []);
 
   return (
-    <main className={`${styles.siteShell} ${motionReady ? styles.motionReady : ''}`}>
+    <main
+      className={`${styles.siteShell} ${motionReady ? styles.motionReady : ""}`}
+    >
       <section className={styles.hero} id="top">
         <nav className={styles.nav} aria-label="AfriStage public navigation">
           <a className={styles.brand} href="#top">
-            <span><Radio aria-hidden="true" size={21} strokeWidth={2.2} /></span>
+            <span>
+              <Radio aria-hidden="true" size={21} strokeWidth={2.2} />
+            </span>
             AFRISTAGE
           </a>
           <div className={styles.navLinks}>
@@ -148,66 +163,154 @@ export default function AfriStageSitePage() {
             <a href="#platform">The stage</a>
             <a href="#offer">Creator economy</a>
           </div>
-          <a className={styles.navCta} href="#offer">Join beta</a>
+          <a className={styles.navCta} href="#offer">
+            Join beta
+          </a>
         </nav>
 
         <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>Live streaming built for African creators</p>
-            <h1><span>Africa,</span><strong>centre<br />stage.</strong></h1>
-            <p className={styles.lede}>
-              Go live from home. Reach the continent and its diaspora. Turn every gift into accountable earnings.
-            </p>
-            <div className={styles.heroActions}>
-              <a className={styles.primaryButton} href="#offer">
-                Claim your stage <ArrowRight size={18} />
-              </a>
-              <a className={styles.secondaryButton} href={`${WEB_URL}/watch`}><Play aria-hidden="true" size={16} fill="currentColor" /> Watch live now</a>
+          <p className={styles.eyebrow}>
+            Live streaming built for African creators
+          </p>
+          <h1>
+            <span>Africa,</span>
+            <strong>
+              centre
+              <br />
+              stage.
+            </strong>
+          </h1>
+          <p className={styles.lede}>
+            Go live from home. Reach the continent and its diaspora. Turn every
+            gift into accountable earnings.
+          </p>
+          <div className={styles.heroActions}>
+            <a className={styles.primaryButton} href="#offer">
+              Claim your stage <ArrowRight size={18} />
+            </a>
+            <a className={styles.secondaryButton} href={`${WEB_URL}/watch`}>
+              <Play aria-hidden="true" size={16} fill="currentColor" /> Watch
+              live now
+            </a>
+          </div>
+          <div className={styles.liveMeta}>
+            <span>
+              <i /> Live · Lagos
+            </span>
+            <div className={styles.viewerFaces} aria-label="Featured viewers">
+              <Image
+                src="/site/afristage-hero-stage.jpg"
+                width={24}
+                height={24}
+                alt=""
+              />
+              <Image
+                src="/site/feature-live-rooms.jpg"
+                width={24}
+                height={24}
+                alt=""
+              />
+              <Image
+                src="/site/feature-creator-economy.jpg"
+                width={24}
+                height={24}
+                alt=""
+              />
             </div>
-            <div className={styles.liveMeta}>
-              <span><i /> Live · Lagos</span>
-              <div className={styles.viewerFaces}><b>Z</b><b>A</b><b>K</b></div>
-              <small>24.6K watching</small>
-            </div>
+            <small>24.6K watching</small>
+          </div>
         </div>
 
-        <div className={styles.liveFrame} aria-label="AfriStage live room preview">
+        <div
+          className={styles.liveFrame}
+          aria-label="AfriStage live room preview"
+        >
           <div className={styles.liveFrameTop}>
-            <span className={styles.liveCreator}>Zola Kim <b>✓</b></span>
+            <span className={styles.liveCreator}>
+              <Image
+                src="/site/afristage-hero-stage.jpg"
+                width={24}
+                height={24}
+                alt=""
+              />
+              <em>
+                Zola Kim <b>✓</b>
+              </em>
+            </span>
             <button type="button">Follow</button>
-            <span><Users size={13} /> 24.6K</span>
+            <span>
+              <Users size={13} /> 24.6K
+            </span>
           </div>
-          <div className={styles.liveTags}><b>LIVE</b><span>● Music</span><span>EN⌄</span></div>
+          <div className={styles.liveTags}>
+            <b>LIVE</b>
+            <span>● Music</span>
+            <span>EN⌄</span>
+          </div>
           <div className={styles.liveChat}>
-            <p><b>Ama_Gh</b><span>Great energy! 🔥</span></p>
-            <p><b>TosinB</b><span>This is fire!</span></p>
-            <p className={styles.giftChat}><Gift size={14} /><b>KingSteve</b><span>sent Rose · x5</span></p>
-            <p><b>Nandi_Love</b><span>Voice on point!</span></p>
+            <p>
+              <b>Ama_Gh</b>
+              <span>Great energy! 🔥</span>
+            </p>
+            <p>
+              <b>TosinB</b>
+              <span>This is fire!</span>
+            </p>
+            <p className={styles.giftChat}>
+              <Gift size={14} />
+              <b>KingSteve</b>
+              <span>sent Rose · x5</span>
+            </p>
+            <p>
+              <b>Nandi_Love</b>
+              <span>Voice on point!</span>
+            </p>
           </div>
           <div className={styles.hearts} aria-hidden="true">
-            <Heart fill="currentColor" /><Heart fill="currentColor" /><Heart fill="currentColor" />
+            <Heart fill="currentColor" />
+            <Heart fill="currentColor" />
+            <Heart fill="currentColor" />
           </div>
-          <div className={styles.liveInput}><span>Say something…</span><ArrowRight size={15} /></div>
+          <div className={styles.liveInput}>
+            <span>Say something…</span>
+            <ArrowRight size={15} />
+          </div>
         </div>
 
         <a className={styles.scrollCue} href="#why">
-          <span>Scroll to explore</span><i />
+          <span>Scroll to explore</span>
+          <i />
         </a>
       </section>
 
-      <section className={styles.problemSection} id="why" data-reveal="editorial">
+      <section
+        className={styles.problemSection}
+        id="why"
+        data-reveal="editorial"
+      >
         <div className={styles.sectionNumber}>01</div>
         <div>
           <p className={styles.eyebrow}>01 · Why AfriStage</p>
-          <h2>The room was full.<br />The platform looked away.</h2>
+          <h2>
+            The room was full.
+            <br />
+            The platform looked away.
+          </h2>
         </div>
         <div className={styles.problemColumns}>
           <p>
-            For too long, African creators have built audiences on platforms that don’t understand our reality or reward our value. We’re changing that.
+            For too long, African creators have built audiences on platforms
+            that don’t understand our reality or reward our value. We’re
+            changing that.
           </p>
         </div>
       </section>
 
-      <section className={styles.featureSection} id="platform" data-reveal="editorial">
+      <section
+        className={styles.featureSection}
+        id="platform"
+        data-reveal="editorial"
+      >
         <div className={styles.sectionIntro}>
           <p className={styles.eyebrow}>Platform architecture</p>
           <h2>Every side of live, designed as one experience.</h2>
@@ -216,7 +319,10 @@ export default function AfriStageSitePage() {
           <div className={styles.productShowcaseCopy}>
             <span>01 — 05</span>
             <strong>Discover. Join. Create. Earn. Move.</strong>
-            <p>The energy of the room carries through every serious creator workflow.</p>
+            <p>
+              The energy of the room carries through every serious creator
+              workflow.
+            </p>
           </div>
           <Image
             className={styles.productShowcaseImage}
@@ -275,12 +381,17 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.processSection} id="process" data-reveal="editorial">
+      <section
+        className={styles.processSection}
+        id="process"
+        data-reveal="editorial"
+      >
         <div className={styles.processCopy}>
           <p className={styles.eyebrow}>Interactive process</p>
           <h2>From curated invite to accountable payout.</h2>
           <p>
-            The launch sequence is deliberately operational: each step has a product surface, a control surface, and an evidence trail.
+            The launch sequence is deliberately operational: each step has a
+            product surface, a control surface, and an evidence trail.
           </p>
         </div>
         <div className={styles.processBoard}>
@@ -288,7 +399,7 @@ export default function AfriStageSitePage() {
             {steps.map((step, index) => (
               <button
                 key={step.label}
-                className={activeStep === index ? styles.activeStep : ''}
+                className={activeStep === index ? styles.activeStep : ""}
                 type="button"
                 onClick={() => setActiveStep(index)}
               >
@@ -305,14 +416,24 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
-      <section className={styles.offerSection} id="offer" data-reveal="editorial">
+      <section
+        className={styles.offerSection}
+        id="offer"
+        data-reveal="editorial"
+      >
         <div className={styles.sectionIntro}>
           <p className={styles.eyebrow}>Premium offer</p>
-          <h2>Launch AfriStage as a beta people can trust, not just a demo they can click.</h2>
+          <h2>
+            Launch AfriStage as a beta people can trust, not just a demo they
+            can click.
+          </h2>
         </div>
         <div className={styles.offerGrid}>
           {offers.map(({ title, subtitle, body, image, imageAlt }, index) => (
-            <article key={title} className={index === 1 ? styles.featuredOffer : ''}>
+            <article
+              key={title}
+              className={index === 1 ? styles.featuredOffer : ""}
+            >
               <Image
                 className={styles.offerImage}
                 src={image}

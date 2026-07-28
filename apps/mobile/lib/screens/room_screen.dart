@@ -564,6 +564,7 @@ class _RoomScreenState extends State<RoomScreen> {
           avatarUrl: widget.room.hostAvatarUrl,
           category: widget.room.category,
           language: widget.room.language,
+          verified: widget.room.isVerified,
           following: _following,
           viewerCount: _viewerCount,
           onClose: () => Navigator.pop(context),

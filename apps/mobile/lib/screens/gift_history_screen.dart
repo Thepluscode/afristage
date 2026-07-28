@@ -9,18 +9,6 @@ import '../widgets/afri_ui.dart';
 import 'creator_profile_screen.dart';
 import '../models/models.dart';
 
-/// Emoji for the seeded gift set; falls back to a generic gift.
-const _giftEmoji = {
-  'Rose': '🌹',
-  'Fire': '🔥',
-  'Golden Mic': '🎤',
-  'Drum': '🥁',
-  'Crown': '👑',
-  'Spotlight': '💡',
-  'Star': '⭐',
-  'Stage': '🎭',
-};
-
 /// A viewer's gift history — what they've sent, to which creator/room.
 /// Surfaces GET /gifts/me, which had no UI before.
 class GiftHistoryScreen extends StatefulWidget {
@@ -77,8 +65,8 @@ class _GiftHistoryScreenState extends State<GiftHistoryScreen> {
                         color: AfriColors.gold.withValues(alpha: 0.16),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Text(_giftEmoji[name] ?? '🎁',
-                          style: const TextStyle(fontSize: 20)),
+                      child: Icon(afriGiftIcon(name),
+                          color: AfriColors.gold, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

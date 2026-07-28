@@ -16,11 +16,12 @@
 - Public feature-card implementation screenshot: `/Users/theophilusogieva/projects/ai/afristage/afristage-feature-cards-with-images-v2.png`
 - Public offer-card implementation screenshot: `/Users/theophilusogieva/projects/ai/afristage/afristage-offer-cards-with-images.png`
 - Admin login implementation screenshot: `/Users/theophilusogieva/projects/ai/afristage/afristage-login-placement-fixed.png`
-- Current landing implementation screenshot: `/Users/theophilusogieva/projects/ai/afristage/afristage-landing-glow-pass-v4-native.jpg`
-- Current mobile implementation captures: `/Users/theophilusogieva/projects/ai/afristage/mobile-captures/home.png`, `live-room.png`, `go-live-setup.png`, `creator-dashboard.png`, and `wallet.png`
+- Current landing implementation screenshot: `/Users/theophilusogieva/projects/ai/afristage/afristage-landing-matched-1536x1024.png`
+- Current landing source/current comparison: `/Users/theophilusogieva/projects/ai/afristage/qa-landing-reference-current.png`
+- Current mobile implementation captures: `/Users/theophilusogieva/projects/ai/afristage/mobile-captures/home-viewer.png`, `live-room.png`, `go-live-setup.png`, `creator-dashboard.png`, and `wallet.png`
 - Mobile implementation screenshots: `afristage-mobile-home.png`, `afristage-mobile-go-live.png`, `afristage-mobile-creator.png`, and `afristage-mobile-wallet.png` in the same visualization directory
-- Mobile combined comparison: `/Users/theophilusogieva/.codex/visualizations/2026/07/20/019f8168-8ef6-7d23-b63b-4e8b1874df57/afristage-mobile-comparison.png`
-- Public viewport/state: supplied target 1536×1024; final in-app browser capture 1280×720 at its native desktop viewport, `/site`, hero at page load. The full hero region was compared by composition and relative proportions rather than claiming equal-pixel coordinates across different aspect ratios.
+- Mobile combined comparison: `/Users/theophilusogieva/projects/ai/afristage/qa-mobile-reference-current.png`
+- Public viewport/state: supplied target 1536×1024; implementation rendered at a 1536×1024 CSS viewport, `/site`, hero at page load. The in-app screenshot backend emitted a 1300×1024 PNG, so the 1536×512 source/current board normalizes width for visual comparison rather than claiming one-to-one output pixels.
 - Mobile viewport/state: 390×844, dark theme; populated viewer home, live room with gift drawer open, creator dashboard, Go Live setup, and wallet.
 - Admin login viewport/state: 856×1336, dark theme, signed out; responsive checks also completed at 390×844, 390×568, and 390×480.
 
@@ -35,8 +36,8 @@
 
 ## Current landing and mobile findings
 
-- No actionable P0/P1/P2 differences remain in the current landing exposure pass. The final native-width browser capture keeps the complete navigation, Join Beta control, performer, live panel, audience, and CTAs visible while carrying the reference's stronger right-side spotlight and warmer subject exposure.
-- No actionable P0/P1/P2 differences remain in the current five-state mobile pass. Home now fits the creator rail above the persistent navigation; live room shows the goal's open gift-drawer state; Go Live keeps all fields, four settings, and the primary action in the first viewport; creator dashboard and wallet retain their complete first-screen hierarchy.
+- No actionable P0/P1/P2 differences remain in the current landing exposure pass. The final render keeps the complete navigation, Join Beta control, performer, live panel, audience, and CTAs visible while carrying the reference's brighter gold spotlight, warmer subject exposure, larger editorial headline, and photographic creator avatars.
+- No actionable P0/P1/P2 differences remain in the current five-state mobile pass. Viewer Home now includes the top balance/top-up/Go Live utilities, real gift totals, standalone Send Gift row, recommendations, and Activity navigation. The live room includes verified/overflow controls, a correctly focused performer image, bundled gift icons, balance, selection, and Send action. Go Live, creator dashboard, and wallet retain their complete first-screen hierarchy.
 - Go Live uses a dedicated creator-control studio scene instead of recycling the viewer-home performer artwork.
 
 - [P3] The public brand mark is the closest library icon, not the final custom vector.
@@ -47,7 +48,7 @@
 
 ## Required fidelity surfaces
 
-- Fonts and typography: public display type now uses one centralized high-contrast Georgia stack across every landing headline, card title, proof figure, editorial number, and product statement; compact gold labels and body copy use the restrained Avenir-style UI stack. Mobile uses platform-native UI typography rather than a runtime font request, preserving offline startup and the compact product hierarchy.
+- Fonts and typography: public display type now uses one centralized high-contrast Didot/Bodoni/Georgia fallback stack across the hero, editorial headlines, card titles, proof figures, and product statements; compact gold labels and body copy use the restrained Avenir-style UI stack. Mobile uses platform-native UI typography rather than a runtime font request, preserving offline startup and the compact product hierarchy.
 - Spacing and layout rhythm: public hero height, headline hierarchy, CTA row, subject placement, and live overlay follow the reference. Mobile uses the same compact 390×844 first-screen density: Home includes the creator rail, Go Live exposes its action above navigation, the creator dashboard shows all four metrics and three supporters, and wallet keeps the complete account menu in view.
 - Colors and tokens: black stage, warm gold, creator purple, teal live states, green earnings, and muted graphite surfaces align across both products.
 - Image quality and asset fidelity: the public page uses the exact clean stage photograph plus seven generated 1672×941 card assets with one coherent warm-gold, purple, teal, and near-black direction. Each card uses a dedicated focal crop and a legibility overlay rather than a placeholder treatment. Mobile ships dedicated photographic assets for Zola, Kofi, Nandi, T-Flow, and the Go Live studio preview; all load in the deterministic capture harness.
@@ -58,7 +59,7 @@
 - Public hero details were checked separately for navigation, logo treatment, CTA icon/copy, headline wrap, overlay card, and section boundary; no further focused crop was needed because those details remain readable in the 1536×512 combined comparison.
 - Public feature cards were compared together with the supplied 856px reference crop. A focused 856px grid capture verifies all four photographic assets, top-right numbering, gold icons/labels, readable copy, matched radii, and a complete two-column grid. A separate 390×844 browser check confirms four loaded images, 560px card heights, and no horizontal overflow.
 - Public offer cards were compared together with the supplied 856px reference crop. The focused post-fix capture verifies three full-bleed photographic stories, the featured gold border, readable serif/sans hierarchy, bottom-anchored actions, and balanced two-column composition. A separate 390×844 browser check confirms three loaded images, consistent 470px card heights, and no horizontal overflow.
-- Mobile details were checked together with the supplied source board in five full-height 390×844 captures: populated viewer home, live room with the gift drawer open, Go Live setup, creator dashboard, and wallet. The dense gift grid and Go Live form were also legible in focused views, so no further crop was required.
+- Mobile details were checked together with the supplied 1693×929 source board in five full-height 390×844 captures. The current strip was width-normalized and stacked below the source in `qa-mobile-reference-current.png` (1693×1662), keeping the dense gift grid, live-stage crop, first-viewport actions, and navigation legible.
 
 ## Comparison history
 
@@ -77,19 +78,22 @@
 13. The supplied mobile comparison exposed missing icon glyphs, oversized card/navigation geometry, and a repeated Go Live image. Visible controls now use bundled Cupertino icons, shared theme density is tighter, the center action is a distinct circular control, and Go Live has dedicated studio artwork.
 14. The first post-icon pass still left three P1/P2 fidelity gaps: Home pushed the creator rail below the fold, the creator `Go Live` tab opened analytics instead of setup, and the setup CTA was clipped below the first viewport. The rail/cards and shared controls were compacted, creator navigation now maps to Home/Analytics/Go Live/Earn/Profile, and schedule/chat controls moved into compact app-bar/tile interactions. The final 390×844 captures show all three fixes.
 15. The first live-room comparison used the room-only state while the supplied design showed the gift drawer open. The final capture now renders the production `AfriGiftDrawer` with eight realistic gifts, balance, selection, and Send action over the live stage. The same-state comparison has no remaining P0/P1/P2 gap.
-16. The landing remained visibly flatter after the first exposure pass. A second image-backed screen layer, stronger gold spotlight, lighter directional scrim, larger display type, and brighter live-panel glow produced the final native 1280×720 browser capture while retaining readable contrast and all primary controls.
+16. The landing remained visibly flatter after the first exposure pass. A second image-backed screen layer, stronger gold spotlight, lighter directional scrim, larger display type, and brighter live-panel glow produced the final 1536×1024 CSS-viewport render while retaining readable contrast and all primary controls.
+17. The element inventory found eight remaining mobile gaps. The final pass added the verified badge, viewer overflow action, Activity tab, top balance/top-up and Go Live controls, standalone Send Gift row, recommendation rail, API-backed per-room gift totals, and creator Request Payout action.
+18. The last live-room capture placed the singer too far off-axis. The stage focal alignment was corrected and the regenerated capture now keeps the performer’s face, microphone, tags, playback control, and open gift drawer within the intended hierarchy.
 
 ## Primary interactions and technical evidence
 
 - Public `Watch the story` scrolls to `#platform`.
 - Public `Join beta` scrolls to `#offer`.
 - Public process tabs update their detail content; `Go live` was browser-verified against the expected copy.
-- Public typography audit: every landing `h1`, `h2`, and `h3` resolves to `Georgia, "Times New Roman", serif` at weight 400.
+- Public typography audit: the display hierarchy resolves through the centralized `Didot, "Bodoni 72", Georgia, "Times New Roman", serif` stack.
 - Public card-image audit: seven of seven assets load at 856px and 390px; both checked layouts have no horizontal overflow.
 - Admin login placement audit: card bounds are `x=213, y=96, width=430, bottom=529` at 856×1336 and `x=24, y=84, width=342, bottom=538` at 390×844. A 390×480 viewport produces vertical scrolling with zero horizontal overflow, keeping every form control reachable.
 - Browser console warnings/errors: no application warnings/errors in the final `/site` render.
-- Admin web: focused landing tests passed; optimized Next.js build passed. A concurrent full-suite rerun was discarded because duplicate Vitest runners caused unrelated timeouts; the last clean baseline remains 342/342.
-- Mobile: `flutter analyze` clean; full-suite baseline 339 passed with the capture-only test skipped by default; the final focused navigation/live-room/widget/capture suite passed 127/127.
+- Admin web: focused landing tests 7/7 passed; optimized Next.js build passed.
+- API feed engine: 14/14 focused tests passed, including real gift-total aggregation and the zero-total path.
+- Mobile: `flutter analyze` clean; 353 tests passed with one capture-only test skipped by default. The capture-only test passes separately and regenerates the five final 390×844 states.
 
 ## Current implementation checklist
 

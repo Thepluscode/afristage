@@ -336,7 +336,8 @@ class _EarningsSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: 'Total diamonds',
-                value: '${gems(earnings + payoutHold)} 💎',
+                value: gems(earnings + payoutHold),
+                icon: CupertinoIcons.sparkles,
                 accent: AfriColors.success,
               ),
             ),
@@ -347,7 +348,8 @@ class _EarningsSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: 'Views',
-                value: '${gems(0)} 💎',
+                value: gems(0),
+                icon: CupertinoIcons.sparkles,
               ),
             ),
           ]),
@@ -356,7 +358,8 @@ class _EarningsSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: 'Gift diamonds',
-                value: '${gems(earnings)} 💎',
+                value: gems(earnings),
+                icon: CupertinoIcons.sparkles,
               ),
             ),
             const SizedBox(
@@ -366,7 +369,8 @@ class _EarningsSummaryCard extends StatelessWidget {
             Expanded(
               child: _SummaryMetric(
                 label: 'Tips',
-                value: '${gems(0)} 💎',
+                value: gems(0),
+                icon: CupertinoIcons.sparkles,
               ),
             ),
           ]),
@@ -380,11 +384,13 @@ class _SummaryMetric extends StatelessWidget {
   const _SummaryMetric({
     required this.label,
     required this.value,
+    this.icon,
     this.accent = AfriColors.text,
   });
 
   final String label;
   final String value;
+  final IconData? icon;
   final Color accent;
 
   @override
@@ -398,12 +404,23 @@ class _SummaryMetric extends StatelessWidget {
               style:
                   const TextStyle(color: AfriColors.mutedText, fontSize: 12)),
           const SizedBox(height: 3),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value,
-                style: TextStyle(
-                    color: accent, fontSize: 15, fontWeight: FontWeight.w800)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: accent,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800)),
+              ),
+              if (icon != null) ...[
+                const SizedBox(width: 4),
+                Icon(icon, size: 14, color: accent),
+              ],
+            ],
           ),
         ],
       ),

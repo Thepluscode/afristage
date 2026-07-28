@@ -33,6 +33,7 @@ import 'package:afristage_mobile/screens/feed_screen.dart';
 import 'package:afristage_mobile/screens/room_screen.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:flutter_test/flutter_test.dart';
@@ -526,10 +527,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Available balance'), findsOneWidget);
     expect(find.text(r'$6.20'), findsWidgets); // 620 earned coins × $0.01/coin
-    // Diamonds are the creator earning unit: 620 earned coins → "620 💎".
     expect(find.text('Gift diamonds'), findsOneWidget);
-    expect(find.text('620 💎'), findsOneWidget);
-    expect(find.text('670 💎'), findsOneWidget); // total = earnings + payout hold
+    expect(find.text('620'), findsOneWidget);
+    expect(find.text('670'), findsOneWidget); // total = earnings + payout hold
+    expect(find.byIcon(CupertinoIcons.sparkles), findsNWidgets(4));
   });
 
   testWidgets('PayoutMethods add-method sheet opens with provider segments',
@@ -3230,8 +3231,7 @@ void main() {
           const Wallet(coinBalance: 0, earningBalance: 0, payoutHoldBalance: 0);
     await tester.pumpWidget(_wrapState(state, const FeedScreen()));
     await tester.pumpAndSettle();
-    await tester
-        .tap(find.text('Send Gift')); // onSendGift -> _openRoom(hero) (249)
+    await tester.tap(find.byKey(const ValueKey('home-send-gift-row')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(AfriVideoStage), findsOneWidget);

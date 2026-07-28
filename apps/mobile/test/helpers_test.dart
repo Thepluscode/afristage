@@ -2,7 +2,7 @@ import 'package:afristage_mobile/screens/payout_methods_screen.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/widgets/afri_live.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -115,40 +115,40 @@ void main() {
     });
   });
 
-  group('afriGiftEmoji', () {
-    test('maps every catalogue name to its mockup emoji', () {
-      const expected = {
-        'Rose': '🌹',
-        'flower crown': '🌹',
-        'Fire': '🔥',
-        'flame': '🔥',
-        'Golden Mic': '🎤',
-        'Drum': '🥁',
-        'Crown': '👑',
-        'king': '👑',
-        'royal': '👑',
-        'Spotlight': '🔦',
-        'light': '🔦',
-        'Star': '⭐',
-        'Stage': '🎪',
-        'concert': '🎪',
-        'heart': '❤️',
-        'love': '❤️',
-        'diamond': '💎',
-        'gem': '💎',
-        'rocket': '🚀',
-        'trophy': '🏆',
-        'music': '🎵',
-        'whatever': '🎁',
+  group('afriGiftIcon', () {
+    test('maps every catalogue name to a bundled icon', () {
+      const expected = <String, IconData>{
+        'Rose': CupertinoIcons.heart_circle_fill,
+        'flower crown': CupertinoIcons.heart_circle_fill,
+        'Fire': CupertinoIcons.flame_fill,
+        'flame': CupertinoIcons.flame_fill,
+        'Golden Mic': CupertinoIcons.mic_fill,
+        'Drum': CupertinoIcons.music_albums_fill,
+        'Crown': CupertinoIcons.star_circle_fill,
+        'king': CupertinoIcons.star_circle_fill,
+        'royal': CupertinoIcons.star_circle_fill,
+        'Spotlight': CupertinoIcons.lightbulb_fill,
+        'light': CupertinoIcons.lightbulb_fill,
+        'Star': CupertinoIcons.star_fill,
+        'Stage': CupertinoIcons.music_mic,
+        'concert': CupertinoIcons.music_mic,
+        'heart': CupertinoIcons.heart_fill,
+        'love': CupertinoIcons.heart_fill,
+        'diamond': CupertinoIcons.sparkles,
+        'gem': CupertinoIcons.sparkles,
+        'rocket': CupertinoIcons.rocket_fill,
+        'trophy': CupertinoIcons.sportscourt_fill,
+        'music': CupertinoIcons.music_note_2,
+        'whatever': CupertinoIcons.gift_fill,
       };
-      expected.forEach((name, emoji) {
-        expect(afriGiftEmoji(name), emoji, reason: name);
+      expected.forEach((name, icon) {
+        expect(afriGiftIcon(name), icon, reason: name);
       });
     });
 
-    test('is case-insensitive and never returns empty', () {
-      expect(afriGiftEmoji('ROSE'), afriGiftEmoji('rose'));
-      expect(afriGiftEmoji(''), '🎁');
+    test('is case-insensitive and falls back to the gift icon', () {
+      expect(afriGiftIcon('ROSE'), afriGiftIcon('rose'));
+      expect(afriGiftIcon(''), CupertinoIcons.gift_fill);
     });
   });
 }

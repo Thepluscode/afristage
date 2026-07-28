@@ -25,6 +25,8 @@ class LiveRoom {
     this.hostAvatarUrl,
     this.coverImageUrl,
     this.viewerCount = 0,
+    this.giftCoinTotal = 0,
+    this.isVerified = false,
   });
 
   final String id;
@@ -38,6 +40,8 @@ class LiveRoom {
   final String? hostAvatarUrl;
   final String? coverImageUrl;
   final int viewerCount;
+  final int giftCoinTotal;
+  final bool isVerified;
 
   factory LiveRoom.fromJson(Map<String, dynamic> json) {
     final host = json['host'] as Map<String, dynamic>?;
@@ -57,6 +61,8 @@ class LiveRoom {
       coverImageUrl:
           json['coverImageUrl'] as String? ?? json['thumbnailUrl'] as String?,
       viewerCount: asInt(json['viewerCount']),
+      giftCoinTotal: asInt(json['giftCoinTotal']),
+      isVerified: creator?['status'] == 'APPROVED',
     );
   }
 }

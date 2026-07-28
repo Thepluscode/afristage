@@ -720,7 +720,7 @@ class AfriLiveRoomCard extends StatelessWidget {
                     child: Row(
                       children: [
                         const AfriLiveBadge(),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         AfriChip(label: country),
                         const Spacer(),
                         const Icon(CupertinoIcons.person_fill,
@@ -793,31 +793,38 @@ class AfriLiveRoomCard extends StatelessWidget {
   }
 }
 
-/// Maps a gift's name to a recognisable icon. Keyword-based so new gifts get a
-/// sensible glyph without a code change; unknown names fall back to a gift box.
-/// Emoji artwork for a gift, matching the mockup's catalogue tiles.
-///
-/// Emoji beat the monochrome icon set here: the catalogue is meant to read at a
-/// glance and in colour, and these cost no assets and no network round-trip, so
-/// the sheet looks right even before a creator uploads real artwork.
-String afriGiftEmoji(String name) {
+/// Maps gift names to bundled platform icons. Configured raster artwork still
+/// wins; this fallback is deterministic in tests and on every supported device.
+IconData afriGiftIcon(String name) {
   final n = name.toLowerCase();
-  if (n.contains('rose') || n.contains('flower')) return '🌹';
-  if (n.contains('fire') || n.contains('flame')) return '🔥';
-  if (n.contains('mic')) return '🎤';
-  if (n.contains('drum')) return '🥁';
-  if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
-    return '👑';
+  if (n.contains('rose') || n.contains('flower')) {
+    return CupertinoIcons.heart_circle_fill;
   }
-  if (n.contains('spotlight') || n.contains('light')) return '🔦';
-  if (n.contains('star')) return '⭐';
-  if (n.contains('stage') || n.contains('concert')) return '🎪';
-  if (n.contains('heart') || n.contains('love')) return '❤️';
-  if (n.contains('diamond') || n.contains('gem')) return '💎';
-  if (n.contains('rocket')) return '🚀';
-  if (n.contains('trophy')) return '🏆';
-  if (n.contains('music')) return '🎵';
-  return '🎁';
+  if (n.contains('fire') || n.contains('flame')) {
+    return CupertinoIcons.flame_fill;
+  }
+  if (n.contains('mic')) return CupertinoIcons.mic_fill;
+  if (n.contains('drum')) return CupertinoIcons.music_albums_fill;
+  if (n.contains('crown') || n.contains('king') || n.contains('royal')) {
+    return CupertinoIcons.star_circle_fill;
+  }
+  if (n.contains('spotlight') || n.contains('light')) {
+    return CupertinoIcons.lightbulb_fill;
+  }
+  if (n.contains('star')) return CupertinoIcons.star_fill;
+  if (n.contains('stage') || n.contains('concert')) {
+    return CupertinoIcons.music_mic;
+  }
+  if (n.contains('heart') || n.contains('love')) {
+    return CupertinoIcons.heart_fill;
+  }
+  if (n.contains('diamond') || n.contains('gem')) {
+    return CupertinoIcons.sparkles;
+  }
+  if (n.contains('rocket')) return CupertinoIcons.rocket_fill;
+  if (n.contains('trophy')) return CupertinoIcons.sportscourt_fill;
+  if (n.contains('music')) return CupertinoIcons.music_note_2;
+  return CupertinoIcons.gift_fill;
 }
 
 // Distinct gift tints so the gift panel reads colorful (matches the room mockup).
@@ -843,11 +850,12 @@ class AfriGiftTile extends StatelessWidget {
   final Color accent;
   final bool selected;
 
-  Widget _emoji() => Text(afriGiftEmoji(gift.name),
-      style: const TextStyle(fontSize: 25),
-      // Emoji glyphs carry no meaning for a screen reader; AfriGiftTile already
-      // announces the gift by name and price.
-      semanticsLabel: '');
+  Widget _fallbackIcon() => Icon(
+        afriGiftIcon(gift.name),
+        size: 27,
+        color: accent,
+        semanticLabel: gift.name,
+      );
 
   Widget _artwork() {
     final url = gift.artworkUrl;
@@ -855,8 +863,7 @@ class AfriGiftTile extends StatelessWidget {
         url.isNotEmpty &&
         RegExp(r'\.(png|jpe?g|webp|gif)(\?.*)?$', caseSensitive: false)
             .hasMatch(url);
-    // Configured artwork wins; otherwise the emoji stands in for it.
-    if (!rasterArtwork) return _emoji();
+    if (!rasterArtwork) return _fallbackIcon();
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Image.network(
@@ -864,7 +871,7 @@ class AfriGiftTile extends StatelessWidget {
         width: 42,
         height: 42,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _emoji(),
+        errorBuilder: (_, __, ___) => _fallbackIcon(),
       ),
     );
   }
@@ -1182,13 +1189,15 @@ class AfriChatBubble extends StatelessWidget {
                   TextSpan(
                       text: message.giftName,
                       style: const TextStyle(fontWeight: FontWeight.w900)),
-                  TextSpan(text: ' ${afriGiftEmoji(message.giftName!)}'),
                 ],
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 5),
+          Icon(afriGiftIcon(message.giftName!),
+              size: 16, color: AfriColors.gold),
           if (qty > 1) ...[
             const SizedBox(width: 6),
             Container(
@@ -1802,7 +1811,8 @@ class AfriVideoStage extends StatelessWidget {
                           AfriCover(
                               imageUrl: coverImageUrl,
                               category: coverCategory ?? '',
-                              initial: coverInitial),
+                              initial: coverInitial,
+                              alignment: const Alignment(0.35, -1)),
                         _VideoWaitingState(
                           ready: ready,
                           isHost: isHost,
@@ -1944,6 +1954,7 @@ class AfriLiveTopBar extends StatelessWidget {
     this.avatarUrl,
     this.category,
     this.language,
+    this.verified = false,
   });
 
   final String creatorName;
@@ -1957,6 +1968,7 @@ class AfriLiveTopBar extends StatelessWidget {
   final String? avatarUrl;
   final String? category;
   final String? language;
+  final bool verified;
 
   @override
   Widget build(BuildContext context) {
@@ -1978,6 +1990,11 @@ class AfriLiveTopBar extends StatelessWidget {
               IconButton(
                   tooltip: 'Close room',
                   onPressed: onClose,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
                   icon: const Icon(CupertinoIcons.chevron_down,
                       color: Colors.white, size: 24)),
               Expanded(
@@ -1996,7 +2013,7 @@ class AfriLiveTopBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
-                          radius: 18,
+                          radius: 16,
                           backgroundColor: AfriColors.purple,
                           backgroundImage:
                               hasPhoto ? NetworkImage(avatarUrl!) : null,
@@ -2004,13 +2021,25 @@ class AfriLiveTopBar extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Flexible(
-                          child: Text(creatorName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white)),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(creatorName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white)),
+                              ),
+                              if (verified) ...[
+                                const SizedBox(width: 2),
+                                const Icon(CupertinoIcons.checkmark_seal_fill,
+                                    size: 13, color: AfriColors.purple),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -2022,7 +2051,7 @@ class AfriLiveTopBar extends StatelessWidget {
                 onTap: onFollow,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
                     color: following ? Colors.transparent : AfriColors.purple,
                     borderRadius: BorderRadius.circular(999),
@@ -2039,7 +2068,7 @@ class AfriLiveTopBar extends StatelessWidget {
               const SizedBox(width: 6),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                 decoration: BoxDecoration(
                   color: const Color(0x55000000),
                   borderRadius: BorderRadius.circular(999),
@@ -2059,6 +2088,11 @@ class AfriLiveTopBar extends StatelessWidget {
                 IconButton(
                     tooltip: 'Room options',
                     onPressed: onReport,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 34,
+                    ),
                     icon: const Icon(CupertinoIcons.ellipsis,
                         color: Colors.white, size: 20)),
             ],
@@ -2707,7 +2741,7 @@ class AfriHostControlsPanel extends StatelessWidget {
           children: [
             AfriChip(label: '$viewerCount viewers', selected: true),
             AfriChip(label: '$giftCount gifts'),
-            AfriChip(label: '$earningsEstimate 💎'),
+            AfriChip(label: '$earningsEstimate diamonds'),
             FilterChip(
               selected: cameraOn,
               onSelected: onCameraChanged,
