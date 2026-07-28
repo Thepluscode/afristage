@@ -17,6 +17,31 @@ checklist; those are the reference.
 
 ---
 
+## 0. Rehearse in test mode FIRST
+
+Every payment test in this repo runs against our own mock, which agrees with our
+assumptions by construction. Nothing has ever exercised the real providers, so
+the first real card is currently also the first integration test. Do this before
+touching a live key — it needs only a free test-mode key, no business
+verification:
+
+```bash
+PAYSTACK_SECRET_KEY=sk_test_... STRIPE_SECRET_KEY=sk_test_... \
+  npm run validate:provider-sandbox
+```
+
+It authenticates against the real API, creates a real hosted checkout, and
+asserts the JSON they actually return still matches the shape our providers
+parse. It refuses to run against a non-test key. Finish by paying the printed
+checkout URL with a test card and replaying the webhook (`stripe listen
+--forward-to localhost:3000/api/payments/webhooks/stripe`), which is the only
+way to prove the signature path end to end.
+
+- [ ] `validate:provider-sandbox` green against Paystack test mode
+- [ ] `validate:provider-sandbox` green against Stripe test mode
+- [ ] A test-card payment credits coins and writes a `COIN_PURCHASE` ledger entry
+- [ ] A replayed webhook is idempotent (no second credit)
+
 ## 1. Payments — Paystack (African corridors: NGN/GHS/KES/ZAR)
 
 - [ ] Create/confirm a live Paystack business account.
