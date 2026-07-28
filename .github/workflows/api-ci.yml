@@ -37,6 +37,10 @@ jobs:
       LIVEKIT_API_SECRET: ci_livekit_secret
       LIVEKIT_URL: ws://localhost:7880
       PAYSTACK_SECRET_KEY: sk_test_phase4_secret # validate-hardening signs webhooks with this
+      # Coins are sold in fixed server-priced packages, so no creator can reach the
+      # 1,000,000-coin production fraud threshold through the real purchase API.
+      # Lower it here so validate:observability-fraud actually exercises the hold.
+      FRAUD_LARGE_PAYOUT_COIN: "2000"
       API_BASE: http://localhost:3000/api
       WS_BASE: http://localhost:3000/chat
     steps:

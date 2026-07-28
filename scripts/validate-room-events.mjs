@@ -2,7 +2,7 @@
 // a viewer socket joins a room, then gift.sent (after an HTTP gift) and room.ended
 // (after the host ends) must arrive on that socket.
 import { io } from 'socket.io-client';
-import { api, login, ok, sql, finish, B } from './_lib.mjs';
+import { api, login, ok, sql, finish, B, buyCoins} from './_lib.mjs';
 
 const ORIGIN = B.replace(/\/api\/?$/, '');
 
@@ -49,8 +49,7 @@ async function main() {
   ok(started.status === 201 && started.data?.status === 'LIVE', `room started LIVE (${started.status})`);
 
   // Viewer needs coins to gift.
-  const intent = await api('POST', '/payments/coin-purchase-intents', { token: viewerToken, body: { amountMinor: 100000, currency: 'NGN', coinAmount: 500 } });
-  await api('POST', `/payments/mock/${intent.data.id}/complete`, { token: viewerToken });
+  await buyCoins(viewerToken, 500);
 
   const socket = await connect(viewerToken);
   ok(socket.connected, 'viewer socket connected to /chat');

@@ -57,3 +57,41 @@ export async function finish() {
   await prisma.$disconnect().catch(() => {});
   process.exit(fail ? 1 : 0);
 }
+
+// --- coin acquisition, in one place ---------------------------------------
+// The server owns coin pricing: a client picks a PACKAGE and the server decides
+// the price and the coins. Three suites used to POST {amountMinor, currency,
+// coinAmount} and name their own figure, a body that contract has rejected ever
+// since pricing moved server-side — leaving the buyer with no coins and failing
+// every money assertion downstream. Buying goes through here now, so the next
+// pricing change breaks one function instead of every suite.
+export async function buyCoins(token, atLeastCoins) {
+  const packages = (await api('GET', '/payments/coin-packages', { token })).data || [];
+  const biggest = packages.filter((p) => p.currency === 'NGN').sort((a, b) => b.coinAmount - a.coinAmount)[0];
+  if (!biggest) throw new Error('no NGN coin packages published');
+  const buys = Math.ceil(atLeastCoins / biggest.coinAmount);
+  for (let i = 0; i < buys; i++) {
+    const intent = await api('POST', '/payments/coin-purchase-intents', { token, body: { packageId: biggest.id } });
+    const settled = await api('POST', `/payments/mock/${intent.data?.id}/complete`, { token });
+    if (settled.status >= 400) throw new Error(`coin purchase ${i + 1}/${buys} failed: ${settled.status} ${JSON.stringify(settled.data)}`);
+  }
+  return { coins: biggest.coinAmount * buys, buys, package: biggest };
+}
+
+// SendGiftDto bounds quantity at 10000 so coinPrice * quantity can't overflow the
+// Int total column — spend a balance in batches rather than one oversized request.
+export const MAX_GIFT_QTY = 10000;
+export async function giftCoins(token, roomId, coins, giftId, coinPrice, keyPrefix) {
+  let remaining = Math.floor(coins / coinPrice);
+  let last;
+  for (let i = 0; remaining > 0; i++) {
+    const quantity = Math.min(MAX_GIFT_QTY, remaining);
+    last = await api('POST', `/live-rooms/${roomId}/gifts`, {
+      token,
+      body: { giftId, quantity, idempotencyKey: `${keyPrefix}-${i}` }
+    });
+    if (last.status !== 200 && last.status !== 201) break; // surface the first failure
+    remaining -= quantity;
+  }
+  return last;
+}
