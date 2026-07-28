@@ -1,8 +1,39 @@
 # AfriStage — Feature Tracker
 
-Lifecycle: `PLANNED` → `IN PROGRESS` → `DEPLOYED` → `VERIFIED`.
-`VERIFIED` requires production evidence (logs, API response, observable behavior),
-not just "build/tests passed". Tests passing = `DEPLOYED`.
+Lifecycle, per [docs/PRODUCT_BUILDING_STANDARD.md](docs/PRODUCT_BUILDING_STANDARD.md):
+
+`PLANNED` → `SCAFFOLDED` → `IMPLEMENTED` → `VERIFIED` → `PILOT-READY` → `PRODUCTION-READY`
+
+- `PLANNED` — documented, not implemented.
+- `SCAFFOLDED` — structure exists, behaviour incomplete.
+- `IMPLEMENTED` — code exists, runtime verification incomplete.
+- `VERIFIED` — automated tests **and** runtime evidence prove the workflow.
+- `PILOT-READY` — deployable for controlled external use.
+- `PRODUCTION-READY` — operational, security, recovery and scale requirements proven.
+
+Never label something `VERIFIED` without evidence. Build/tests passing alone is
+`IMPLEMENTED`.
+
+## Reading the entries below this line
+
+Entries written before 2026-07-28 use the previous vocabulary
+(`PLANNED` → `IN PROGRESS` → `DEPLOYED` → `VERIFIED`) and have **not** been
+relabelled. They were assessed against the definitions in force when their
+evidence was gathered; rewriting the labels now would imply a re-audit that did
+not happen. Read them through this mapping:
+
+| Historical label | Meant | Nearest current label |
+|---|---|---|
+| `IN PROGRESS` | being worked on | `SCAFFOLDED` |
+| `DEPLOYED` | tests pass, production evidence outstanding | `IMPLEMENTED` (some qualify as `VERIFIED` — check the entry's own evidence) |
+| `VERIFIED` | **production** evidence observed | `VERIFIED` or stronger — the old bar was stricter than the current one |
+
+The old `VERIFIED` required production evidence, which is a higher bar than the
+current `VERIFIED` (tests plus runtime evidence). Historical `VERIFIED` entries
+therefore do not overstate anything. Historical `DEPLOYED` entries are the ones
+to re-check before treating them as proven.
+
+New entries from 2026-07-28 use the current vocabulary.
 
 Monorepo: NestJS+Prisma API (`apps/api`), Next.js admin (`apps/admin-web`),
 Flutter mobile (`apps/mobile`).
