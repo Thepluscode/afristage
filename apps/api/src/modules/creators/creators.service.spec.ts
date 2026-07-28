@@ -1,9 +1,13 @@
+import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { CreatorsService } from './creators.service';
 
-function build() {
+function build(existing: any = null) {
   const prisma: any = {
     creatorProfile: {
+      findUnique: jest.fn().mockResolvedValue(existing),
+      create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'cp1', ...data })),
       upsert: jest.fn().mockResolvedValue({ id: 'cp1' }),
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'cp1', ...data }))
     },
@@ -22,10 +26,100 @@ describe('CreatorsService approval workflow', () => {
   it('apply starts PENDING and does NOT promote the user role', async () => {
     const { service, prisma } = build();
     await service.apply('u1', dto);
-    expect(prisma.creatorProfile.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ approvalStatus: 'PENDING' }) })
+    expect(prisma.creatorProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ approvalStatus: 'PENDING' }) })
     );
     expect(prisma.user.update).not.toHaveBeenCalled(); // no auto-promotion
+    expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_APPLIED' }) })
+    );
+  });
+
+  // CreatorProfile has two editors — the applicant owns the text, the reviewer
+  // owns the decision. These pin the boundary between them.
+  describe('two editors, one row', () => {
+    const raceLost = new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+      code: 'P2025',
+      clientVersion: '5'
+    });
+
+    it('an approved creator editing their details keeps the approval they were granted', async () => {
+      const { service, prisma } = build({ approvalStatus: 'APPROVED', reviewedById: 'admin' });
+      await service.apply('u1', { ...dto, stageName: 'Renamed' });
+      const call = prisma.creatorProfile.update.mock.calls[0][0];
+      expect(call.data.stageName).toBe('Renamed'); // the applicant's edit lands
+      expect(call.data.approvalStatus).toBeUndefined(); // the decision is untouched
+      expect(call.data.reviewedById).toBeUndefined();
+    });
+
+    it('a pending applicant editing stays pending without rewriting the decision', async () => {
+      const { service, prisma } = build({ approvalStatus: 'PENDING', reviewedById: null });
+      await service.apply('u1', dto);
+      expect(prisma.creatorProfile.update.mock.calls[0][0].data.approvalStatus).toBeUndefined();
+      expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_APPLICATION_AMENDED' }) })
+      );
+    });
+
+    it('a rejected applicant re-applying reopens review and clears the stale reviewer', async () => {
+      const { service, prisma } = build({ approvalStatus: 'REJECTED', reviewedById: 'admin', rejectionReason: 'no' });
+      await service.apply('u1', dto);
+      expect(prisma.creatorProfile.update.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({ approvalStatus: 'PENDING', rejectionReason: null, reviewedById: null, reviewedAt: null })
+      );
+      expect(prisma.adminAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ action: 'CREATOR_REAPPLIED' }) })
+      );
+    });
+
+    it('a suspended creator cannot clear their own suspension by re-submitting', async () => {
+      const { service, prisma } = build({ approvalStatus: 'SUSPENDED', reviewedById: 'admin' });
+      await expect(service.apply('u1', dto)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.creatorProfile.update).not.toHaveBeenCalled();
+    });
+
+    it("the applicant's save is conditional on the decision it was computed against", async () => {
+      const { service, prisma } = build({ approvalStatus: 'PENDING' });
+      await service.apply('u1', dto);
+      expect(prisma.creatorProfile.update.mock.calls[0][0].where).toEqual({ userId: 'u1', approvalStatus: 'PENDING' });
+    });
+
+    it('an applicant whose application was reviewed mid-edit is told, not silently discarded', async () => {
+      const { service, prisma } = build({ approvalStatus: 'PENDING' });
+      prisma.creatorProfile.update.mockRejectedValue(raceLost);
+      await expect(service.apply('u1', dto)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rethrows a non-race failure on the applicant path', async () => {
+      const { service, prisma } = build({ approvalStatus: 'PENDING' });
+      prisma.creatorProfile.update.mockRejectedValue(new Error('db down'));
+      await expect(service.apply('u1', dto)).rejects.toThrow('db down');
+    });
+
+    it('a reviewer deciding against a stale view of the application is refused', async () => {
+      const { service, prisma } = build();
+      prisma.creatorProfile.update.mockRejectedValue(raceLost);
+      await expect(service.approveCreator('admin', 'u1', 'PENDING' as any)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rethrows a non-race failure on the reviewer path', async () => {
+      const { service, prisma } = build();
+      prisma.creatorProfile.update.mockRejectedValue(new Error('db down'));
+      await expect(service.approveCreator('admin', 'u1', 'PENDING' as any)).rejects.toThrow('db down');
+    });
+
+    it('each decision carries the expected status when the reviewer supplies one', async () => {
+      const { service, prisma } = build();
+      await service.approveCreator('admin', 'u1', 'PENDING' as any);
+      await service.rejectCreator('admin', 'u2', 'no', 'PENDING' as any);
+      await service.suspendCreator('admin', 'u3', 'abuse', 'APPROVED' as any);
+      const wheres = prisma.creatorProfile.update.mock.calls.map((c: any[]) => c[0].where);
+      expect(wheres).toEqual([
+        { userId: 'u1', approvalStatus: 'PENDING' },
+        { userId: 'u2', approvalStatus: 'PENDING' },
+        { userId: 'u3', approvalStatus: 'APPROVED' }
+      ]);
+    });
   });
 
   it('approveCreator promotes to CREATOR + writes audit log', async () => {

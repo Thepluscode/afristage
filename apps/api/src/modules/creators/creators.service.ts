@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { CreatorApprovalStatus, KycStatus, RoomStatus, UserRole } from '@prisma/client';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { CreatorApprovalStatus, KycStatus, Prisma, RoomStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { coinFiatRate } from '../payouts/payouts.service';
 import { AggregationService } from '../aggregation/aggregation.service';
@@ -14,23 +14,111 @@ export class CreatorsService {
     private readonly agg: AggregationService
   ) {}
 
-  // Beta: applying does NOT promote the user to CREATOR. It records a PENDING
-  // application that an admin must approve before any live room can be created.
+  // CreatorProfile is one row with TWO editors: the applicant owns the
+  // application text, a reviewer owns the decision. Saving it as one whole
+  // object made the applicant's save clobber the reviewer's — an admin could
+  // approve a creator and have that approval silently reverted to PENDING by
+  // the applicant's next save (leaving reviewedById dangling on a decision that
+  // no longer existed, and the user still holding role=CREATOR). A suspended
+  // creator could also clear their own suspension just by re-submitting.
+  //
+  // So the row is split by ownership rather than saved wholesale:
+  //   - application text (stageName/category/country/language) — one owner, so
+  //     last-write-wins is correct and stays;
+  //   - the decision (approvalStatus/reviewedBy/rejectionReason) — shared, and
+  //     APPROVED vs PENDING do not merge, so the applicant never writes it
+  //     except through an explicit, legal re-application;
+  //   - every save is recorded as an immutable event, so when the two editors
+  //     do collide the order is visible and auditable rather than inferred.
   async apply(userId: string, dto: ApplyCreatorDto) {
-    const profile = await this.prisma.creatorProfile.upsert({
-      where: { userId },
-      update: { ...dto, approvalStatus: CreatorApprovalStatus.PENDING, rejectionReason: null },
-      create: { userId, ...dto, approvalStatus: CreatorApprovalStatus.PENDING }
-    });
+    const existing = await this.prisma.creatorProfile.findUnique({ where: { userId } });
+
+    if (!existing) {
+      const created = await this.prisma.creatorProfile.create({
+        data: { userId, ...dto, approvalStatus: CreatorApprovalStatus.PENDING }
+      });
+      await this.wallet.ensureUserWallets(userId, 'COIN');
+      await this.recordApplication(userId, 'CREATOR_APPLIED', dto, null);
+      return created;
+    }
+
+    // Re-submitting is not a way out of a suspension — that decision is the
+    // reviewer's to reverse.
+    if (existing.approvalStatus === CreatorApprovalStatus.SUSPENDED) {
+      throw new ForbiddenException('Your creator account is suspended — contact support to appeal');
+    }
+
+    // A rejected applicant re-applying legitimately re-opens review, and the
+    // stale reviewer/reason are cleared with it. An approved creator editing
+    // their details keeps the approval they were granted; a pending one stays
+    // pending. In no case does the applicant's save decide their own status.
+    const reopening = existing.approvalStatus === CreatorApprovalStatus.REJECTED;
+    const decision = reopening
+      ? { approvalStatus: CreatorApprovalStatus.PENDING, rejectionReason: null, reviewedById: null, reviewedAt: null }
+      : {};
+
+    let updated;
+    try {
+      updated = await this.prisma.creatorProfile.update({
+        // Conditional on the decision the applicant's save was computed against,
+        // so a review landing in the same instant is never silently discarded.
+        where: { userId, approvalStatus: existing.approvalStatus },
+        data: { ...dto, ...decision }
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        throw new ConflictException('Your application was reviewed while you were editing — reload and try again');
+      }
+      throw e;
+    }
+
     await this.wallet.ensureUserWallets(userId, 'COIN');
-    return profile;
+    await this.recordApplication(userId, reopening ? 'CREATOR_REAPPLIED' : 'CREATOR_APPLICATION_AMENDED', dto, existing.approvalStatus);
+    return updated;
   }
 
-  async approveCreator(actorId: string, creatorUserId: string) {
-    const creator = await this.prisma.creatorProfile.update({
-      where: { userId: creatorUserId },
-      data: { approvalStatus: CreatorApprovalStatus.APPROVED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: null }
+  // The applicant's own edits were previously invisible: only admin decisions
+  // were logged, so a status that changed under a reviewer's feet could not be
+  // explained afterwards. Both editors now write to the same append-only log.
+  private recordApplication(
+    userId: string,
+    action: string,
+    dto: ApplyCreatorDto,
+    fromStatus: CreatorApprovalStatus | null
+  ) {
+    return this.prisma.adminAuditLog.create({
+      data: { actorId: userId, action, target: `creator:${userId}`, metadata: { ...dto, fromStatus } }
     });
+  }
+
+  // A reviewer decides against the application as they last read it. If the
+  // applicant amended it (or another reviewer already decided) in between, the
+  // decision is refused rather than applied to something the reviewer never saw.
+  // `expectedStatus` is the status the reviewer acted from; omitted means "any".
+  private async decide(
+    creatorUserId: string,
+    data: Prisma.CreatorProfileUncheckedUpdateInput,
+    expectedStatus?: CreatorApprovalStatus
+  ) {
+    try {
+      return await this.prisma.creatorProfile.update({
+        where: expectedStatus ? { userId: creatorUserId, approvalStatus: expectedStatus } : { userId: creatorUserId },
+        data
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        throw new ConflictException('This application changed since you opened it — reload and review again');
+      }
+      throw e;
+    }
+  }
+
+  async approveCreator(actorId: string, creatorUserId: string, expectedStatus?: CreatorApprovalStatus) {
+    const creator = await this.decide(
+      creatorUserId,
+      { approvalStatus: CreatorApprovalStatus.APPROVED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: null },
+      expectedStatus
+    );
     await this.prisma.user.update({ where: { id: creatorUserId }, data: { role: UserRole.CREATOR } });
     await this.prisma.adminAuditLog.create({
       data: { actorId, action: 'CREATOR_APPROVED', target: `creator:${creatorUserId}`, metadata: { creatorProfileId: creator.id } }
@@ -38,22 +126,24 @@ export class CreatorsService {
     return creator;
   }
 
-  async suspendCreator(actorId: string, creatorUserId: string, reason: string) {
-    const creator = await this.prisma.creatorProfile.update({
-      where: { userId: creatorUserId },
-      data: { approvalStatus: CreatorApprovalStatus.SUSPENDED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: reason }
-    });
+  async suspendCreator(actorId: string, creatorUserId: string, reason: string, expectedStatus?: CreatorApprovalStatus) {
+    const creator = await this.decide(
+      creatorUserId,
+      { approvalStatus: CreatorApprovalStatus.SUSPENDED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: reason },
+      expectedStatus
+    );
     await this.prisma.adminAuditLog.create({
       data: { actorId, action: 'CREATOR_SUSPENDED', target: `creator:${creatorUserId}`, metadata: { reason } }
     });
     return creator;
   }
 
-  async rejectCreator(actorId: string, creatorUserId: string, reason: string) {
-    const creator = await this.prisma.creatorProfile.update({
-      where: { userId: creatorUserId },
-      data: { approvalStatus: CreatorApprovalStatus.REJECTED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: reason }
-    });
+  async rejectCreator(actorId: string, creatorUserId: string, reason: string, expectedStatus?: CreatorApprovalStatus) {
+    const creator = await this.decide(
+      creatorUserId,
+      { approvalStatus: CreatorApprovalStatus.REJECTED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: reason },
+      expectedStatus
+    );
     await this.prisma.adminAuditLog.create({
       data: { actorId, action: 'CREATOR_REJECTED', target: `creator:${creatorUserId}`, metadata: { reason } }
     });

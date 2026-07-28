@@ -9,6 +9,118 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-07-27 — concurrent-write audit: last-write-wins removed where it lost data
+
+Audited every write in `apps/api` for the lost-update pattern (read → validate →
+write, with no guard that the row is still what was read). Conflict strategy is
+now explicit per surface rather than accidental:
+
+| Surface | Strategy | Why |
+|---------|----------|-----|
+| Money moves (gifts, purchases, payouts, chargebacks) | **Event-sourced** — immutable `LedgerTransaction` + entries; balances are derived and maintained by row-locked atomic `increment` | Already the design; conflicts are impossible rather than resolved |
+| **`CreatorProfile` — the one genuinely two-editor document** | **Split by ownership** + compare-and-set + an append-only event log | Applicant owns the text, reviewer owns the decision; saving it as one object let the applicant destroy the reviewer's work |
+| Payout / support / invite **state machines** | **Compare-and-set** | The losing writer must be told, not silently overwritten |
+| Profiles (`Profile`), settings, display fields | **Last-write-wins** (unchanged) | Single owner, no cross-field invariant — LWW is correct here |
+| Collaborative text / shared arrays | n/a | No such surface exists in AfriStage; no CRDT/OT layer is warranted |
+
+### The actual data-loss machine: `CreatorProfile`
+
+One row, **two independent editors**. The applicant writes it through
+`creators.apply()`; an admin writes the review decision through
+`approve/reject/suspend`. `ApplyCreatorDto` requires all four application fields,
+so `apply()` was a whole-object save — and it also wrote
+`approvalStatus: PENDING, rejectionReason: null` unconditionally. Reproduced
+against real Postgres **before** the fix:
+
+```
+A. Admin approves the application, applicant then saves an edited form
+  after admin approves : approvalStatus=APPROVED reviewedBy=set stageName=Ada      userRole=CREATOR
+  after applicant saves: approvalStatus=PENDING  reviewedBy=set stageName=Ada Live userRole=CREATOR
+  >> admin's approval vanished: true
+  >> row still credits a reviewer for a decision that no longer exists: true
+
+B. Admin suspends the creator, creator re-submits the same form
+  after admin suspends     : approvalStatus=SUSPENDED
+  after creator re-submits : approvalStatus=PENDING
+  >> suspension cleared by the creator's own save: true
+
+C. Both save at the same instant
+  >> one of the two writes was silently discarded: true
+```
+
+Scenario A is the textbook lost update: the admin saves, the applicant saves, the
+admin's decision is gone — and because `approveCreator` also sets `role=CREATOR`,
+the user was left a full CREATOR whose application reads PENDING, with
+`reviewedById` still pointing at a decision that no longer exists. **B is a
+privilege bug, not just data loss**: a suspended creator cleared their own
+suspension by re-submitting the form.
+
+**The fix is ownership, not locking.** The row is now written in two disjoint
+field groups: application text (single owner → LWW, kept) and the decision
+(shared, and `APPROVED`/`PENDING` do not merge → the applicant never writes it
+except via an explicit legal re-application; a rejected applicant re-applying
+reopens review *and* clears the stale reviewer; a suspended one is refused).
+Each save is conditional on the decision it was computed against, and both
+editors now append to the same audit log — previously only admin actions were
+recorded, so a status that changed under a reviewer's feet could not be explained
+afterwards. Same script, after:
+
+```
+A. >> admin's approval vanished: false        (APPROVED kept AND stageName=Ada Live saved)
+B. >> suspension cleared by the creator's own save: false
+      refused with: ForbiddenException: Your creator account is suspended
+C. >> a write was discarded: false            (both landed — disjoint field groups don't collide)
+D. Two reviewers decide at the same instant -> 1 of 2 applied
+      loser got: ConflictException: This application changed since you opened it
+```
+
+C is the point: once the document is split by ownership, simultaneous saves
+*merge* and no one needs to be told anything. The compare-and-set only fires for
+the residual case (D) where two writers genuinely contest the same field group.
+
+**Residual limitation, stated plainly:** `expectedStatus` is forwarded from the
+admin endpoints but `apps/admin-web` does not send it yet, so reviewer-vs-reviewer
+is still last-write-wins in production until that client change ships. That is
+tolerable where applicant-vs-reviewer was not — both racers are privileged, both
+outcomes are legitimate admin decisions, and the audit log now records both.
+Reviewing an application whose *text* changed after it was opened also still needs
+that client token.
+
+| Feature | Severity | Status | Evidence |
+|---------|----------|--------|----------|
+| **Payout review was a money-loss race.** `hold`/`release`/`approve`/`reject`/`markPaid` each read the payout, validated the transition against that stale copy, then wrote unconditionally. Two reviewers acting at once both passed `assertTransition`: approve + reject on one `UNDER_REVIEW` payout returned the coins to `EARNING` **and** left the row `APPROVED`, so a later `markPaid` drained an already-empty `PAYOUT_HOLD` (a `drain` source, deliberately unguarded) and paid a creator who had already been made whole. Now a single `claim()` helper makes the write conditional on the status that was validated (`where: { id, status: before.status }`) — the loser gets a 409. The claim is taken **before** the money move, so a losing reviewer never reaches the ledger, and is released if the move fails so the payout is retryable rather than stranded mid-state. | CRITICAL | DEPLOYED | 7 new specs: the `where` carries the guard; a lost race raises `ConflictException`; a lost reject and a lost `markPaid` each post **zero** ledger transactions; a failed money move restores the prior status; a non-race DB error is rethrown untouched; a missing payout is still 404. 64/64 payouts+support tests. |
+| **Support tickets: the plainest lost update.** `assign()` overwrote `assignedAdminId` unconditionally, so the second admin's click silently took a ticket the first was already working — both believed it was theirs. Now conditional on the ticket being unassigned (or already yours, so re-claiming stays a no-op success); a real collision is a 409. | HIGH | DEPLOYED | Specs assert the guard clause, the second admin's conflict, self-reclaim success, and that a missing ticket is still 404 rather than a conflict. |
+| **`CreatorProfile` lost update** (detailed above): applicant's whole-object save destroyed the reviewer's decision; suspended creators cleared their own suspension by re-submitting. | CRITICAL | DEPLOYED | Four-scenario before/after reproduction against real Postgres (output above); 27/27 creators tests incl. 11 new specs pinning the ownership boundary; **100% lines and branches** on `creators.service.ts` and `admin.controller.ts`. |
+| **Beta invites: one code, two accounts.** Concurrent redemptions of the same code both found it `PENDING` and both wrote; the second overwrote `acceptedById`, erasing the first redeemer and admitting two accounts on one invite. Redemption is now conditional on `status: PENDING`; the loser gets the standard "already-used" rejection. | HIGH | DEPLOYED | 17/17 beta tests, incl. a new concurrent-redemption spec. |
+
+**Live proof against real Postgres** (compose `postgres:16` on :5440, real
+`PrismaService`, real rows, money service stubbed to count disbursements — mocked
+Prisma proves the wiring but not that Prisma actually rejects a stale
+compare-and-set, which is the assumption everything else rests on):
+
+```
+concurrent approve+reject  -> winners=1 conflicts=1 finalStatus=APPROVED
+money moves posted=0       (the losing reject never returned the coins)
+concurrent markPaid x2     -> winners=1 disbursements=1 ref=REF-A
+CONTROL (unconditional write, both reviewers validated UNDER_REVIEW)
+                           -> winners=2   <- the pre-fix double-write, reproduced
+```
+
+The control is the before-measurement: with the old unconditional write both
+reviewers' writes land on a row they had each validated as `UNDER_REVIEW`, which
+is exactly the state that let a returned-to-earnings payout still read `APPROVED`.
+`800/800` API tests; **100% lines and branches** on all three changed services.
+A non-`P2025` failure was also observed propagating untouched (an FK violation
+from the harness itself surfaced as-is rather than being mislabelled a conflict).
+
+Left alone deliberately: `payments.creditCoins` has the same read-then-write
+shape, but the ledger's idempotency key is scoped to the intent, so a webhook +
+pull-verify + sweep racing cannot double-credit — the status write is the only
+thing that can be redundant, and a redundant `SUCCEEDED → SUCCEEDED` loses
+nothing.
+
+---
+
 ## Session 2026-07-21 — session timeout: return-to-path on re-auth
 
 | Feature | Status | Evidence |

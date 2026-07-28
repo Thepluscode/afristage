@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { CreatorApprovalStatus, UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { Roles } from '../../common/roles.decorator';
@@ -28,16 +28,24 @@ export class AdminController {
     return this.admin.betaOpsDashboard();
   }
 
+  // expectedStatus is the approval status the reviewer had on screen. Sending it
+  // makes the decision conditional on nothing having changed since — the review
+  // is refused rather than applied to an application the reviewer never read.
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Post('creators/:userId/approve')
-  approveCreator(@CurrentUser() user: any, @Param('userId') userId: string) {
-    return this.creatorsService.approveCreator(user.sub, userId);
+  approveCreator(@CurrentUser() user: any, @Param('userId') userId: string, @Body('expectedStatus') expectedStatus?: CreatorApprovalStatus) {
+    return this.creatorsService.approveCreator(user.sub, userId, expectedStatus);
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Post('creators/:userId/reject')
-  rejectCreator(@CurrentUser() user: any, @Param('userId') userId: string, @Body('reason') reason?: string) {
-    return this.creatorsService.rejectCreator(user.sub, userId, reason || 'Rejected');
+  rejectCreator(
+    @CurrentUser() user: any,
+    @Param('userId') userId: string,
+    @Body('reason') reason?: string,
+    @Body('expectedStatus') expectedStatus?: CreatorApprovalStatus
+  ) {
+    return this.creatorsService.rejectCreator(user.sub, userId, reason || 'Rejected', expectedStatus);
   }
 
   @Get('ledger/integrity')
@@ -95,8 +103,13 @@ export class AdminController {
 
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Post('creators/:userId/suspend')
-  suspendCreator(@CurrentUser() user: any, @Param('userId') userId: string, @Body('reason') reason?: string) {
-    return this.creatorsService.suspendCreator(user.sub, userId, reason || 'Suspended');
+  suspendCreator(
+    @CurrentUser() user: any,
+    @Param('userId') userId: string,
+    @Body('reason') reason?: string,
+    @Body('expectedStatus') expectedStatus?: CreatorApprovalStatus
+  ) {
+    return this.creatorsService.suspendCreator(user.sub, userId, reason || 'Suspended', expectedStatus);
   }
 
   // Enable (or disable) creator payouts for the beta. Body { enabled } defaults to
