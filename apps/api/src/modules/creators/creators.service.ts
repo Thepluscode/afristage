@@ -6,6 +6,10 @@ import { AggregationService } from '../aggregation/aggregation.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ApplyCreatorDto } from './dto/apply-creator.dto';
 
+// A non-human actor for the beta auto-approval trail. AdminAuditLog.actorId has
+// no foreign key, so this cannot collide with a real user id.
+export const AUTO_APPROVE_ACTOR = 'system:beta-auto-approve';
+
 @Injectable()
 export class CreatorsService {
   constructor(
@@ -39,7 +43,7 @@ export class CreatorsService {
       });
       await this.wallet.ensureUserWallets(userId, 'COIN');
       await this.recordApplication(userId, 'CREATOR_APPLIED', dto, null);
-      return created;
+      return CreatorsService.autoApproveEnabled() ? this.autoApprove(userId) : created;
     }
 
     // Re-submitting is not a way out of a suspension — that decision is the
@@ -74,7 +78,43 @@ export class CreatorsService {
 
     await this.wallet.ensureUserWallets(userId, 'COIN');
     await this.recordApplication(userId, reopening ? 'CREATOR_REAPPLIED' : 'CREATOR_APPLICATION_AMENDED', dto, existing.approvalStatus);
-    return updated;
+    // Only an application that is actually awaiting review is auto-approved. An
+    // approved creator amending their details is already approved, and a
+    // suspended one never reaches here.
+    const awaitingReview = reopening || existing.approvalStatus === CreatorApprovalStatus.PENDING;
+    return CreatorsService.autoApproveEnabled() && awaitingReview ? this.autoApprove(userId) : updated;
+  }
+
+  // Beta convenience: approving every applicant by hand is a human in the loop
+  // for every creator recruited, and while nobody is watching the queue they all
+  // sit PENDING looking at "your application is under review". The flag removes
+  // that bottleneck for a controlled beta.
+  //
+  // It is a deliberate weakening of a safety gate and is treated as one: default
+  // off, refused outright in production by validate-env, and every approval it
+  // grants is audited under its own action with a NON-HUMAN actor, so the
+  // trail never implies a reviewer looked at something they didn't.
+  private static autoApproveEnabled(): boolean {
+    return process.env.BETA_AUTO_APPROVE_CREATORS === 'true';
+  }
+
+  private async autoApprove(userId: string) {
+    const approved = await this.prisma.creatorProfile.update({
+      where: { userId },
+      data: { approvalStatus: CreatorApprovalStatus.APPROVED, reviewedAt: new Date(), rejectionReason: null }
+    });
+    await this.prisma.user.update({ where: { id: userId }, data: { role: UserRole.CREATOR } });
+    await this.prisma.adminAuditLog.create({
+      data: {
+        // Not a person. Attributing this to the applicant, or to any admin,
+        // would put a name against a review that never happened.
+        actorId: AUTO_APPROVE_ACTOR,
+        action: 'CREATOR_AUTO_APPROVED',
+        target: `creator:${userId}`,
+        metadata: { reason: 'BETA_AUTO_APPROVE_CREATORS', creatorProfileId: approved.id }
+      }
+    });
+    return approved;
   }
 
   // The applicant's own edits were previously invisible: only admin decisions

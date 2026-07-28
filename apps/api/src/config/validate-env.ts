@@ -20,6 +20,15 @@ const UNSAFE_VALUES: Record<string, string[]> = {
 };
 
 export function validateEnv(): void {
+  // Say it out loud on every boot. A weakened review gate that nobody remembers
+  // enabling is how a beta shortcut becomes the permanent default.
+  if (process.env.BETA_AUTO_APPROVE_CREATORS === 'true') {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[env] BETA_AUTO_APPROVE_CREATORS=true — creator applications are approved WITHOUT human review. Beta only.'
+    );
+  }
+
   if (process.env.NODE_ENV !== 'production') return;
 
   const missing = PROD_REQUIRED.filter((key) => !process.env[key]);
@@ -49,5 +58,14 @@ export function validateEnv(): void {
   // just at the login guard, so a copy-pasted staging env can't weaken prod.
   if (process.env.ALLOW_SEEDED_PROD_LOGIN === 'true') {
     throw new Error('Refusing to start: ALLOW_SEEDED_PROD_LOGIN must not be true in production');
+  }
+
+  // Auto-approval removes the human review that decides who may broadcast to an
+  // audience. That trade is defensible for a controlled beta on staging, where
+  // every applicant is someone we invited; in production it means anyone who
+  // signs up can go live unreviewed. Enforce at boot so a copied staging env
+  // can't carry it into production silently.
+  if (process.env.BETA_AUTO_APPROVE_CREATORS === 'true') {
+    throw new Error('Refusing to start: BETA_AUTO_APPROVE_CREATORS must not be true in production');
   }
 }

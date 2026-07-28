@@ -67,6 +67,42 @@ Invite rules:
 - Do not invite a new wave until the previous wave has one full operating day with no Critical issues.
 - Revoke unused or leaked invites immediately.
 
+## Getting the first real sessions on air
+
+The platform currently has **zero live rooms**. An invited creator who gets
+approved arrives at an empty app with nothing to watch and nobody watching, so
+the first few sessions have to be scheduled deliberately rather than waited for.
+
+**1. Remove the approval bottleneck (beta only).** Every applicant otherwise
+waits for a human to approve them, and while nobody is watching the queue they
+sit in `PENDING` reading "your creator application is under review".
+
+```
+BETA_AUTO_APPROVE_CREATORS=true
+```
+
+Applications are then approved and the user promoted to `CREATOR` on submit.
+Every such approval is audited under `CREATOR_AUTO_APPROVED` with actor
+`system:beta-auto-approve` — never a person's name, because no person reviewed
+it. A suspended creator is still refused; the flag is a queue shortcut, not an
+amnesty. The API refuses to boot with this set in production, and warns loudly
+on every boot while it is on.
+
+**Turn it off the moment the beta cohort is in.** It decides who may broadcast
+to an audience.
+
+**2. Schedule the sessions.** A creator creates a room with a future
+`scheduledStartAt`; it lands `SCHEDULED` and appears in `GET /live-rooms/upcoming`,
+where the mobile app surfaces it and viewers can set a reminder that fires when
+the room starts.
+
+Verified end to end against a real database: apply → auto-approved → schedule a
+session → it appears in `upcoming` → audit row carries the system actor.
+
+**3. Line up an audience before the first stream, not after.** A creator
+broadcasting to nobody is the fastest way to lose them. Aim for a handful of
+viewers in the room at start time — the reminder is what gets them there.
+
 ## Daily operating rhythm
 
 | Time | Owner | Action | Evidence |
