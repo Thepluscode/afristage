@@ -8,6 +8,7 @@ on:
       - "apps/api/**"
       - "scripts/**"
       - ".github/workflows/api-ci.yml"
+      - "FEATURE_TRACKER.md" # the tracker lint guards this file, so edits to it must run
   workflow_dispatch:
 
 jobs:
@@ -50,6 +51,11 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run prisma:generate -w apps/api
+      # Cheap and stack-free, so it runs before anything expensive: rejects a
+      # status label that isn't in the vocabulary, and any VERIFIED/PILOT-READY/
+      # PRODUCTION-READY claim with no evidence behind it.
+      - run: npm run test:tracker-lint
+      - run: npm run validate:tracker
       - run: npm run lint -w apps/api # typecheck
       - run: npm run test -w apps/api # unit (ledger invariants)
       - run: npm run build -w apps/api
