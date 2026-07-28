@@ -21,17 +21,40 @@ export class LiveRoomsService {
     private readonly feed: FeedEngine
   ) {}
 
+  // The caller's own creator-application state, phrased as the next thing they
+  // can do about it. Only ever describes the caller to themselves, so it leaks
+  // nothing, and it never widens who may go live.
+  private async whyNotLive(userId: string): Promise<string> {
+    const creator = await this.prisma.creatorProfile.findUnique({ where: { userId } });
+    switch (creator?.approvalStatus) {
+      case 'PENDING':
+        return 'Your creator application is under review. You can go live as soon as it is approved.';
+      case 'REJECTED':
+        return `Your creator application was not approved${creator.rejectionReason ? `: ${creator.rejectionReason}` : ''}. You can update your application and re-apply.`;
+      case 'SUSPENDED':
+        return 'Your creator access is suspended. Contact support to appeal.';
+      default:
+        return 'Apply to become a creator before going live.';
+    }
+  }
+
   async create(hostUserId: string, dto: CreateLiveRoomDto) {
     const user = await this.prisma.user.findUnique({ where: { id: hostUserId } });
     if (!user || user.status !== 'ACTIVE') throw new ForbiddenException('User is not active');
     if (user.role !== UserRole.CREATOR && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException('Only creators can create live rooms');
+      // Everyone who has applied but not yet been approved arrives here, because
+      // approval is what promotes them to CREATOR. Saying only "you are not a
+      // creator" strands them: they just filed an application and are told
+      // nothing about it. Tell them where they actually are and what happens
+      // next — the permission is unchanged, only the explanation.
+      throw new ForbiddenException(await this.whyNotLive(hostUserId));
     }
     // Beta gate: a CREATOR must be APPROVED before going live. Admins bypass.
+    // Reachable when approval is revoked after promotion (suspend/reject).
     if (user.role === UserRole.CREATOR) {
       const creator = await this.prisma.creatorProfile.findUnique({ where: { userId: hostUserId } });
       if (!creator || creator.approvalStatus !== 'APPROVED') {
-        throw new ForbiddenException('Creator approval required before going live');
+        throw new ForbiddenException(await this.whyNotLive(hostUserId));
       }
     }
     const active = await this.prisma.liveRoom.findFirst({ where: { hostUserId, status: RoomStatus.LIVE } });
