@@ -1,10 +1,15 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { SupportService } from './support.service';
 
 function build(ticket: any) {
   const prisma: any = {
-    supportTicket: { findUnique: jest.fn().mockResolvedValue(ticket), update: jest.fn().mockResolvedValue({}) },
+    supportTicket: {
+      findUnique: jest.fn().mockResolvedValue(ticket),
+      findUniqueOrThrow: jest.fn().mockResolvedValue(ticket),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 })
+    },
     supportTicketMessage: { create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve(data)) }
   };
   return { service: new SupportService(prisma), prisma };
@@ -115,12 +120,32 @@ describe('SupportService CRUD', () => {
     expect(prisma.supportTicket.findMany).toHaveBeenCalled();
   });
 
-  it('assign sets the admin + IN_REVIEW', async () => {
+  it('assign sets the admin + IN_REVIEW, but only while the ticket is unclaimed', async () => {
     const { service, prisma } = build(null);
     await service.assign('admin', 't1');
-    expect(prisma.supportTicket.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ assignedAdminId: 'admin', status: 'IN_REVIEW' }) })
-    );
+    expect(prisma.supportTicket.updateMany).toHaveBeenCalledWith({
+      where: { id: 't1', OR: [{ assignedAdminId: null }, { assignedAdminId: 'admin' }] },
+      data: { assignedAdminId: 'admin', status: 'IN_REVIEW' }
+    });
+  });
+
+  // The lost update: without the guard, the second admin's click overwrote the
+  // first admin's claim and both worked the ticket thinking it was theirs.
+  it('a second admin cannot silently steal an assigned ticket', async () => {
+    const { service, prisma } = build({ id: 't1', assignedAdminId: 'admin-1' });
+    prisma.supportTicket.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.assign('admin-2', 't1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('assigning a ticket that does not exist is a 404, not a conflict', async () => {
+    const { service, prisma } = build(null);
+    prisma.supportTicket.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.assign('admin', 'gone')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('re-claiming your own ticket stays a success', async () => {
+    const { service, prisma } = build({ id: 't1', assignedAdminId: 'admin' });
+    await expect(service.assign('admin', 't1')).resolves.toMatchObject({ assignedAdminId: 'admin' });
   });
 
   it('resolve sets RESOLVED + resolvedAt', async () => {

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { SupportTicketStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
@@ -59,11 +59,22 @@ export class SupportService {
     return this.prisma.supportTicket.findMany({ orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] });
   }
 
-  assign(adminId: string, id: string) {
-    return this.prisma.supportTicket.update({
-      where: { id },
+  // First admin to claim an unassigned ticket wins. An unconditional update let
+  // the second admin's click silently overwrite the first, so two admins worked
+  // the same ticket each believing it was theirs — the guard on assignedAdminId
+  // makes the collision a 409 instead of a lost assignment. Re-claiming your own
+  // ticket stays a no-op success.
+  async assign(adminId: string, id: string) {
+    const { count } = await this.prisma.supportTicket.updateMany({
+      where: { id, OR: [{ assignedAdminId: null }, { assignedAdminId: adminId }] },
       data: { assignedAdminId: adminId, status: SupportTicketStatus.IN_REVIEW }
     });
+    if (count === 0) {
+      const ticket = await this.prisma.supportTicket.findUnique({ where: { id } });
+      if (!ticket) throw new NotFoundException('Ticket not found');
+      throw new ConflictException('Ticket is already assigned to another admin');
+    }
+    return this.prisma.supportTicket.findUniqueOrThrow({ where: { id } });
   }
 
   resolve(id: string) {
