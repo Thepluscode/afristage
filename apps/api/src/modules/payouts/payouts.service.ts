@@ -92,7 +92,13 @@ export class PayoutsService {
       try {
         await move(before);
       } catch (e) {
-        await this.prisma.payoutRequest.updateMany({ where: { id, status: to }, data: { status: before.status } });
+        // Release the claim so the payout is retryable — but never let a failure
+        // in the release replace the real cause in the logs.
+        try {
+          await this.prisma.payoutRequest.updateMany({ where: { id, status: to }, data: { status: before.status } });
+        } catch (releaseErr) {
+          this.logger.error(`failed to release the ${to} claim on payout ${id}: ${(releaseErr as Error).message}`);
+        }
         throw e;
       }
     }
@@ -293,6 +299,13 @@ export class PayoutsService {
   async reject(reviewedBy: string, id: string, reason: string) {
     // Claim REJECTED first, then return the held coins — a reviewer who lost the
     // race never moves money for a decision that didn't stick.
+    // ponytail: REJECTED is terminal and has no in-flight state to park in, so a
+    // process death between the claim and the reversal leaves the coins in the
+    // hold, recoverable only by an ADJUSTMENT post. That is still the safer of
+    // the two orderings — moving the money first would, on the same crash, return
+    // the coins while the payout still read UNDER_REVIEW, letting the creator
+    // request them a second time. Stuck beats duplicated. Give reject a
+    // REJECTING state (as markPaid has PROCESSING) if this window ever bites.
     const { before: payout, after: updated } = await this.claim(
       id,
       PayoutStatus.REJECTED,
@@ -306,15 +319,32 @@ export class PayoutsService {
 
   // providerReference is the external transfer id (bank/Paystack) — the proof a real
   // disbursement happened. Recorded so PAID is always reconcilable to a transfer.
+  // Disbursement is two-phase, because PAID is terminal. Claiming PAID up front
+  // would block a second reviewer correctly but strand the payout if the process
+  // died before the transfer posted: the row would read PAID with the coins still
+  // in the hold, and no legal transition back out to retry from. So PROCESSING is
+  // claimed first — that claim is what excludes the other reviewer — then the
+  // transfer posts, then PROCESSING -> PAID. A crash leaves PROCESSING, which is
+  // a legal state to resume from, and the ledger's idempotency key makes the
+  // re-post a no-op. A transfer that merely fails also stays PROCESSING, which is
+  // the honest description of an in-flight disbursement.
   async markPaid(reviewedBy: string, id: string, providerReference?: string) {
-    // The claim blocks double-pay and REQUESTED/REJECTED -> PAID, and is taken
-    // before the disbursement so two reviewers can't both reach the money move.
-    const { before: payout, after: updated } = await this.claim(
-      id,
-      PayoutStatus.PAID,
-      { reviewedBy, paidAt: new Date(), providerReference: providerReference?.trim() || null },
-      (p) => this.money.payoutPaid({ payoutId: id, creatorUserId: p.creatorUserId, coinAmount: p.coinAmount, providerReference })
-    );
+    const payout = await this.prisma.payoutRequest.findUnique({ where: { id } });
+    if (!payout) throw new NotFoundException('Payout not found');
+
+    // Already PROCESSING means a previous attempt died mid-flight — resume it
+    // rather than re-claiming, which APPROVED -> PROCESSING would reject.
+    if (payout.status !== PayoutStatus.PROCESSING) {
+      await this.claim(id, PayoutStatus.PROCESSING, { reviewedBy }); // blocks double-pay and REQUESTED/REJECTED -> PAID
+    }
+
+    await this.money.payoutPaid({ payoutId: id, creatorUserId: payout.creatorUserId, coinAmount: payout.coinAmount, providerReference });
+
+    const { after: updated } = await this.claim(id, PayoutStatus.PAID, {
+      reviewedBy,
+      paidAt: new Date(),
+      providerReference: providerReference?.trim() || null
+    });
     await this.audit(reviewedBy, 'payout.paid', id, { coinAmount: payout.coinAmount.toString(), providerReference: providerReference ?? null });
     const ref = providerReference?.trim();
     await this.notify(payout.creatorUserId, 'Payout sent', `Your payout of ${payout.coinAmount} coins has been sent.${ref ? ` Ref: ${ref}` : ''}`);

@@ -113,6 +113,23 @@ is exactly the state that let a returned-to-earnings payout still read `APPROVED
 A non-`P2025` failure was also observed propagating untouched (an FK violation
 from the harness itself surfaced as-is rather than being mislabelled a conflict).
 
+**Caught in review of the above, before merge:** taking the claim before the
+money move fixed the race but broke crash-recovery for `markPaid`. `PAID` is
+terminal, so a process death between claiming `PAID` and posting the transfer
+left a row reading `PAID` with the coins still in `PAYOUT_HOLD` and no legal
+transition to retry from — where the old ordering had been self-healing (crash
+left `APPROVED`, and the retry's idempotency key made the re-post a no-op).
+Disbursement is now two-phase through the `PROCESSING` state the transition table
+already anticipated: claim `PROCESSING` (that claim is what excludes the second
+reviewer), post the transfer, then `PROCESSING -> PAID`. A crash leaves
+`PROCESSING`, which resumes. Live-verified: `concurrent markPaid x2 -> winners=1
+conflicts=1 disbursements=1 final=PAID`, `resume from PROCESSING -> final=PAID
+disbursements=1`, `markPaid on a PAID payout -> ConflictException
+disbursements=0`. `reject` keeps the same crash window (`REJECTED` is terminal
+with no in-flight state) but in the safer direction — stuck coins rather than
+coins returned to a creator who can request them again; documented in the code
+with the upgrade path.
+
 Left alone deliberately: `payments.creditCoins` has the same read-then-write
 shape, but the ledger's idempotency key is scoped to the intent, so a webhook +
 pull-verify + sweep racing cannot double-credit — the status write is the only

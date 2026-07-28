@@ -231,15 +231,58 @@ describe('PayoutsService concurrent reviewers', () => {
     expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 
-  it('releases the claim when the money move fails, so the payout is retryable', async () => {
+  // PAID is terminal, so claiming it before the transfer would strand the payout
+  // if the process died in between: PAID on the row, coins still in the hold, no
+  // legal transition to retry from. PROCESSING is the in-flight state instead.
+  it('claims PROCESSING before disbursing, then settles PAID', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'APPROVED', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update
+      .mockResolvedValueOnce({ id: 'p1', status: 'PROCESSING' })
+      .mockResolvedValueOnce({ id: 'p1', status: 'PAID' });
+    await expect(service.markPaid('admin', 'p1')).resolves.toMatchObject({ status: 'PAID' });
+    const statuses = prisma.payoutRequest.update.mock.calls.map((c: any[]) => c[0].data.status);
+    expect(statuses).toEqual(['PROCESSING', 'PAID']);
+  });
+
+  it('resumes a disbursement that died mid-flight instead of rejecting it', async () => {
+    const { service, prisma, ledger } = build();
+    // What a crash between the claim and the transfer leaves behind.
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'PROCESSING', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PAID' });
+    await expect(service.markPaid('admin', 'p1')).resolves.toMatchObject({ status: 'PAID' });
+    // Only the settling write — PROCESSING is not re-claimed.
+    expect(prisma.payoutRequest.update.mock.calls.map((c: any[]) => c[0].data.status)).toEqual(['PAID']);
+    expect(ledger.postTransaction).toHaveBeenCalled(); // idempotent re-post
+  });
+
+  it('a failed transfer leaves the payout PROCESSING, not reverted', async () => {
     const { service, prisma, ledger } = build();
     prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'APPROVED', creatorUserId: 'c1', coinAmount: 1000n });
-    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PAID' });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'PROCESSING' });
+    ledger.postTransaction.mockRejectedValue(new Error('transfer down'));
+    await expect(service.markPaid('admin', 'p1')).rejects.toThrow('transfer down');
+    expect(prisma.payoutRequest.update.mock.calls.map((c: any[]) => c[0].data.status)).toEqual(['PROCESSING']);
+  });
+
+  it('the release of a failed claim never masks the original failure', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'REJECTED' });
     ledger.postTransaction.mockRejectedValue(new Error('ledger down'));
-    await expect(service.markPaid('admin', 'p1')).rejects.toThrow('ledger down');
+    prisma.payoutRequest.updateMany.mockRejectedValue(new Error('release also failed'));
+    await expect(service.reject('admin', 'p1', 'fraud')).rejects.toThrow('ledger down');
+  });
+
+  it('releases the claim when the money move fails, so the payout is retryable', async () => {
+    const { service, prisma, ledger } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue({ id: 'p1', status: 'UNDER_REVIEW', creatorUserId: 'c1', coinAmount: 1000n });
+    prisma.payoutRequest.update.mockResolvedValue({ id: 'p1', status: 'REJECTED' });
+    ledger.postTransaction.mockRejectedValue(new Error('ledger down'));
+    await expect(service.reject('admin', 'p1', 'fraud')).rejects.toThrow('ledger down');
     expect(prisma.payoutRequest.updateMany).toHaveBeenCalledWith({
-      where: { id: 'p1', status: 'PAID' },
-      data: { status: 'APPROVED' }
+      where: { id: 'p1', status: 'REJECTED' },
+      data: { status: 'UNDER_REVIEW' }
     });
   });
 
