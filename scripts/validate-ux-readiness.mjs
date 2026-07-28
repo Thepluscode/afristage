@@ -25,7 +25,11 @@ function excludes(file, needles, label) {
 }
 
 console.log('\n=== VIEWER UX ===');
-contains('apps/mobile/lib/main.dart', ['Home', 'Live', 'Create', 'Wallet', 'Profile'], 'bottom navigation exposes core beta journeys');
+// The nav consolidated Live+Create into one "Go Live" destination and moved the
+// wallet off the tab bar, so this asserts the destinations that exist plus the
+// fact that the wallet is still wired in — the journey has to stay reachable even
+// though it is no longer a tab.
+contains('apps/mobile/lib/main.dart', ['Home', 'Go Live', 'Profile', 'WalletScreen'], 'navigation exposes core beta journeys');
 contains('apps/mobile/lib/screens/profile_screen.dart', ['Support', 'SupportScreen'], 'support is reachable from the profile screen');
 contains('apps/mobile/lib/screens/feed_screen.dart', ['Live now', 'No live rooms in', 'Retry live feed', 'AfriLiveCard'], 'home feed identifies live rooms and recoverable empty state');
 excludes('apps/mobile/lib/screens/feed_screen.dart', ['snapshot.error'], 'home feed does not expose raw technical errors');
@@ -34,13 +38,14 @@ contains('apps/mobile/lib/widgets/afri_ui.dart', ['Send Gift', 'Buy coins', 'No 
 
 console.log('\n=== CREATOR UX ===');
 contains('apps/mobile/lib/screens/creator_apply_screen.dart', ['Creator approval pending', 'You are approved', 'Creator access is suspended', 'Apply as Creator'], 'creator approval states are understandable');
-contains('apps/mobile/lib/screens/creator_screen.dart', ['Go Live', 'Request payout', 'Earnings', 'Payout'], 'creator dashboard exposes go-live, earnings, and payout actions');
+contains('apps/mobile/lib/screens/creator_screen.dart', ['Go Live', '_requestPayout', 'Earnings', 'Payout'], 'creator dashboard exposes go-live, earnings, and payout actions');
 excludes('apps/mobile/lib/screens/creator_screen.dart', ['snapshot.error'], 'creator hub does not expose raw technical errors');
-contains('apps/mobile/lib/screens/go_live_setup_screen.dart', ['Start Live Room', 'Room title', 'Category', 'Language'], 'go-live setup has required room controls');
+contains('apps/mobile/lib/screens/go_live_setup_screen.dart', ['Go Live', 'Title', 'Category', 'Language'], 'go-live setup has required room controls');
 contains('apps/mobile/lib/widgets/afri_ui.dart', ['Camera', 'Mic', 'Low data', 'End live room?', 'Confirm before ending'], 'host controls expose device status, low-data, and end confirmation');
 
 console.log('\n=== WALLET AND SUPPORT UX ===');
-contains('apps/mobile/lib/screens/wallet_screen.dart', ['Wallet', 'Creator earnings', 'Payout hold', 'Buy coins', 'Ledger and history', "I've paid"], 'wallet separates coins, earnings, holds, purchase, and history');
+// Creator earnings ship as "Diamonds" and the ledger as "Live history".
+contains('apps/mobile/lib/screens/wallet_screen.dart', ['Wallet', 'Available balance', 'Diamonds', 'Buy coins', 'Live history', "I've paid"], 'wallet separates coins, earnings, purchase, and history');
 contains('apps/mobile/lib/screens/history_screen.dart', ['Coin purchases', 'gifts', 'payouts'], 'history separates money event types');
 contains('apps/mobile/lib/screens/support_screen.dart', ['Payment issue', 'Payout issue', 'Moderation appeal', 'Create ticket', 'My tickets'], 'support covers beta issue categories and ticket status access');
 contains('apps/mobile/lib/screens/report_screen.dart', ['Report ', 'Submit Report', 'Select reason'], 'reporting flow has reason selection and submission');

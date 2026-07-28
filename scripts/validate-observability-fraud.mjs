@@ -1,4 +1,4 @@
-import { ok, sql, api as raw, login, finish } from './_lib.mjs';
+import { ok, sql, api as raw, login, finish, buyCoins, giftCoins} from './_lib.mjs';
 
 console.log('\n=== OBSERVABILITY ===');
 const live = await raw('GET', '/health');
@@ -15,21 +15,28 @@ const CTOK = await login('creator@afristage.local', 'Creator123!');
 const ATOK = await login('admin@afristage.local', 'Admin123!');
 const stamp = Date.now();
 
-// mint creator earnings: clear rooms, start one, buy + gift 2,000,000 coins
+// Mint creator earnings: clear rooms, start one, then buy + gift enough coins to
+// cover BOTH payouts below. The fraud threshold is read from the same env the API
+// uses, so this suite exercises the hold at whatever amount the environment
+// configures rather than assuming a creator can ever reach the 1,000,000-coin
+// production default through the real (package-priced) purchase API.
+const LARGE_PAYOUT_COIN = Number(process.env.FRAUD_LARGE_PAYOUT_COIN || 1000000);
+const SMALL_PAYOUT_COIN = 600;
+const CREATOR_SHARE_BPS = Number(process.env.CREATOR_SHARE_BPS || 6000);
+const NEEDED_COINS = Math.ceil(((LARGE_PAYOUT_COIN + SMALL_PAYOUT_COIN) * 10000) / CREATOR_SHARE_BPS);
 await raw('POST', '/admin/live-rooms/end-stale', { token: ATOK, body: { maxIdleMinutes: 0 } });
 const room = await raw('POST', '/live-rooms', { token: CTOK, body: { title: 'Fraud Test', category: 'MUSIC', country: 'NG', language: 'pidgin' } });
 await raw('POST', `/live-rooms/${room.data.id}/start`, { token: CTOK });
-const intent = await raw('POST', '/payments/coin-purchase-intents', { token: VTOK, body: { amountMinor: 200000000, currency: 'NGN', coinAmount: 2000000 } });
-await raw('POST', `/payments/mock/${intent.data.id}/complete`, { token: VTOK });
+const bought = await buyCoins(VTOK, NEEDED_COINS);
 const gift = (await raw('GET', '/gifts')).data[0];
-await raw('POST', `/live-rooms/${room.data.id}/gifts`, { token: VTOK, body: { giftId: gift.id, quantity: 200000, idempotencyKey: `fraud-gift-${stamp}` } });
+await giftCoins(VTOK, room.data.id, bought.coins, gift.id, Number(gift.coinPrice), `fraud-gift-${stamp}`);
 
 // control: small payout from the (new) seeded creator is NOT held
-const small = await raw('POST', '/payouts/request', { token: CTOK, body: { coinAmount: 600, idempotencyKey: `fraud-small-${stamp}` } });
+const small = await raw('POST', '/payouts/request', { token: CTOK, body: { coinAmount: SMALL_PAYOUT_COIN, idempotencyKey: `fraud-small-${stamp}` } });
 ok(small.data?.status === 'UNDER_REVIEW', `small payout from new creator -> UNDER_REVIEW (not held) (${small.data?.status})`);
 
 // large payout from a new creator IS held
-const large = await raw('POST', '/payouts/request', { token: CTOK, body: { coinAmount: 1000000, idempotencyKey: `fraud-large-${stamp}` } });
+const large = await raw('POST', '/payouts/request', { token: CTOK, body: { coinAmount: LARGE_PAYOUT_COIN, idempotencyKey: `fraud-large-${stamp}` } });
 ok(large.data?.status === 'HELD', `large payout from new creator -> HELD (${large.data?.status})`);
 ok(await sql(`select count(*) from admin_audit_logs where action='payout.held' and target='${large.data.id}'`) === '1', 'fraud hold wrote payout.held audit log');
 
