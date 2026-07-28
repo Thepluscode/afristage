@@ -34,7 +34,8 @@
     "launch:production": "node scripts/validate-production-readiness.mjs --env && node scripts/beta-launch-gate.mjs --live --full",
     "validate:ux-timing": "node scripts/validate-ux-timing.mjs",
     "validate:tracker": "node scripts/validate-tracker.mjs",
-    "test:tracker-lint": "node scripts/validate-tracker.test.mjs"
+    "test:tracker-lint": "node scripts/validate-tracker.test.mjs",
+    "validate:provider-sandbox": "node scripts/validate-provider-sandbox.mjs"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
