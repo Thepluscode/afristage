@@ -35,7 +35,8 @@
     "validate:ux-timing": "node scripts/validate-ux-timing.mjs",
     "validate:tracker": "node scripts/validate-tracker.mjs",
     "test:tracker-lint": "node scripts/validate-tracker.test.mjs",
-    "validate:provider-sandbox": "node scripts/validate-provider-sandbox.mjs"
+    "validate:provider-sandbox": "node scripts/validate-provider-sandbox.mjs",
+    "preflight:live-session": "node scripts/preflight-live-session.mjs"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

@@ -99,7 +99,24 @@ the room starts.
 Verified end to end against a real database: apply → auto-approved → schedule a
 session → it appears in `upcoming` → audit row carries the system actor.
 
-**3. Line up an audience before the first stream, not after.** A creator
+**3. Pre-flight, in the hour before.** The session will not be lost to a product
+flaw — it will be lost to a LiveKit token, a stale build, or a gate nobody
+remembered was on.
+
+```bash
+API_BASE=https://api-production-e12f.up.railway.app/api \
+WS_BASE=https://api-production-e12f.up.railway.app/chat \
+  npm run preflight:live-session
+```
+
+It walks the whole path on a throwaway account — register, approve, open a room,
+take it LIVE, mint a LiveKit publish token, mint a guest token so a shared link
+plays for a signed-out visitor, confirm the room appears in the public feed with
+its gift total, connect to chat and post a message, then end the room. No admin
+credentials, no database access. If approval is off it says so and names the two
+ways to fix it.
+
+**4. Line up an audience before the first stream, not after.** A creator
 broadcasting to nobody is the fastest way to lose them. Aim for a handful of
 viewers in the room at start time — the reminder is what gets them there.
 
