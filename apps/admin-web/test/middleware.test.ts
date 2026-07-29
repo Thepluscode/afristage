@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
-import { middleware } from '../middleware';
+import { config, middleware } from '../middleware';
 
 const ACCESS = 'afristage_admin_token';
 const REFRESH = 'afristage_admin_refresh';
@@ -113,5 +113,24 @@ describe('admin middleware', () => {
     expect(res.headers.get('location')).toBeNull(); // not authed -> stays on /login
     expect(res.cookies.get(ACCESS)?.value).toBe('');
     expect(res.cookies.get(REFRESH)?.value).toBe('');
+  });
+});
+
+// The icon lives in the app directory, so without an explicit exclusion the
+// browser's icon request is redirected to /login: the tab shows no icon, and
+// "next=/icon.svg" lands in the login URL — an asset request deciding where the
+// operator goes after signing in.
+describe('middleware matcher exclusions', () => {
+  const matches = (path: string) => new RegExp(config.matcher[0].replace(/^\//, '^/')).test(path);
+
+  it.each(['/icon.svg', '/favicon.ico', '/apple-icon.png', '/robots.txt', '/sitemap.xml'])(
+    'does not put %s behind the auth wall',
+    (asset) => {
+      expect(matches(asset)).toBe(false);
+    }
+  );
+
+  it.each(['/users', '/payouts', '/'])('still protects %s', (page) => {
+    expect(matches(page)).toBe(true);
   });
 });
