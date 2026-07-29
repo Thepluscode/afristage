@@ -67,6 +67,34 @@ Invite rules:
 - Do not invite a new wave until the previous wave has one full operating day with no Critical issues.
 - Revoke unused or leaked invites immediately.
 
+## Staging credentials — the seeded passwords are NOT the seeded passwords
+
+`Admin123!` / `Creator123!` / `Viewer123!` are what `prisma/seed.ts` uses locally.
+On staging they were rotated to randoms when the environment was hardened, and
+nothing in the UI says so — a 401 there looks like a broken login. It has cost
+real debugging time more than once.
+
+```bash
+railway variables --service api --kv | grep STAGING_ADMIN_PASSWORD
+railway variables --service api --kv | grep STAGING_CREATOR_PASSWORD
+railway variables --service api --kv | grep STAGING_VIEWER_PASSWORD
+```
+
+Straight onto the clipboard, without it landing in a terminal log:
+
+```bash
+railway variables --service api --kv | grep '^STAGING_ADMIN_PASSWORD=' | cut -d= -f2- | tr -d '\n' | pbcopy
+```
+
+| Account | Use |
+|---|---|
+| `admin@afristage.local` | moderation, payouts, creator approvals, the beta queues |
+| `creator@afristage.local` | go live, request a payout, creator dashboard |
+| `viewer@afristage.local` | buy coins, gift, watch |
+
+Local `docker compose` still uses the plain seeded passwords — only the deployed
+environment is rotated.
+
 ## Getting the first real sessions on air
 
 The platform currently has **zero live rooms**. An invited creator who gets
