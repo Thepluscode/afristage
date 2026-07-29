@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { validateEnv } from './config/validate-env';
 import { JsonLogger } from './common/json-logger';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 import { RequestLoggingInterceptor } from './common/request-logging.interceptor';
 
 // ponytail: Prisma money fields are BigInt; Express JSON.stringify can't serialize them.
@@ -30,6 +31,10 @@ async function bootstrap() {
   app.enableCors({ origin: true, credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalInterceptors(new RequestLoggingInterceptor());
+  // Floor under every un-caught database rule: a constraint violation becomes an
+  // honest 4xx instead of "500 Internal server error". Call sites that can say
+  // something more specific still catch their own (see auth.register).
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT') || 3000;

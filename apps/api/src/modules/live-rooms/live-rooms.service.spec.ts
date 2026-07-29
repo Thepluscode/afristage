@@ -399,10 +399,15 @@ describe('LiveRoomsService.get', () => {
     expect(await service.get('r1')).toMatchObject({ id: 'r1', viewerCount: 9 });
   });
 
-  it('returns null for a missing room', async () => {
+  // Returning null answered 200 with an empty body, so a stale shared link
+  // rendered a broken room screen rather than "this stream has ended": the
+  // caller does LiveRoom.fromJson(data) and a null throws a type error into a
+  // generic catch. This file already throws 'Room not found' in four other
+  // methods — get() was the only place in the API that returned null instead.
+  it('404s for a missing room instead of answering an empty 200', async () => {
     const { service, prisma } = buildFeed();
     prisma.liveRoom.findUnique = jest.fn().mockResolvedValue(null);
-    expect(await service.get('gone')).toBeNull();
+    await expect(service.get('gone')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

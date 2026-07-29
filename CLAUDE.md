@@ -40,6 +40,25 @@ status must be a real label, and `VERIFIED` / `PILOT-READY` / `PRODUCTION-READY`
 must carry evidence that is not merely "tests pass" or "build succeeded". Whether
 the evidence is *good* is your judgement, not the linter's.
 
+## API error conventions
+
+- **A missing single resource is a `404`** — never `200` with a `null` or empty
+  body. A client cannot tell "gone" from "arrived empty", the response caches as
+  though it were valid, and the failure is invisible in every dashboard. This is
+  already the convention: 33 `NotFoundException` throws across the API.
+- **An empty collection is `200` with `[]`** — never a `404`.
+- **A database constraint the code did not anticipate must not reach the client
+  as a `500`.** `PrismaExceptionFilter` maps known Prisma codes to honest 4xx
+  (`P2002`→409, `P2025`→404, `P2003`/`P2014`→409, value errors→400) and
+  deliberately leaves anything unmapped as a 500, so a real fault cannot hide
+  behind a friendly message. Where a call site can say something specific — which
+  field collided, and what to do about it — it should still catch its own error;
+  the filter is the floor, not the ceiling.
+- **`npm run validate:error-paths`** does every ordinary action twice and asserts
+  nothing answers 5xx. Run it against a deployed environment, not just locally:
+  the duplicate-signup 500 lived on the funnel's first screen because every other
+  suite here drives the happy path with fresh, unique data.
+
 ## Repository facts an agent needs
 
 - Monorepo: NestJS + Prisma API (`apps/api`), Next.js admin (`apps/admin-web`),
