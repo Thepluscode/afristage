@@ -61,6 +61,11 @@ the evidence is *good* is your judgement, not the linter's.
 
 ## Repository facts an agent needs
 
+- **Staging's seeded passwords are rotated randoms, not `Admin123!`.** A 401 on
+  the deployed environment is almost always this, not a bug. Read them from
+  `railway variables --service api --kv | grep STAGING_` — see
+  `docs/phase-3-6-beta-launch-operations.md`. Local compose uses the plain ones.
+
 - Monorepo: NestJS + Prisma API (`apps/api`), Next.js admin (`apps/admin-web`),
   Next.js web client (`apps/web`), Flutter mobile (`apps/mobile`), landing
   (`apps/landing`).
