@@ -61,6 +61,11 @@ export function middleware(req: NextRequest) {
 }
 
 // Apply to pages only — not API routes (login/proxy) or static assets.
+// icon.svg has to be excluded explicitly: Next serves the app-router icon from
+// the app directory, so without this the browser's icon request is redirected
+// to /login and the tab shows no icon at all — while stuffing "next=/icon.svg"
+// into the login URL, which then decides where the operator lands after signing
+// in. An asset request must never influence that.
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)']
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml).*)']
 };
