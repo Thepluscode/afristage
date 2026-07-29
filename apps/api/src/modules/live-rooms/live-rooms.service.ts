@@ -141,7 +141,11 @@ export class LiveRoomsService {
 
   async get(id: string) {
     const room = await this.prisma.liveRoom.findUnique({ where: { id }, include: PUBLIC_HOST_INCLUDE });
-    return room && { ...room, viewerCount: this.presence.viewerCount(id) || room.peakViewers };
+    // Returning null answered 200 with an empty body, so a stale shared link
+    // rendered a broken room screen instead of "this stream has ended" — the
+    // client cannot tell "gone" from "arrived empty".
+    if (!room) throw new NotFoundException('That room no longer exists');
+    return { ...room, viewerCount: this.presence.viewerCount(id) || room.peakViewers };
   }
 
   async joinToken(userId: string, roomId: string) {
