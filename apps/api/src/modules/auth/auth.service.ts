@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { authenticator } from 'otplib';
@@ -38,29 +38,56 @@ export class AuthService {
     private readonly metrics: MetricsService
   ) {}
 
+  // Which unique field collided, phrased as what the person should do next.
+  // This does confirm that an account exists, which is a user-enumeration
+  // trade — accepted deliberately: registration reveals it either way (the
+  // alternative is a lie or a 500), and a dead end on the first screen costs
+  // more than the disclosure. Login stays deliberately vague by comparison.
+  private static alreadyTaken(e: Prisma.PrismaClientKnownRequestError): string {
+    const target = e.meta?.target;
+    const fields = Array.isArray(target) ? target.map(String) : [String(target ?? '')];
+    if (fields.some((f) => f.includes('email'))) return 'An account with that email already exists — sign in instead.';
+    if (fields.some((f) => f.includes('phone'))) return 'An account with that phone number already exists — sign in instead.';
+    if (fields.some((f) => f.includes('username'))) return 'That username is taken — try another.';
+    return 'Those details are already registered — sign in instead.';
+  }
+
   async register(dto: RegisterDto, meta: SessionMeta = {}) {
     if (!dto.email && !dto.phone) throw new BadRequestException('Email or phone is required');
     if (!dto.ageConfirmed) throw new BadRequestException('Age confirmation is required');
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        phone: dto.phone,
-        passwordHash,
-        ageConfirmed: dto.ageConfirmed,
-        role: UserRole.VIEWER,
-        profile: {
-          create: {
-            username: dto.username,
-            displayName: dto.displayName,
-            country: dto.country,
-            language: dto.language
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          phone: dto.phone,
+          passwordHash,
+          ageConfirmed: dto.ageConfirmed,
+          role: UserRole.VIEWER,
+          profile: {
+            create: {
+              username: dto.username,
+              displayName: dto.displayName,
+              country: dto.country,
+              language: dto.language
+            }
           }
-        }
-      },
-      include: { profile: true }
-    });
+        },
+        include: { profile: true }
+      });
+    } catch (e) {
+      // Signing up twice is what people DO — they forget they already have an
+      // account. Email, phone and username are all unique, and an unhandled
+      // P2002 surfaced as "500 Internal server error": the most ordinary action
+      // on the funnel's first screen looked like the site was broken, with no
+      // hint that signing in would work.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException(AuthService.alreadyTaken(e));
+      }
+      throw e;
+    }
 
     await this.wallet.ensureUserWallets(user.id, 'COIN');
     this.metrics.signups.inc();

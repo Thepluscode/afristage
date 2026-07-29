@@ -1,4 +1,5 @@
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
 import { AuthService } from './auth.service';
@@ -60,6 +61,61 @@ describe('AuthService.register (guards)', () => {
     await expect(
       service.register({ email: 'a@b.c', ageConfirmed: false, password: 'pw' } as any)
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // Signing up twice is what people do. An unhandled P2002 made the most
+  // ordinary action on the funnel's first screen return "500 Internal server
+  // error", which reads as a broken site rather than "you already have an
+  // account".
+  describe('a duplicate signup is a conflict, not a crash', () => {
+    const p2002 = (target: string[] | string) =>
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '5',
+        meta: { target }
+      });
+    const dto = { email: 'a@b.c', password: 'pw', ageConfirmed: true } as any;
+
+    it('a taken email returns 409 and points at signing in', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockRejectedValue(p2002(['email']));
+      await expect(service.register(dto)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.register(dto)).rejects.toThrow(/email already exists.*sign in/i);
+    });
+
+    it('a taken phone names the phone, not the email', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockRejectedValue(p2002(['phone']));
+      await expect(service.register(dto)).rejects.toThrow(/phone number already exists/i);
+    });
+
+    it('a taken username says to pick another, not to sign in', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockRejectedValue(p2002(['username']));
+      await expect(service.register(dto)).rejects.toThrow(/username is taken/i);
+    });
+
+    it('an unrecognised unique field still conflicts rather than crashing', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockRejectedValue(p2002('something_else'));
+      await expect(service.register(dto)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    // Prisma does not always populate meta.target; the message must still be
+    // actionable rather than "undefined".
+    it('a conflict with no field information still says something useful', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002', clientVersion: '5' })
+      );
+      await expect(service.register(dto)).rejects.toThrow(/already registered.*sign in/i);
+    });
+
+    it('a non-uniqueness database failure is NOT dressed up as a conflict', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockRejectedValue(new Error('connection reset'));
+      await expect(service.register(dto)).rejects.toThrow('connection reset');
+    });
   });
 
   it('creates the user, provisions wallets, and issues tokens on success', async () => {
