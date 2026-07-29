@@ -57,8 +57,40 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('auth/login route', () => {
   it('rejects bad backend credentials with 401', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     expect((await login(loginReq({ identifier: 'x', password: 'y' }))).status).toBe(401);
+  });
+
+  // Every upstream failure used to collapse into 401 "Login failed", so an
+  // operator locked out during an incident would hunt a password problem that
+  // did not exist. Only a real 401 may blame the credentials.
+  it('says the service is unreachable rather than blaming the password', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    const res = await login(loginReq({ identifier: 'x', password: 'y' }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).message).toMatch(/cannot reach the sign-in service/i);
+  });
+
+  it('reports an upstream 500 as a service error, not a credential error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    const res = await login(loginReq({ identifier: 'x', password: 'y' }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).message).toMatch(/not your password/i);
+  });
+
+  it('names a rate limit as a rate limit', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 429 }));
+    const res = await login(loginReq({ identifier: 'x', password: 'y' }));
+    expect(res.status).toBe(429);
+    expect((await res.json()).message).toMatch(/too many sign-in attempts/i);
+  });
+
+  // The 401 must stay vague: it may never reveal whether an account exists.
+  it('keeps a genuine 401 free of any hint about the account', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+    const body = await (await login(loginReq({ identifier: 'x', password: 'y' }))).json();
+    expect(body.message).toBe('Login failed');
+    expect(JSON.stringify(body)).not.toMatch(/exist|unknown|found|password is/i);
   });
 
   it('500s when the backend omits an access token', async () => {
