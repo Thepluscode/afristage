@@ -31,6 +31,13 @@ export class RegisterDto {
   @IsString()
   language?: string;
 
+  // IANA zone from the client (Intl.DateTimeFormat().resolvedOptions().timeZone).
+  // Optional, because a client that cannot supply one must still be able to
+  // register — a missing zone is a degraded schedule, not a failed sign-up.
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
   @IsBoolean()
   ageConfirmed!: boolean;
 }

@@ -63,6 +63,48 @@ describe('AuthService.register (guards)', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  // The zone is captured once at sign-up because it cannot be recovered later,
+  // and a junk value is worse than none: it would schedule confidently at the
+  // wrong hour, where a null falls back to a documented default.
+  describe('timezone capture', () => {
+    it.each(['Africa/Lagos', 'Europe/London', 'America/Argentina/Buenos_Aires', 'Asia/Kolkata', 'UTC'])(
+      'stores %s',
+      (zone) => {
+        expect(AuthService.ianaZone(zone)).toBe(zone);
+      }
+    );
+
+    it.each(['WAT', 'GMT+1', 'not a zone', '', '   ', 'Africa/Lagos; drop table', '../../etc/passwd'])(
+      'refuses %p rather than storing something that looks like a zone',
+      (junk) => {
+        expect(AuthService.ianaZone(junk)).toBeUndefined();
+      }
+    );
+
+    it('treats an absent zone as absent, not as an error', () => {
+      expect(AuthService.ianaZone(undefined)).toBeUndefined();
+    });
+
+    it('trims incidental whitespace', () => {
+      expect(AuthService.ianaZone('  Africa/Accra  ')).toBe('Africa/Accra');
+    });
+
+    it('persists the zone on the profile at registration', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockResolvedValue({ id: 'u1', role: 'VIEWER', email: 'a@b.c', tokenVersion: 0 });
+      await service.register({ email: 'a@b.c', password: 'pw', ageConfirmed: true, timezone: 'Africa/Lagos' } as any);
+      const profile = prisma.user.create.mock.calls[0][0].data.profile.create;
+      expect(profile.timezone).toBe('Africa/Lagos');
+    });
+
+    it('registers fine when the client sends no zone', async () => {
+      const { service, prisma } = buildAuth();
+      prisma.user.create.mockResolvedValue({ id: 'u1', role: 'VIEWER', email: 'a@b.c', tokenVersion: 0 });
+      await service.register({ email: 'a@b.c', password: 'pw', ageConfirmed: true } as any);
+      expect(prisma.user.create.mock.calls[0][0].data.profile.create.timezone).toBeUndefined();
+    });
+  });
+
   // Signing up twice is what people do. An unhandled P2002 made the most
   // ordinary action on the funnel's first screen return "500 Internal server
   // error", which reads as a broken site rather than "you already have an
