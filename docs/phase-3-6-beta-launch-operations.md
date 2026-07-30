@@ -95,6 +95,17 @@ railway variables --service api --kv | grep '^STAGING_ADMIN_PASSWORD=' | cut -d=
 Local `docker compose` still uses the plain seeded passwords — only the deployed
 environment is rotated.
 
+## Before any of this: there is nobody to invite
+
+The waitlist reads zero. Every mechanism below — the auto-approve flag, the
+scheduling, the pre-flight — is machinery waiting for people who have not been
+asked yet. Running it against an empty list produces a working platform with no
+one on it.
+
+`docs/creator-discovery.md` is the ten-conversation script and, more importantly,
+the decision rule written down BEFORE the conversations, so a polite "sounds
+great, send me the link" cannot later be counted as a yes.
+
 ## Getting the first real sessions on air
 
 The platform currently has **zero live rooms**. An invited creator who gets
