@@ -38,6 +38,17 @@ export class AuthService {
     private readonly metrics: MetricsService
   ) {}
 
+  // A client can send anything; store only something that looks like an IANA
+  // zone ("Region/City", or UTC). A junk value is worse than none — it would
+  // schedule confidently at the wrong hour, where a null falls back to a
+  // documented default.
+  static ianaZone(raw?: string): string | undefined {
+    if (!raw) return undefined;
+    const value = raw.trim();
+    if (value === 'UTC') return value;
+    return /^[A-Za-z][A-Za-z_+-]*(\/[A-Za-z0-9_+-]+){1,2}$/.test(value) ? value : undefined;
+  }
+
   // Which unique field collided, phrased as what the person should do next.
   // This does confirm that an account exists, which is a user-enumeration
   // trade — accepted deliberately: registration reveals it either way (the
@@ -71,7 +82,8 @@ export class AuthService {
               username: dto.username,
               displayName: dto.displayName,
               country: dto.country,
-              language: dto.language
+              language: dto.language,
+              timezone: AuthService.ianaZone(dto.timezone)
             }
           }
         },

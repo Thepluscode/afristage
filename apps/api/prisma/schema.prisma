@@ -191,6 +191,11 @@ model Profile {
   country     String?
   city        String?
   language    String?
+  // IANA zone (e.g. "Africa/Lagos") captured at sign-up. Cannot be backfilled:
+  // in six months there is no way to ask someone what zone they signed up in,
+  // and every scheduled communication — show reminders, digests, renewals —
+  // needs it to fire at a civil hour rather than the server's.
+  timezone    String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

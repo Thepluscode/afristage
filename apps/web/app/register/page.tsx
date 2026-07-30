@@ -18,7 +18,20 @@ export default function RegisterPage({ searchParams }: { searchParams: { next?: 
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...form, ageConfirmed })
+      // The browser knows its own zone; capture it once at sign-up because it
+      // cannot be recovered later. Guarded: a browser without Intl must still
+      // be able to register.
+      body: JSON.stringify({
+        ...form,
+        ageConfirmed,
+        timezone: (() => {
+          try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+          } catch {
+            return undefined;
+          }
+        })()
+      })
     });
     setBusy(false);
     if (res.ok) window.location.assign(next);
