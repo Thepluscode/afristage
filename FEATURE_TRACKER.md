@@ -40,6 +40,19 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-08-01 — the payment loop, proven against the real Stripe
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Stripe integration exercised against the real provider for the first time.** Every payment test in this repo runs against our own mock, which agrees with our assumptions by construction — so the seam between "works with our mock" and "takes real money" had never been tested. `validate:provider-sandbox` run with a real `sk_test_` key: 6/6. The key authenticates, Stripe accepts our session parameters, and — the part a mock cannot check — **our provider parses Stripe's actual response**: an unpaid session verifies as not-successful, amount `100` cents, currency `USD`, reference echoed. | VERIFIED | Live against `api.stripe.com` in test mode. Hosted checkout URL and `cs_test_…` session id returned; `verify()` parsed the live response correctly. |
+| **Webhook signature verified against genuinely Stripe-signed payloads**, not the HMACs our own tests construct. `stripe listen` + `stripe trigger checkout.session.completed` → `200`. An event whose session we do not recognise is logged (`STRIPE webhook for unknown reference cs_test_…`) and **not** credited — refused loudly rather than silently. | VERIFIED | Real events `evt_3TzVVc…` accepted; unmatched reference warned and refused, no ledger post. |
+| **The full money loop: real card → coins → balanced ledger.** A checkout created through our own API (so an intent row existed), paid with `4242 4242 4242 4242`, credited by the webhook. | VERIFIED | `Credited 100 coins to user b605ab1f… (intent 1dc79416…, provider stripe)`; balance `0 → 100`; one `COIN_PURCHASE` txn keyed `coin_purchase:1dc79416…` carrying the Stripe session as `external_reference`; entries `DEBIT 100 PAYMENT_CLEARING` / `CREDIT 100 COIN`; intent `SUCCEEDED`; global `debits=100 credits=100`. |
+| **Replay is idempotent under a real resent event.** `stripe events resend evt_3TzXjB…` → balance still `100`, still **one** `COIN_PURCHASE` transaction, ledger still balanced. The duplicate-credit failure mode is closed with provider-generated evidence rather than a constructed test. | VERIFIED | Post-replay: coins `100`, `COIN_PURCHASE` count `1`, `debits=100 credits=100`. |
+
+Paystack remains unrehearsed — no test key yet. `validate:provider-sandbox` skips it and says so rather than implying coverage.
+
+---
+
 ## Session 2026-07-28 — reference gaps closed, and the API half they needed
 
 | Feature | Status | Evidence |
