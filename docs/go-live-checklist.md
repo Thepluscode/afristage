@@ -38,9 +38,9 @@ checkout URL with a test card and replaying the webhook (`stripe listen
 way to prove the signature path end to end.
 
 - [ ] `validate:provider-sandbox` green against Paystack test mode
-- [ ] `validate:provider-sandbox` green against Stripe test mode
-- [ ] A test-card payment credits coins and writes a `COIN_PURCHASE` ledger entry
-- [ ] A replayed webhook is idempotent (no second credit)
+- [x] `validate:provider-sandbox` green against Stripe test mode — 6/6, 2026-08-01
+- [x] A test-card payment credits coins and writes a `COIN_PURCHASE` ledger entry — 2026-08-01, 0→100 coins, entries balanced
+- [x] A replayed webhook is idempotent (no second credit) — 2026-08-01, real `stripe events resend`, still one txn
 
 ## 1. Payments — Paystack (African corridors: NGN/GHS/KES/ZAR)
 
