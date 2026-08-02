@@ -68,6 +68,7 @@ jobs:
           for i in $(seq 1 30); do curl -fsS "$API_BASE/health" >/dev/null 2>&1 && break; sleep 2; done
           set -e
           npm run validate:money
+          npm run validate:cross-user
           npm run validate:moderation
           npm run validate:moderation-ops
           npm run validate:security
