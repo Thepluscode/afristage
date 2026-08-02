@@ -54,6 +54,14 @@ the evidence is *good* is your judgement, not the linter's.
   behind a friendly message. Where a call site can say something specific — which
   field collided, and what to do about it — it should still catch its own error;
   the filter is the floor, not the ceiling.
+- **`npm run validate:cross-user`** asks whether user B can see user A's data,
+  including the cache scenario: A warms a shared surface, then B loads it. There
+  is one cache today (the public feed slice) and it is viewer-neutral by
+  construction — this exists for the day someone adds a second one. **Any new
+  cache key must contain the owner**, or the database's row-level security is
+  bypassed entirely: the cache answers before the query runs, holding the output
+  of somebody else's permission check.
+
 - **`npm run validate:error-paths`** does every ordinary action twice and asserts
   nothing answers 5xx. Run it against a deployed environment, not just locally:
   the duplicate-signup 500 lived on the funnel's first screen because every other
