@@ -939,6 +939,54 @@ void main() {
     expect(find.text('Amapiano All Night'), findsOneWidget);
   });
 
+  testWidgets('LiveScreen discovery modes filter the image grid by locality',
+      (tester) async {
+    final api = _FakeApi(
+      maps: {
+        '/users/me': {
+          'profile': {'country': 'NG'}
+        },
+      },
+      lists: {
+        '/live-rooms': [
+          {
+            'id': 'r1',
+            'title': 'Lagos Stage',
+            'category': 'MUSIC',
+            'country': 'NG',
+            'language': 'pidgin',
+            'status': 'LIVE',
+            'viewerCount': 1400,
+          },
+          {
+            'id': 'r2',
+            'title': 'Nairobi Comedy',
+            'category': 'COMEDY',
+            'country': 'KE',
+            'language': 'English',
+            'status': 'LIVE',
+            'viewerCount': 2200,
+          },
+        ],
+      },
+    );
+    await tester.pumpWidget(_wrap(api, const LiveScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Featured'), findsOneWidget);
+    expect(find.text('Popular'), findsOneWidget);
+    expect(find.text('Nearby'), findsOneWidget);
+    expect(find.text('Explore'), findsOneWidget);
+    expect(find.text('Lagos Stage'), findsOneWidget);
+    expect(find.text('Nairobi Comedy'), findsOneWidget);
+
+    await tester.tap(find.text('Nearby'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lagos Stage'), findsOneWidget);
+    expect(find.text('Nairobi Comedy'), findsNothing);
+    expect(find.text('1 live'), findsOneWidget);
+  });
+
   testWidgets('ReportScreen block-user flow posts a block', (tester) async {
     _tall(tester);
     final api = _FakeApi();

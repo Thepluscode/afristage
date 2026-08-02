@@ -951,12 +951,14 @@ class AfriGiftDrawer extends StatefulWidget {
     required this.gifts,
     required this.coinBalance,
     required this.onGiftSelected,
+    this.recentGiftIds = const <String>{},
     this.onBuyCoins,
   });
 
   final List<Gift> gifts;
   final int coinBalance;
-  final ValueChanged<Gift> onGiftSelected;
+  final void Function(Gift gift, int quantity) onGiftSelected;
+  final Set<String> recentGiftIds;
   final VoidCallback? onBuyCoins;
 
   @override
@@ -965,6 +967,29 @@ class AfriGiftDrawer extends StatefulWidget {
 
 class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
   Gift? _selected;
+  String _catalog = 'Popular';
+  int _quantity = 1;
+
+  static const _presetQuantities = [1, 10, 99, 188, 999];
+
+  List<String> get _catalogs => [
+        'Popular',
+        if (widget.recentGiftIds.isNotEmpty) 'Recent',
+        if (widget.gifts.any((gift) => gift.isEventGift)) 'Events',
+      ];
+
+  List<Gift> get _visibleGifts {
+    switch (_catalog) {
+      case 'Recent':
+        return widget.gifts
+            .where((gift) => widget.recentGiftIds.contains(gift.id))
+            .toList();
+      case 'Events':
+        return widget.gifts.where((gift) => gift.isEventGift).toList();
+      default:
+        return widget.gifts;
+    }
+  }
 
   @override
   void initState() {
@@ -974,9 +999,62 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
     }
   }
 
+  void _selectCatalog(String catalog) {
+    final visible = catalog == 'Recent'
+        ? widget.gifts
+            .where((gift) => widget.recentGiftIds.contains(gift.id))
+            .toList()
+        : catalog == 'Events'
+            ? widget.gifts.where((gift) => gift.isEventGift).toList()
+            : widget.gifts;
+    setState(() {
+      _catalog = catalog;
+      if (!visible.any((gift) => gift.id == _selected?.id)) {
+        _selected = visible.firstOrNull;
+      }
+    });
+  }
+
+  Future<void> _chooseCustomQuantity() async {
+    final controller = TextEditingController(text: '1');
+    final value = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Gift quantity'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Quantity',
+            helperText: 'Choose between 1 and 10,000',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final parsed = int.tryParse(controller.text.trim());
+              if (parsed == null || parsed < 1 || parsed > 10000) return;
+              Navigator.pop(dialogContext, parsed);
+            },
+            child: const Text('Use quantity'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value != null && mounted) setState(() => _quantity = value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
+    final visibleGifts = _visibleGifts;
+    final total = (selected?.coinPrice ?? 0) * _quantity;
+    final canAfford = selected != null && total <= widget.coinBalance;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
@@ -1018,7 +1096,24 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                   child: const Text('Buy coins'),
                 ),
               ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _catalogs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, index) {
+                  final catalog = _catalogs[index];
+                  return _GiftCatalogChip(
+                    label: Text(catalog),
+                    selected: catalog == _catalog,
+                    onTap: () => _selectCatalog(catalog),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
             if (widget.gifts.isEmpty)
               const AfriEmptyState(
                 icon: CupertinoIcons.gift_fill,
@@ -1034,7 +1129,7 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
                 children: [
-                  for (final entry in widget.gifts.asMap().entries)
+                  for (final entry in visibleGifts.asMap().entries)
                     Stack(
                       children: [
                         Positioned.fill(
@@ -1061,12 +1156,68 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                                   color: Color(0xFF170B02), size: 13),
                             ),
                           ),
+                        if (entry.value.isEventGift)
+                          Positioned(
+                            left: 6,
+                            top: 7,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AfriColors.purple,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'EVENT',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                 ],
               ),
             if (selected != null) ...[
               const SizedBox(height: 14),
+              Row(
+                children: [
+                  Text('Quantity',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final quantity in _presetQuantities) ...[
+                            _QuantityChip(
+                              quantity: quantity,
+                              selected: _quantity == quantity,
+                              onTap: () => setState(() => _quantity = quantity),
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+                          _QuantityChip(
+                            label: _presetQuantities.contains(_quantity)
+                                ? '···'
+                                : '×$_quantity',
+                            selected: !_presetQuantities.contains(_quantity),
+                            onTap: _chooseCustomQuantity,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -1082,13 +1233,26 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
                         children: [
                           Text(selected.name,
                               style: Theme.of(context).textTheme.titleMedium),
-                          Text('${selected.coinPrice} coins',
-                              style: Theme.of(context).textTheme.bodyMedium),
+                          Text(
+                            '$_quantity × ${selected.coinPrice} = '
+                            '${formatCount(total)} coins',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          if (!canAfford)
+                            const Text(
+                              'Not enough coins',
+                              style: TextStyle(
+                                  color: AfriColors.danger,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800),
+                            ),
                         ],
                       ),
                     ),
                     FilledButton.icon(
-                      onPressed: () => widget.onGiftSelected(selected),
+                      onPressed: canAfford
+                          ? () => widget.onGiftSelected(selected, _quantity)
+                          : null,
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(84, 42),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1101,6 +1265,92 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuantityChip extends StatelessWidget {
+  const _QuantityChip({
+    this.quantity,
+    this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int? quantity;
+  final String? label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        constraints: const BoxConstraints(minWidth: 31, minHeight: 31),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? AfriColors.gold
+              : AfriColors.elevated.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(999),
+          border:
+              Border.all(color: selected ? AfriColors.gold : AfriColors.border),
+        ),
+        child: Text(
+          label ?? '$quantity',
+          style: TextStyle(
+            color: selected ? const Color(0xFF170B02) : AfriColors.text,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GiftCatalogChip extends StatelessWidget {
+  const _GiftCatalogChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Widget label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 15),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected
+              ? AfriColors.gold.withValues(alpha: 0.16)
+              : AfriColors.elevated,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? AfriColors.gold : AfriColors.borderStrong,
+          ),
+        ),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(
+            color: selected ? AfriColors.gold : AfriColors.secondaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+          child: label,
         ),
       ),
     );
@@ -2067,8 +2317,7 @@ class AfriLiveTopBar extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                 decoration: BoxDecoration(
                   color: const Color(0x55000000),
                   borderRadius: BorderRadius.circular(999),
@@ -2617,55 +2866,299 @@ class AfriGiftAnimationLayer extends StatelessWidget {
 }
 
 class AfriTopGifterStrip extends StatelessWidget {
-  const AfriTopGifterStrip({super.key, required this.gifters});
+  const AfriTopGifterStrip({
+    super.key,
+    required this.gifters,
+    this.onTap,
+  });
 
   final List<(String, String)> gifters;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     if (gifters.isEmpty) return const SizedBox.shrink();
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        itemCount: gifters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final gifter = gifters[index];
-          final initial = gifter.$1.isEmpty ? 'A' : gifter.$1[0].toUpperCase();
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: AfriColors.gold.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-              border:
-                  Border.all(color: AfriColors.gold.withValues(alpha: 0.28)),
-            ),
-            child: Row(
+    return Semantics(
+      button: onTap != null,
+      label: onTap == null ? null : 'Open real-time stage heat',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          height: 44,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            itemCount: gifters.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final gifter = gifters[index];
+              final initial =
+                  gifter.$1.isEmpty ? 'A' : gifter.$1[0].toUpperCase();
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AfriColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                      color: AfriColors.gold.withValues(alpha: 0.28)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 13,
+                      backgroundColor: AfriColors.gold,
+                      child: Text(initial,
+                          style: const TextStyle(
+                              color: Color(0xFF170B02),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900)),
+                    ),
+                    const SizedBox(width: 7),
+                    Text('${index + 1}. ${gifter.$1}',
+                        style: Theme.of(context).textTheme.labelMedium),
+                    const SizedBox(width: 5),
+                    Text(gifter.$2,
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium
+                            ?.copyWith(color: AfriColors.gold)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AfriRoomHeatSheet extends StatelessWidget {
+  const AfriRoomHeatSheet({
+    super.key,
+    required this.gifters,
+    required this.totalCoins,
+    this.tierLabel,
+    this.nextTierLabel,
+    this.coinsToNextTier,
+    this.standingUnavailable = false,
+    this.onOpenMissions,
+    this.onOpenEvents,
+  });
+
+  final List<(String, String)> gifters;
+  final int totalCoins;
+  final String? tierLabel;
+  final String? nextTierLabel;
+  final int? coinsToNextTier;
+  final bool standingUnavailable;
+  final VoidCallback? onOpenMissions;
+  final VoidCallback? onOpenEvents;
+
+  @override
+  Widget build(BuildContext context) {
+    final leaders = gifters.take(3).toList();
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                CircleAvatar(
-                  radius: 13,
-                  backgroundColor: AfriColors.gold,
-                  child: Text(initial,
-                      style: const TextStyle(
-                          color: Color(0xFF170B02),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [AfriColors.orange, AfriColors.gold]),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(CupertinoIcons.flame_fill,
+                      color: Color(0xFF170B02)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Real-time stage heat',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900)),
+                      const Text('Support this creator and rise in the room.',
+                          style: TextStyle(
+                              color: AfriColors.secondaryText, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const AfriLiveBadge(),
+              ],
+            ),
+            const SizedBox(height: 18),
+            if (leaders.isEmpty)
+              const AfriEmptyState(
+                icon: CupertinoIcons.flame,
+                title: 'The stage is warming up',
+                body: 'Send the first gift to take the lead.',
+              )
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (var index = 0; index < leaders.length; index++)
+                    Expanded(
+                      child: _HeatLeader(
+                        rank: index + 1,
+                        name: leaders[index].$1,
+                        coins: leaders[index].$2,
+                        highlighted: index == 0,
+                      ),
+                    ),
+                ],
+              ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AfriColors.elevated,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AfriColors.border),
+              ),
+              child: standingUnavailable
+                  ? const Text(
+                      'Your supporter level is temporarily unavailable.',
+                      style: TextStyle(color: AfriColors.secondaryText),
+                    )
+                  : Row(
+                      children: [
+                        const AfriIconBadge(
+                            icon: CupertinoIcons.star_fill,
+                            accent: AfriColors.purple),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(tierLabel ?? 'New supporter',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15)),
+                              Text(
+                                nextTierLabel == null
+                                    ? '${formatCount(totalCoins)} coins · highest tier'
+                                    : '${formatCount(totalCoins)} coins · '
+                                        '${formatCount(coinsToNextTier ?? 0)} to $nextTierLabel',
+                                style: const TextStyle(
+                                    color: AfriColors.secondaryText,
+                                    fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onOpenMissions,
+                    icon: const Icon(CupertinoIcons.checkmark_seal_fill),
+                    label: const Text('Daily missions'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onOpenEvents,
+                    icon: const Icon(CupertinoIcons.calendar_badge_plus),
+                    label: const Text('Live events'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeatLeader extends StatelessWidget {
+  const _HeatLeader({
+    required this.rank,
+    required this.name,
+    required this.coins,
+    required this.highlighted,
+  });
+
+  final int rank;
+  final String name;
+  final String coins;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isEmpty ? 'A' : name[0].toUpperCase();
+    return Padding(
+      padding: EdgeInsets.only(bottom: highlighted ? 12 : 0),
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: highlighted ? 30 : 25,
+                backgroundColor:
+                    highlighted ? AfriColors.gold : AfriColors.purple,
+                child: Text(initial,
+                    style: TextStyle(
+                        color: highlighted
+                            ? const Color(0xFF170B02)
+                            : Colors.white,
+                        fontSize: highlighted ? 20 : 17,
+                        fontWeight: FontWeight.w900)),
+              ),
+              Positioned(
+                bottom: -7,
+                child: Container(
+                  width: 23,
+                  height: 23,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: highlighted ? AfriColors.gold : AfriColors.elevated,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AfriColors.surface, width: 2),
+                  ),
+                  child: Text('$rank',
+                      style: TextStyle(
+                          color: highlighted
+                              ? const Color(0xFF170B02)
+                              : AfriColors.text,
                           fontSize: 11,
                           fontWeight: FontWeight.w900)),
                 ),
-                const SizedBox(width: 7),
-                Text('${index + 1}. ${gifter.$1}',
-                    style: Theme.of(context).textTheme.labelMedium),
-                const SizedBox(width: 5),
-                Text(gifter.$2,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelMedium
-                        ?.copyWith(color: AfriColors.gold)),
-              ],
-            ),
-          );
-        },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+          Text('$coins coins',
+              style: const TextStyle(
+                  color: AfriColors.gold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800)),
+        ],
       ),
     );
   }

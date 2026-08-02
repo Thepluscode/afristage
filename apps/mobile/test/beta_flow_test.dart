@@ -142,7 +142,7 @@ void main() {
           body: AfriGiftDrawer(
             gifts: const [Gift(id: 'g1', name: 'Spotlight', coinPrice: 50)],
             coinBalance: 100,
-            onGiftSelected: (_) {},
+            onGiftSelected: (_, __) {},
             onBuyCoins: () {},
           ),
         ),
@@ -153,9 +153,56 @@ void main() {
     expect(find.text('100'), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.lightbulb_fill), findsOneWidget);
     expect(find.text('Spotlight'), findsWidgets);
-    expect(find.text('50 coins'), findsWidgets);
+    expect(find.text('1 × 50 = 50 coins'), findsOneWidget);
     expect(find.text('Buy coins'), findsOneWidget);
     expect(find.text('Send'), findsOneWidget);
+  });
+
+  testWidgets('gift drawer filters event gifts and sends a multiplier',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    Gift? sentGift;
+    int? sentQuantity;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AfriGiftDrawer(
+            gifts: const [
+              Gift(id: 'rose', name: 'Rose', coinPrice: 10),
+              Gift(
+                  id: 'crown',
+                  name: 'Event Crown',
+                  coinPrice: 100,
+                  eventId: 'event-1'),
+            ],
+            recentGiftIds: const {'rose'},
+            coinBalance: 2000,
+            onGiftSelected: (gift, quantity) {
+              sentGift = gift;
+              sentQuantity = quantity;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Popular'), findsOneWidget);
+    expect(find.text('Recent'), findsOneWidget);
+    expect(find.text('Events'), findsOneWidget);
+    await tester.tap(find.text('Events'));
+    await tester.pumpAndSettle();
+    expect(find.text('EVENT'), findsOneWidget);
+    expect(find.text('Rose'), findsNothing);
+    await tester.tap(find.text('10').last);
+    await tester.pumpAndSettle();
+    expect(find.text('10 × 100 = 1.0K coins'), findsOneWidget);
+    await tester.tap(find.text('Send'));
+    expect(sentGift?.id, 'crown');
+    expect(sentQuantity, 10);
   });
 
   testWidgets('live card uses full-bleed design overlays', (tester) async {

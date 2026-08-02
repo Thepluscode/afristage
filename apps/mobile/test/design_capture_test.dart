@@ -236,6 +236,9 @@ void main() async {
           .pumpWidget(_app(viewerState, boundaryKey, const HomeShell()));
       await _capture(tester, boundaryKey, 'home-viewer');
 
+      await tester.tap(find.text('Live'));
+      await _capture(tester, boundaryKey, 'live-discover');
+
       await tester.pumpWidget(_app(state, boundaryKey, const HomeShell()));
       await _capture(tester, boundaryKey, 'home');
 
@@ -333,20 +336,25 @@ void main() async {
                     const BorderRadius.vertical(top: Radius.circular(24)),
                 clipBehavior: Clip.antiAlias,
                 child: SizedBox(
-                  height: 382,
+                  height: 560,
                   child: AfriGiftDrawer(
                     gifts: const [
                       Gift(id: 'rose', name: 'Rose', coinPrice: 10),
                       Gift(id: 'fire', name: 'Fire', coinPrice: 50),
                       Gift(id: 'mic', name: 'Golden Mic', coinPrice: 100),
                       Gift(id: 'drum', name: 'Drum', coinPrice: 200),
-                      Gift(id: 'crown', name: 'Crown', coinPrice: 500),
+                      Gift(
+                          id: 'crown',
+                          name: 'Crown',
+                          coinPrice: 500,
+                          eventId: 'afrobeats-night'),
                       Gift(id: 'spot', name: 'Spotlight', coinPrice: 1000),
                       Gift(id: 'star', name: 'Star', coinPrice: 2000),
                       Gift(id: 'stage', name: 'Stage', coinPrice: 5000),
                     ],
+                    recentGiftIds: const {'rose', 'fire'},
                     coinBalance: 12450,
-                    onGiftSelected: (_) {},
+                    onGiftSelected: (_, __) {},
                   ),
                 ),
               ),
@@ -363,6 +371,42 @@ void main() async {
       // opaque. Settling here would fade them out completely.
       await tester.pump(const Duration(milliseconds: 700));
       await _capture(tester, boundaryKey, 'live-room-chat', settle: false);
+
+      await tester.pumpWidget(_app(
+        viewerState,
+        boundaryKey,
+        Stack(
+          children: [
+            Positioned.fill(child: roomWithoutDrawer),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Material(
+                color: AfriColors.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  height: 480,
+                  child: AfriRoomHeatSheet(
+                    gifters: const [
+                      ('KingSteve', '245'),
+                      ('Ama_Gh', '128'),
+                      ('TosinB', '87'),
+                    ],
+                    totalCoins: 720,
+                    tierLabel: 'Gold supporter',
+                    nextTierLabel: 'Platinum supporter',
+                    coinsToNextTier: 280,
+                    onOpenMissions: () {},
+                    onOpenEvents: () {},
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ));
+      await _capture(tester, boundaryKey, 'live-room-heat');
     },
     skip: !_captureDesign,
   );
