@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { corsOrigin } from './config/cors-origins';
 import { validateEnv } from './config/validate-env';
 import { JsonLogger } from './common/json-logger';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
@@ -28,7 +29,7 @@ async function bootstrap() {
     next();
   });
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: true, credentials: true });
+  app.enableCors({ origin: corsOrigin(), credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalInterceptors(new RequestLoggingInterceptor());
   // Floor under every un-caught database rule: a constraint violation becomes an

@@ -8,8 +8,9 @@ import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../database/prisma.service';
 import { ChatService } from './chat.service';
 import { RoomBroadcast, RoomEvents, RoomPresence } from './room-events';
+import { corsOrigin } from '../../config/cors-origins';
 
-@WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
+@WebSocketGateway({ namespace: '/chat', cors: { origin: corsOrigin(), credentials: true } })
 export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy, RoomBroadcast, RoomPresence
 {
