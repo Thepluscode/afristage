@@ -18,6 +18,7 @@ describe('validateEnv', () => {
     process.env.DATABASE_URL = 'postgres://x';
     process.env.REDIS_URL = 'redis://x';
     process.env.PAYSTACK_SECRET_KEY = 'sk_live_real';
+    process.env.CORS_ORIGINS = 'https://admin.example.com';
     process.env.REQUIRE_ADMIN_MFA = 'true';
     delete process.env.ENABLE_MOCK_PAYMENTS;
   }
@@ -29,7 +30,7 @@ describe('validateEnv', () => {
 
   it('throws when required production vars are missing', () => {
     process.env.NODE_ENV = 'production';
-    for (const k of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'DATABASE_URL', 'REDIS_URL', 'PAYSTACK_SECRET_KEY']) delete process.env[k];
+    for (const k of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'DATABASE_URL', 'REDIS_URL', 'PAYSTACK_SECRET_KEY', 'CORS_ORIGINS']) delete process.env[k];
     expect(() => validateEnv()).toThrow(/Missing required production env vars/);
   });
 
@@ -66,6 +67,7 @@ describe('validateEnv — season additions', () => {
     DATABASE_URL: 'postgres://real',
     REDIS_URL: 'redis://real',
     PAYSTACK_SECRET_KEY: 'sk_live_real',
+    CORS_ORIGINS: 'https://admin.example.com',
     REQUIRE_ADMIN_MFA: 'true'
   };
   const withEnv = (over: Record<string, string | undefined>, fn: () => void) => {

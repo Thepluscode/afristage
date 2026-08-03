@@ -7,7 +7,11 @@ const PROD_REQUIRED = [
   'LIVEKIT_API_SECRET',
   'DATABASE_URL',
   'REDIS_URL',
-  'PAYSTACK_SECRET_KEY'
+  'PAYSTACK_SECRET_KEY',
+  // Without this the API would refuse every browser origin in production. Crash
+  // at boot instead: a dead service is diagnosed in minutes, an API that
+  // silently rejects the admin UI's every request is diagnosed in hours.
+  'CORS_ORIGINS'
 ];
 
 // Known unsafe placeholder/fallback values that must never run in production.
