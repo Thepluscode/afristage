@@ -50,6 +50,7 @@ class _RoomApi extends ApiClient {
   final bool failMute;
   final Map<String, dynamic> giftResult;
   final posts = <String>[];
+  final postBodies = <String, Map<String, dynamic>?>{};
   final deletes = <String>[];
 
   @override
@@ -71,6 +72,7 @@ class _RoomApi extends ApiClient {
       throw const ApiException(500, 'follow failed');
     }
     posts.add(path);
+    postBodies[path] = body;
     if (path.endsWith('/join-token')) {
       return {'livekitUrl': 'ws://x', 'viewerToken': 'tok'};
     }
@@ -111,6 +113,18 @@ class _TopGiftersDownApi extends _RoomApi {
       throw const ApiException(500, 'leaderboard down');
     }
     return super.getList(path);
+  }
+}
+
+class _WalletRefreshDownApi extends _RoomApi {
+  _WalletRefreshDownApi({required super.gifts});
+
+  @override
+  Future<Map<String, dynamic>> get(String path) async {
+    if (path == '/wallet/me') {
+      throw const ApiException(503, 'wallet refresh down');
+    }
+    return super.get(path);
   }
 }
 
@@ -220,6 +234,29 @@ void main() {
     await tester.tap(find.byIcon(CupertinoIcons.gift_fill)); // onGift -> sheet
     await tester.pumpAndSettle();
     expect(find.byType(AfriGiftDrawer), findsOneWidget);
+  });
+
+  testWidgets('viewer opens real-time heat and supporter standing',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _RoomApi(topGifters: const [
+      {'displayName': 'Ama', 'totalCoins': 320},
+      {'displayName': 'Tosin', 'totalCoins': 180},
+    ]);
+    final state = AppState(api: api)..userId = 'v1';
+    await tester.pumpWidget(_wrap(state,
+        RoomScreen(room: _room(), socketFactory: (uri, opts) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Heat'));
+    await tester.pumpAndSettle();
+    expect(find.text('Real-time stage heat'), findsOneWidget);
+    expect(find.text('Ama'), findsWidgets);
+    expect(find.text('New supporter'), findsOneWidget);
+    expect(find.text('Daily missions'), findsOneWidget);
+    expect(find.text('Live events'), findsOneWidget);
   });
 
   // Regression (staging, 2026-07-14): the only publish affordance lived inside
@@ -389,7 +426,8 @@ void main() {
     expect(find.byType(AfriVideoStage), findsOneWidget);
   });
 
-  testWidgets('viewer sends a gift (funded wallet)', (tester) async {
+  testWidgets('viewer sends a gift multiplier with the chosen quantity',
+      (tester) async {
     _tall(tester);
     final socket = _FakeSocket();
     final api = _RoomApi(gifts: [
@@ -407,11 +445,43 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rose').first);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('10').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Send'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(api.posts, contains('/live-rooms/r1/gifts'));
+    expect(api.postBodies['/live-rooms/r1/gifts']?['quantity'], 10);
     await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('a sent gift stays successful when wallet refresh fails',
+      (tester) async {
+    _tall(tester);
+    final socket = _FakeSocket();
+    final api = _WalletRefreshDownApi(gifts: const [
+      {'id': 'g1', 'name': 'Rose', 'coinPrice': 50}
+    ]);
+    final state = AppState(api: api)
+      ..userId = 'v1'
+      ..wallet = const Wallet(
+          coinBalance: 1000, earningBalance: 0, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrap(
+        state, RoomScreen(room: _room(), socketFactory: (u, o) => socket)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(api.posts, contains('/live-rooms/r1/gifts'));
+    expect(find.text('Gift sent. Your balance will refresh shortly.'),
+        findsOneWidget);
+    expect(find.textContaining('Gift failed'), findsNothing);
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('viewer sends a reaction from the picker', (tester) async {
@@ -604,7 +674,7 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
-  testWidgets('gift sheet buy-coins shortcut toasts', (tester) async {
+  testWidgets('gift sheet buy-coins shortcut opens Wallet', (tester) async {
     _tall(tester);
     final socket = _FakeSocket();
     final api = _RoomApi(gifts: [
@@ -621,10 +691,8 @@ void main() {
     await tester.tap(find.byIcon(CupertinoIcons.gift_fill));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Buy coins'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('Open Wallet to buy coins.'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('Wallet'), findsWidgets);
   });
 
   testWidgets('gift with non-numeric earning falls back to coin price',

@@ -73,18 +73,23 @@ class Gift {
     required this.name,
     required this.coinPrice,
     this.artworkUrl,
+    this.eventId,
   });
 
   final String id;
   final String name;
   final int coinPrice;
   final String? artworkUrl;
+  final String? eventId;
+
+  bool get isEventGift => eventId != null && eventId!.isNotEmpty;
 
   factory Gift.fromJson(Map<String, dynamic> json) => Gift(
         id: json['id'] as String,
         name: json['name'] as String? ?? 'Gift',
         coinPrice: asInt(json['coinPrice']),
         artworkUrl: json['animationUrl'] as String?,
+        eventId: json['eventId'] as String?,
       );
 }
 

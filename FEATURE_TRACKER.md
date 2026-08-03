@@ -50,6 +50,18 @@ Flutter mobile (`apps/mobile`).
 | **Replay is idempotent under a real resent event.** `stripe events resend evt_3TzXjB…` → balance still `100`, still **one** `COIN_PURCHASE` transaction, ledger still balanced. The duplicate-credit failure mode is closed with provider-generated evidence rather than a constructed test. | VERIFIED | Post-replay: coins `100`, `COIN_PURCHASE` count `1`, `debits=100 credits=100`. |
 
 Paystack remains unrehearsed — no test key yet. `validate:provider-sandbox` skips it and says so rather than implying coverage.
+## Session 2026-07-29 — BIGO interface gaps adopted without fake systems
+
+Seven supplied BIGO references were audited against AfriStage's real mobile/API
+contracts. Full decision record:
+[R6-bigo-interface-gap-audit.md](docs/reverse-engineering/R6-bigo-interface-gap-audit.md).
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Mode-led live discovery**: branded Discover tab, Featured/Popular/Nearby/Explore modes, category filters, search, count-aware empty states, and a dense image-led two-column room grid. Featured preserves the server-ranked feed; Popular sorts by current viewers then real room gift totals; Nearby uses the viewer's profile country; Explore category-diversifies the bounded feed rather than duplicating Featured. | IMPLEMENTED | `flutter analyze` clean; locality/filter widget test; 390×844 `mobile-captures/live-discover.png`. Local render only, so not VERIFIED. |
+| **BIGO-style gift decision flow on the real ledger path**: Popular/Recent/Events tabs, `eventId`-driven EVENT badges, `1/10/99/188/999` and bounded custom quantity, computed total, insufficient-balance disable, Wallet navigation, and the selected quantity posted with the existing idempotency key. A successful charge is no longer falsely reported as failed when the follow-up wallet refresh is unavailable. | IMPLEMENTED | Event-tab/multiplier and compact-overflow tests; room test asserts `quantity: 10` in the API payload; wallet-navigation and post-send-refresh-failure regressions; 390×844 `mobile-captures/live-room.png`. Server remains authoritative for price, event window, balance, room status and idempotency. |
+| **Real-time stage heat and supporter standing**: tappable top-supporter strip plus Heat action opens a podium, the viewer's real supporter tier/next-tier progress, and routes into existing Daily Missions and Live Events. Empty and unavailable standing states degrade without blocking the room. | IMPLEMENTED | Heat-sheet interaction test and `mobile-captures/live-room-heat.png`; uses existing `/live-rooms/:id/top-gifters` and `/creators/:creatorId/supporters/me`. |
+| **PK battles, multi-guest seats, beauty effects, and VIP/SVIP/incognito** | PLANNED (premise-gated) | The references prove visual patterns, not demand or viable contracts. Each requires a real lifecycle/media/entitlement/safety system and device/load evidence; no decorative controls were added. |
 
 ---
 

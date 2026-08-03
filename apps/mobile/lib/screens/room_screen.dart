@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -7,9 +8,12 @@ import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
 import '../widgets/afri_ui.dart';
-import 'livekit_room_view.dart';
 import 'creator_profile_screen.dart';
+import 'events_screen.dart';
+import 'livekit_room_view.dart';
+import 'missions_screen.dart';
 import 'report_screen.dart';
+import 'wallet_screen.dart';
 
 /// Default socket factory used when a RoomScreen is pushed without an explicit
 /// [RoomScreen.socketFactory] (e.g. from the live/search/notifications feeds).
@@ -79,6 +83,7 @@ class _RoomScreenState extends State<RoomScreen> {
   late int _viewerCount = widget.room.viewerCount;
   int _giftCount = 0;
   int _earningsEstimate = 0;
+  final Set<String> _recentGiftIds = {};
   final _reactions = <String>[];
   // Live top supporters, fetched from the backend leaderboard endpoint.
   List<(String, String)> _topGifters = const [];
@@ -392,48 +397,108 @@ class _RoomScreenState extends State<RoomScreen> {
       context: context,
       backgroundColor: AfriColors.surface,
       showDragHandle: true,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+      ),
       builder: (sheetContext) => AfriGiftDrawer(
         gifts: gifts,
         coinBalance: _state.wallet.coinBalance,
+        recentGiftIds: _recentGiftIds,
         onBuyCoins: () {
           Navigator.pop(sheetContext);
-          _toast('Open Wallet to buy coins.');
+          Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const WalletScreen()));
         },
-        onGiftSelected: (gift) {
+        onGiftSelected: (gift, quantity) {
           Navigator.pop(sheetContext);
-          _sendGift(gift);
+          _sendGift(gift, quantity);
         },
       ),
     );
   }
 
-  Future<void> _sendGift(Gift gift) async {
-    if (_state.wallet.coinBalance < gift.coinPrice) {
+  Future<void> _sendGift(Gift gift, int quantity) async {
+    if (quantity < 1 || quantity > 10000) {
+      _toast('Choose a gift quantity between 1 and 10,000.');
+      return;
+    }
+    final totalCost = gift.coinPrice * quantity;
+    if (_state.wallet.coinBalance < totalCost) {
       _showBanner(AfriRoomState.connected,
           'Insufficient coins. Open Wallet to buy more coins.');
-      _toast('Not enough coins for ${gift.name}.');
+      _toast('Not enough coins for $quantity × ${gift.name}.');
       return;
     }
     try {
       final res = await _state.api.post('/live-rooms/${widget.room.id}/gifts', {
         'giftId': gift.id,
-        'quantity': 1,
+        'quantity': quantity,
         'idempotencyKey': 'gift-${DateTime.now().microsecondsSinceEpoch}',
       });
-      await _state.refreshWallet();
+      if (!_canUpdate) return;
       _flashGift(gift.name);
       setState(() {
-        _giftCount += 1;
+        _recentGiftIds.add(gift.id);
+        _giftCount += quantity;
         _earningsEstimate +=
-            int.tryParse('${res['creatorEarningMinor'] ?? gift.coinPrice}') ??
-                gift.coinPrice;
+            int.tryParse('${res['creatorEarningMinor'] ?? totalCost}') ??
+                totalCost;
       });
-      _toast(
-          'Sent ${gift.name}! Creator earned ${res['creatorEarningMinor']} coins');
+      _loadTopGifters();
+      try {
+        await _state.refreshWallet();
+        _toast('Sent $quantity × ${gift.name}.');
+      } on Object catch (error) {
+        debugPrint('Gift sent but wallet refresh failed: $error');
+        _toast('Gift sent. Your balance will refresh shortly.');
+      }
     } on ApiException catch (e) {
       _showBanner(AfriRoomState.connected, 'Gift failed. ${e.message}');
       _toast('Gift failed. ${e.message}');
     }
+  }
+
+  Future<void> _openRoomHeat() async {
+    Map<String, dynamic>? standing;
+    var standingUnavailable = false;
+    final hostId = widget.room.hostId;
+    if (hostId == null) {
+      standingUnavailable = true;
+    } else {
+      try {
+        standing = await _state.api.get('/creators/$hostId/supporters/me');
+      } on Object {
+        standingUnavailable = true;
+      }
+    }
+    if (!mounted) return;
+    final tier = standing?['tier'] as Map<String, dynamic>?;
+    final nextTier = standing?['nextTier'] as Map<String, dynamic>?;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AfriColors.surface,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => AfriRoomHeatSheet(
+        gifters: _topGifters,
+        totalCoins: asInt(standing?['totalCoins']),
+        tierLabel: tier?['label'] as String?,
+        nextTierLabel: nextTier?['label'] as String?,
+        coinsToNextTier: asIntOrNull(nextTier?['coinsToGo']),
+        standingUnavailable: standingUnavailable,
+        onOpenMissions: () {
+          Navigator.pop(sheetContext);
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const MissionsScreen()));
+        },
+        onOpenEvents: () {
+          Navigator.pop(sheetContext);
+          Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const EventsScreen()));
+        },
+      ),
+    );
   }
 
   void _toast(String message) {
@@ -600,7 +665,10 @@ class _RoomScreenState extends State<RoomScreen> {
       bottomMeta: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AfriTopGifterStrip(gifters: _topGifters),
+          AfriTopGifterStrip(
+            gifters: _topGifters,
+            onTap: _openRoomHeat,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
             child: Row(
@@ -618,6 +686,15 @@ class _RoomScreenState extends State<RoomScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                ),
+                TextButton.icon(
+                  onPressed: _openRoomHeat,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  icon: const Icon(CupertinoIcons.flame_fill, size: 14),
+                  label: const Text('Heat'),
                 ),
                 Text('$coins coins',
                     style: Theme.of(context).textTheme.labelMedium),
