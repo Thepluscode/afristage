@@ -16,5 +16,8 @@ export const MoneyKey = {
   payoutReject: (payoutId: string) => key(`payout_reject:${payoutId}`),
   payoutPaid: (payoutId: string) => key(`payout_paid:${payoutId}`),
   coinPurchase: (intentId: string) => key(`coin_purchase:${intentId}`),
-  chargeback: (intentId: string) => key(`chargeback:${intentId}`)
+  chargeback: (intentId: string) => key(`chargeback:${intentId}`),
+  // Marketplace sale. Namespaced apart from coinPurchase (which is fiat -> coin)
+  // so a buyer's order key can never collide with a payment intent id.
+  purchase: (buyerId: string, clientKey: string) => key(`purchase:${buyerId}:${clientKey}`)
 } as const;

@@ -91,6 +91,8 @@ enum LedgerTransactionType {
   MISSION_REWARD
   PROMO_FUNDING
   EVENT_PRIZE
+  // Marketplace sale: buyer COIN -> seller EARNING + PLATFORM_REVENUE.
+  PURCHASE
 }
 
 enum LedgerTransactionStatus {
@@ -177,6 +179,8 @@ model User {
   reportsAgainst Report[] @relation("ReportsAgainst")
   payoutRequests PayoutRequest[] @relation("CreatorPayouts")
   reviewedPayouts PayoutRequest[] @relation("ReviewedPayouts")
+  shop           Shop?      @relation("ShopOwner")
+  orders         Order[]    @relation("BuyerOrders")
 
   @@map("users")
 }
@@ -283,6 +287,7 @@ model LiveRoom {
   messages     ChatMessage[]
   gifts        GiftTransaction[]
   reports      Report[]
+  productPins  RoomProductPin[]
 
   @@index([status])
   @@index([country, category])
@@ -861,4 +866,127 @@ model AgencyCreator {
 
   @@index([agencyId])
   @@map("agency_creators")
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace: a creator — or an operator-run brand such as Bronzea — sells to
+// the audience it already has, with the product surfaced inside the live room.
+// Sales are priced in COIN so a purchase reuses the ledger, the EARNING balance
+// and the payout pipeline that already exist, rather than adding a second
+// payment integration. Fiat pricing is the upgrade path, not a v1 requirement.
+// ---------------------------------------------------------------------------
+
+enum ShopStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PLACED
+  FULFILLED
+  CANCELLED
+}
+
+model Shop {
+  id          String     @id @default(uuid())
+  ownerUserId String     @unique @map("owner_user_id") // one shop per seller
+  name        String
+  slug        String     @unique
+  description String?
+  logoUrl     String?    @map("logo_url")
+  // Set on a REFERRAL shop (Bronzea): its products link out to an external
+  // storefront and are never sold in-app, so no stock or money moves here.
+  externalUrl String?    @map("external_url")
+  status      ShopStatus @default(PENDING)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  owner    User      @relation("ShopOwner", fields: [ownerUserId], references: [id])
+  products Product[]
+  orders   Order[]
+
+  @@index([status])
+  @@map("shops")
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  shopId      String        @map("shop_id")
+  title       String
+  description String?
+  imageUrl    String?       @map("image_url")
+  priceCoins  Int           @map("price_coins")
+  // null = unlimited (digital or made-to-order). A number is decremented inside
+  // the order's transaction under a conditional update, so overselling a last
+  // unit to two concurrent buyers is not representable.
+  stock       Int?
+  // Set => link-out product: the buy action opens this URL and no order exists.
+  externalUrl String?       @map("external_url")
+  // Aggregate tap count. ponytail: a per-click row is the upgrade path for when
+  // attribution has to name the viewer rather than only count taps.
+  clickCount  Int           @default(0) @map("click_count")
+  status      ProductStatus @default(DRAFT)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  shop   Shop             @relation(fields: [shopId], references: [id])
+  pins   RoomProductPin[]
+  orders Order[]
+
+  @@index([shopId, status])
+  @@map("products")
+}
+
+// What a viewer actually sees mid-stream. Unpinning is a soft close so a sale's
+// room attribution survives the card being taken down.
+model RoomProductPin {
+  id         String    @id @default(uuid())
+  roomId     String    @map("room_id")
+  productId  String    @map("product_id")
+  pinnedAt   DateTime  @default(now()) @map("pinned_at")
+  unpinnedAt DateTime? @map("unpinned_at")
+
+  room    LiveRoom @relation(fields: [roomId], references: [id])
+  product Product  @relation(fields: [productId], references: [id])
+
+  @@index([roomId, unpinnedAt])
+  @@map("room_product_pins")
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  buyerUserId      String      @map("buyer_user_id")
+  shopId           String      @map("shop_id")
+  productId        String      @map("product_id")
+  // Which live room drove the sale, when it came from a pinned card. Null for a
+  // purchase made from the shop page.
+  roomId           String?     @map("room_id")
+  quantity         Int
+  // Price is copied at purchase time: a later price edit must not rewrite what
+  // somebody already paid.
+  unitPriceCoins   Int         @map("unit_price_coins")
+  totalCoins       Int         @map("total_coins")
+  sellerNetCoins   Int         @map("seller_net_coins")
+  platformFeeCoins Int         @map("platform_fee_coins")
+  status           OrderStatus @default(PLACED)
+  // The money move this order projects. Unique, so a replayed purchase finds the
+  // existing row instead of minting a second order against one charge.
+  ledgerTransactionId String   @unique @map("ledger_transaction_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  buyer   User    @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+  shop    Shop    @relation(fields: [shopId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([buyerUserId, createdAt])
+  @@index([shopId, createdAt])
+  @@map("orders")
 }

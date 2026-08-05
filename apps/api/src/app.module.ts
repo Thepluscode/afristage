@@ -14,6 +14,7 @@ import { CreatorsModule } from './modules/creators/creators.module';
 import { LiveRoomsModule } from './modules/live-rooms/live-rooms.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PayoutsModule } from './modules/payouts/payouts.module';
@@ -55,6 +56,7 @@ import { AccountModule } from './modules/account/account.module';
     LiveRoomsModule,
     ChatModule,
     GiftsModule,
+    MarketplaceModule,
     WalletModule,
     PaymentsModule,
     PayoutsModule,
