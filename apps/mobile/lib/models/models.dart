@@ -93,6 +93,54 @@ class Gift {
       );
 }
 
+/// A product pinned to the live room the viewer is watching, as returned by
+/// `GET /live-rooms/:id/products`. Two kinds share this shape:
+/// an in-app product (bought with coins, may have finite stock) and a link-out
+/// product from a referral shop, which carries [externalUrl] and is never sold
+/// in-app.
+class PinnedProduct {
+  const PinnedProduct({
+    required this.pinId,
+    required this.id,
+    required this.title,
+    required this.priceCoins,
+    required this.shopName,
+    this.imageUrl,
+    this.stock,
+    this.externalUrl,
+  });
+
+  final String pinId;
+  final String id;
+  final String title;
+  final int priceCoins;
+  final String shopName;
+  final String? imageUrl;
+
+  /// null means unlimited — NOT zero. Rendering `stock ?? 0` would show every
+  /// digital product as sold out.
+  final int? stock;
+  final String? externalUrl;
+
+  bool get isLinkOut => externalUrl != null && externalUrl!.isNotEmpty;
+  bool get isSoldOut => stock != null && stock! <= 0;
+
+  factory PinnedProduct.fromJson(Map<String, dynamic> json) {
+    final product = (json['product'] as Map<String, dynamic>?) ?? const {};
+    final shop = (json['shop'] as Map<String, dynamic>?) ?? const {};
+    return PinnedProduct(
+      pinId: json['pinId'] as String? ?? '',
+      id: product['id'] as String? ?? '',
+      title: product['title'] as String? ?? 'Item',
+      priceCoins: asInt(product['priceCoins']),
+      shopName: shop['name'] as String? ?? 'Shop',
+      imageUrl: product['imageUrl'] as String?,
+      stock: asIntOrNull(product['stock']),
+      externalUrl: product['externalUrl'] as String?,
+    );
+  }
+}
+
 class Wallet {
   const Wallet({
     required this.coinBalance,

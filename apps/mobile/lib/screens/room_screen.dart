@@ -2,11 +2,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_client.dart';
 import '../core/afri_theme.dart';
 import '../core/app_state.dart';
 import '../models/models.dart';
+import '../widgets/afri_shop.dart';
 import '../widgets/afri_ui.dart';
 import 'creator_profile_screen.dart';
 import 'events_screen.dart';
@@ -87,6 +89,10 @@ class _RoomScreenState extends State<RoomScreen> {
   final _reactions = <String>[];
   // Live top supporters, fetched from the backend leaderboard endpoint.
   List<(String, String)> _topGifters = const [];
+  // Products the host has pinned to this room. Empty hides the shop bag.
+  List<PinnedProduct> _pinnedProducts = const [];
+  // Set while an order is in flight, so a double-tap can't fire two purchases.
+  String? _buyingProductId;
   AfriRoomState? _bannerState;
   String? _bannerMessage;
   bool _disposed = false;
@@ -104,6 +110,24 @@ class _RoomScreenState extends State<RoomScreen> {
     }
     _connect();
     _loadTopGifters();
+    _loadPinnedProducts();
+  }
+
+  /// What the host is selling right now. Non-critical: a failure leaves the
+  /// shelf empty and the bag hidden, exactly as if nothing were pinned — it
+  /// must never block watching the stream.
+  Future<void> _loadPinnedProducts() async {
+    try {
+      final rows =
+          await _state.api.getList('/live-rooms/${widget.room.id}/products');
+      if (!_canUpdate) return;
+      setState(() => _pinnedProducts = rows
+          .cast<Map<String, dynamic>>()
+          .map(PinnedProduct.fromJson)
+          .toList());
+    } on ApiException {
+      // Leave the shelf empty; the bag hides itself.
+    }
   }
 
   // Top-supporters leaderboard for this room. Refreshed when gifts arrive.
@@ -418,6 +442,186 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
+  /// The host's side of the shelf: pick which of your own live products the
+  /// room is showing, mid-stream. Only reachable for a host, and the API
+  /// re-checks ownership, room-live and shop-approved on every pin.
+  Future<void> _openHostShopSheet() async {
+    List<Map<String, dynamic>> products;
+    try {
+      products = (await _state.api.getList('/shops/me/products'))
+          .cast<Map<String, dynamic>>()
+          .where((p) => p['status'] == 'ACTIVE')
+          .toList();
+    } on ApiException catch (e) {
+      _toast(e.message);
+      return;
+    }
+    await _loadPinnedProducts();
+    if (!mounted) return;
+
+    if (products.isEmpty) {
+      _toast('No live products yet. Add one in Creator → My shop.');
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AfriColors.surface,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (builderContext, setSheetState) {
+          final pinnedIds = _pinnedProducts.map((p) => p.id).toSet();
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Pin to this room',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text('Viewers see pinned items in the shop bag.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.6))),
+                  const SizedBox(height: 14),
+                  for (final product in products)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(product['title'] as String? ?? 'Item'),
+                      subtitle: Text('${product['priceCoins'] ?? 0} coins'),
+                      trailing: FilledButton(
+                        onPressed: () async {
+                          final id = product['id'] as String;
+                          await _togglePin(id, pinned: pinnedIds.contains(id));
+                          setSheetState(() {});
+                        },
+                        child: Text(pinnedIds.contains(product['id'])
+                            ? 'Unpin'
+                            : 'Pin'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _togglePin(String productId, {required bool pinned}) async {
+    try {
+      if (pinned) {
+        await _state.api.delete('/live-rooms/${widget.room.id}/products/$productId');
+      } else {
+        await _state.api.post(
+            '/live-rooms/${widget.room.id}/products', {'productId': productId});
+      }
+      await _loadPinnedProducts();
+    } on ApiException catch (e) {
+      _toast(e.message);
+    }
+  }
+
+  Future<void> _openShopSheet() async {
+    // Re-read before opening: a host can pin or pull an item mid-stream, and a
+    // sheet built from a stale list would offer something already withdrawn.
+    await _loadPinnedProducts();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AfriColors.surface,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+      ),
+      // StatefulBuilder so the in-flight spinner and the post-purchase stock
+      // update repaint inside the sheet without closing it.
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (builderContext, setSheetState) => AfriShopDrawer(
+          products: _pinnedProducts,
+          coinBalance: _state.wallet.coinBalance,
+          busyProductId: _buyingProductId,
+          onBuyCoins: () {
+            Navigator.pop(sheetContext);
+            Navigator.push(
+                context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+          },
+          onOpenLink: (product) => _openProductLink(product),
+          onBuy: (product) async {
+            setSheetState(() => _buyingProductId = product.id);
+            await _buyProduct(product);
+            if (sheetContext.mounted) setSheetState(() => _buyingProductId = null);
+          },
+        ),
+      ),
+    );
+    // The sheet can be dismissed mid-flight; don't strand the lock.
+    if (_canUpdate) setState(() => _buyingProductId = null);
+  }
+
+  /// A link-out product from a referral shop. The API records the tap and
+  /// returns the destination, so the app never has to trust a URL the client
+  /// was holding — and the seller gets credited for the placement.
+  Future<void> _openProductLink(PinnedProduct product) async {
+    try {
+      final res = await _state.api.post('/products/${product.id}/click', {});
+      final url = res['url'] as String?;
+      if (url == null || url.isEmpty) {
+        _toast('That link is unavailable right now.');
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        _toast('Could not open ${product.shopName}.');
+      }
+    } on ApiException catch (e) {
+      _toast(e.message);
+    }
+  }
+
+  Future<void> _buyProduct(PinnedProduct product) async {
+    if (_state.wallet.coinBalance < product.priceCoins) {
+      _showBanner(AfriRoomState.connected,
+          'Insufficient coins. Open Wallet to buy more coins.');
+      _toast('Not enough coins for ${product.title}.');
+      return;
+    }
+    try {
+      await _state.api.post('/orders', {
+        'productId': product.id,
+        'quantity': 1,
+        'roomId': widget.room.id,
+        // Buyer-scoped and stable for this tap: a retry of the SAME tap replays
+        // rather than charging twice.
+        'idempotencyKey': 'order-${product.id}-${DateTime.now().microsecondsSinceEpoch}',
+      });
+      if (!_canUpdate) return;
+      _toast('Ordered ${product.title}. The seller has been notified.');
+      // Refresh both sides of the purchase: the balance that paid for it and
+      // the stock the next viewer will see.
+      await _loadPinnedProducts();
+      try {
+        await _state.refreshWallet();
+      } on Object catch (error) {
+        debugPrint('Order placed but wallet refresh failed: $error');
+      }
+    } on ApiException catch (e) {
+      _showBanner(AfriRoomState.connected, 'Order failed. ${e.message}');
+      _toast('Order failed. ${e.message}');
+    }
+  }
+
   Future<void> _sendGift(Gift gift, int quantity) async {
     if (quantity < 1 || quantity > 10000) {
       _toast('Choose a gift quantity between 1 and 10,000.');
@@ -724,6 +928,7 @@ class _RoomScreenState extends State<RoomScreen> {
               onStartVideo: _videoOn || blocked
                   ? null
                   : () => setState(() => _videoOn = true),
+              onManageShop: _openHostShopSheet,
               onMuteUser: _muteLatestViewer,
               onSafety: () => Navigator.push(
                 context,
@@ -749,6 +954,10 @@ class _RoomScreenState extends State<RoomScreen> {
         onGift: blocked
             ? () => _toast('Gifts are closed for this room.')
             : _openGiftSheet,
+        // The host sees their own shelf but has no reason to buy from it, and
+        // the API rejects buying from your own shop anyway.
+        shopCount: widget.isHost ? 0 : _pinnedProducts.length,
+        onShop: widget.isHost || blocked ? null : _openShopSheet,
         onReaction: _addReaction,
       ),
     );

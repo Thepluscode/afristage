@@ -35,6 +35,12 @@ export interface GiftSplitResult extends MoveResult {
   platformFeeMinor: number;
 }
 
+export interface PurchaseResult extends MoveResult {
+  totalMinor: number;
+  sellerNetMinor: number;
+  platformFeeMinor: number;
+}
+
 // The share-of-x-in-basis-points math, in ONE place (was derived independently
 // in gifts and events). floor() means remainders stay with the residual party.
 export const bpsShare = (amount: number, bps: number) => Math.floor((amount * bps) / 10000);
@@ -114,6 +120,58 @@ export class MoneyService {
         ...input.metadata,
         ...(agencyEarning ? { agencyId: input.agency!.agencyId, agencyCommissionMinor: agencyCut } : {})
       }
+    });
+    return { transaction, replayed: false, ...breakdown };
+  }
+
+  // A marketplace sale: buyer COIN -> seller EARNING + PLATFORM_REVENUE. Same
+  // shape as giftSplit minus the agency leg (an agency's commission is on
+  // performance earnings, not on goods the creator sourced and ships itself).
+  // Replay probe FIRST so a retried order short-circuits before the balance
+  // check could wrongly reject an already-paid purchase.
+  purchase(input: {
+    buyerId: string;
+    sellerId: string;
+    clientKey: string;
+    totalMinor: number;
+    sellerShareBps: number;
+    metadata: Record<string, any>;
+  }): Promise<PurchaseResult> {
+    return this.metrics.trackMove('purchase', () => input.totalMinor, () => this.purchaseImpl(input));
+  }
+
+  private async purchaseImpl(input: {
+    buyerId: string;
+    sellerId: string;
+    clientKey: string;
+    totalMinor: number;
+    sellerShareBps: number;
+    metadata: Record<string, any>;
+  }): Promise<PurchaseResult> {
+    const sellerNet = bpsShare(input.totalMinor, input.sellerShareBps);
+    const platformFee = input.totalMinor - sellerNet;
+    const breakdown = { totalMinor: input.totalMinor, sellerNetMinor: sellerNet, platformFeeMinor: platformFee };
+
+    const key = MoneyKey.purchase(input.buyerId, input.clientKey);
+    const prior = await this.prisma.ledgerTransaction.findUnique({ where: { idempotencyKey: key } });
+    if (prior) return { transaction: prior as any, replayed: true, ...breakdown };
+
+    const balance = BigInt(await this.wallet.balance(input.buyerId, WalletAccountType.COIN, CURRENCY));
+    if (balance < BigInt(input.totalMinor)) throw new BadRequestException('Insufficient coin balance');
+
+    const buyerCoin = await this.wallet.account(input.buyerId, WalletAccountType.COIN, CURRENCY);
+    const sellerEarning = await this.wallet.account(input.sellerId, WalletAccountType.EARNING, CURRENCY);
+    const platformRevenue = await this.wallet.ensureSystemAccount(WalletAccountType.PLATFORM_REVENUE, CURRENCY);
+
+    const transaction = await this.postMove({
+      type: LedgerTransactionType.PURCHASE,
+      key,
+      source: { kind: 'spend', accountId: buyerCoin.id },
+      sinks: [
+        { accountId: sellerEarning.id, amountMinor: sellerNet },
+        { accountId: platformRevenue.id, amountMinor: platformFee }
+      ],
+      metadata: input.metadata
     });
     return { transaction, replayed: false, ...breakdown };
   }

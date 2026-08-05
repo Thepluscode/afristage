@@ -13,6 +13,7 @@
     "lint": "npm run lint -w apps/api && npm run lint -w apps/admin-web",
     "test": "npm run test -w apps/api",
     "validate:money": "node scripts/validate-money-loop.mjs",
+    "validate:marketplace": "node scripts/validate-marketplace.mjs",
     "validate:moderation": "node scripts/validate-moderation.mjs",
     "validate:moderation-ops": "node scripts/validate-moderation-ops.mjs",
     "validate:security": "node scripts/validate-security.mjs",

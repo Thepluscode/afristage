@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/afri_theme.dart';
 import '../models/models.dart';
 import 'afri_live.dart';
+import 'afri_shop.dart';
 
 class AfriScaffold extends StatelessWidget {
   const AfriScaffold(
@@ -2553,6 +2554,8 @@ class AfriChatInput extends StatelessWidget {
     required this.onGift,
     required this.onReaction,
     this.mutedLabel,
+    this.shopCount = 0,
+    this.onShop,
   });
 
   final TextEditingController controller;
@@ -2561,6 +2564,10 @@ class AfriChatInput extends StatelessWidget {
   final VoidCallback onGift;
   final ValueChanged<String> onReaction;
   final String? mutedLabel;
+
+  /// Pinned products in this room. Zero hides the bag entirely.
+  final int shopCount;
+  final VoidCallback? onShop;
 
   @override
   Widget build(BuildContext context) {
@@ -2572,34 +2579,44 @@ class AfriChatInput extends StatelessWidget {
           if (!enabled)
             AfriMutedStateNotice(
                 label: mutedLabel ?? 'Chat is not available right now.'),
-          // Gift sits above the bar as its own floating action, so the input row
-          // is just "type" + "send" instead of four competing round buttons.
+          // Gift — and, when the host is selling, the shop bag — sit above the
+          // bar as floating actions, so the input row stays "type" + "send"
+          // instead of four competing round buttons.
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 12, 6),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Semantics(
-                button: true,
-                label: 'Send gift',
-                child: GestureDetector(
-                  onTap: onGift,
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AfriColors.elevated.withValues(alpha: 0.92),
-                      border: Border.all(
-                          color: AfriColors.gold.withValues(alpha: 0.45)),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x66000000), blurRadius: 14),
-                      ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // No bag when the host is selling nothing — the sheet behind it
+                // would be empty.
+                if (onShop != null && shopCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: AfriShopButton(count: shopCount, onTap: onShop!),
+                  ),
+                Semantics(
+                  button: true,
+                  label: 'Send gift',
+                  child: GestureDetector(
+                    onTap: onGift,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AfriColors.elevated.withValues(alpha: 0.92),
+                        border: Border.all(
+                            color: AfriColors.gold.withValues(alpha: 0.45)),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x66000000), blurRadius: 14),
+                        ],
+                      ),
+                      child: const Icon(CupertinoIcons.gift_fill,
+                          color: AfriColors.gold, size: 22),
                     ),
-                    child: const Icon(CupertinoIcons.gift_fill,
-                        color: AfriColors.gold, size: 22),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
           Padding(
@@ -3185,6 +3202,7 @@ class AfriHostControlsPanel extends StatelessWidget {
     required this.onEndRoom,
     this.ending = false,
     this.onStartVideo,
+    this.onManageShop,
   });
 
   final int viewerCount;
@@ -3210,6 +3228,9 @@ class AfriHostControlsPanel extends StatelessWidget {
   /// stages (host layout, small screens) — the panel is where the host is
   /// actually looking, so the button lives here too (staging, 2026-07-14).
   final VoidCallback? onStartVideo;
+
+  /// Opens the host's pin sheet. Null for a host without a shop.
+  final VoidCallback? onManageShop;
 
   @override
   Widget build(BuildContext context) {
@@ -3275,6 +3296,14 @@ class AfriHostControlsPanel extends StatelessWidget {
               label: const Text('Safety'),
               onPressed: onSafety,
             ),
+            // Absent for hosts with no shop, so the panel doesn't advertise a
+            // control that leads nowhere.
+            if (onManageShop != null)
+              ActionChip(
+                avatar: const Icon(CupertinoIcons.bag_fill),
+                label: const Text('Shop'),
+                onPressed: onManageShop,
+              ),
             ActionChip(
               avatar: const Icon(CupertinoIcons.stop_circle,
                   color: AfriColors.danger),

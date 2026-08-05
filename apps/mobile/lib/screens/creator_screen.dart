@@ -9,6 +9,7 @@ import '../widgets/afri_live.dart';
 import '../widgets/afri_ui.dart';
 import 'creator_rooms_screen.dart';
 import 'go_live_setup_screen.dart';
+import 'shop_screen.dart';
 import 'payout_history_screen.dart';
 import 'payout_methods_screen.dart';
 import '../models/models.dart';
@@ -378,6 +379,16 @@ class _CreatorScreenState extends State<CreatorScreen> {
                   label: const Text('Go Live'),
                 ),
                 const SizedBox(height: 16),
+                AfriActionRow(
+                  icon: CupertinoIcons.bag_fill,
+                  title: 'My shop',
+                  body:
+                      'List products and sell them to the room while you are live.',
+                  accent: AfriColors.purple,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ShopScreen())),
+                ),
+                const SizedBox(height: 10),
                 AfriActionRow(
                   icon: CupertinoIcons.building_2_fill,
                   title: 'Payout methods',

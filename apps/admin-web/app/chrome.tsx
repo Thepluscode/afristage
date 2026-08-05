@@ -19,6 +19,7 @@ import {
   MonitorPlay,
   ShieldAlert,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Trophy,
   UserCheck,
@@ -73,7 +74,8 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
       ['Payments', '/payments', <CreditCard key="payments" size={iconSize} />],
       ['Ledger', '/ledger', <CalendarClock key="ledger" size={iconSize} />],
       ['Ledger Integrity', '/ledger-integrity', <ShieldCheck key="ledger-integrity" size={iconSize} />],
-      ['Gifts', '/gifts', <Gift key="gifts" size={iconSize} />]
+      ['Gifts', '/gifts', <Gift key="gifts" size={iconSize} />],
+      ['Shops', '/shops', <ShoppingBag key="shops" size={iconSize} />]
     ]
   },
   {
