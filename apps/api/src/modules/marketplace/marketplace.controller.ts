@@ -19,10 +19,10 @@ export class MarketplaceController {
 
   // ---------- public ----------
 
-  @Get('shops/:slug')
-  publicShop(@Param('slug') slug: string) {
-    return this.marketplace.publicShop(slug);
-  }
+  // NOTE: the `shops/:slug` route is declared LAST, after every literal `shops/…`
+  // path. Nest matches in declaration order, so putting it here would swallow
+  // `GET /shops/me` — the seller's own shop would resolve as a lookup for a shop
+  // whose slug is "me", and every seller would be told they have no shop.
 
   // What is pinned in this room right now. Public so a guest browsing a stream
   // sees the same shelf a signed-in viewer does.
@@ -121,5 +121,15 @@ export class MarketplaceController {
   @Patch('admin/shops/:id/status')
   setShopStatus(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: SetShopStatusDto) {
     return this.marketplace.setShopStatus(user.sub, id, dto.status);
+  }
+
+  // ---------- the wildcard, deliberately last ----------
+
+  // Must stay below `shops/me` and `admin/shops`: a `:slug` param matches any
+  // single segment, so declaring it earlier makes it shadow every literal route
+  // that shares the prefix.
+  @Get('shops/:slug')
+  publicShop(@Param('slug') slug: string) {
+    return this.marketplace.publicShop(slug);
   }
 }
