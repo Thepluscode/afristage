@@ -298,4 +298,33 @@ console.log('\n=== teardown ===');
 await api('PATCH', `/shops/me/products/${productId}`, { token: CTOK, body: { status: 'ARCHIVED' } });
 ok(true, 'test product archived');
 
+// The throwaway buyer exists only to prove the insufficient-funds path. Left
+// behind, it accumulates one dead account per run on a long-lived deployed
+// database. Removed ONLY when it has no ledger entries — the ledger is
+// append-only and a user who moved money must never be deleted out from under
+// their own history.
+const brokeId = await sql(`select id from users where email='${poorEmail}'`);
+if (brokeId) {
+  const entries = await sql(
+    `select count(*) from ledger_entries e join wallet_accounts wa on wa.id=e.account_id where wa.user_id='${brokeId}'`
+  );
+  if (Number(entries) === 0) {
+    // FK order: wallets and profile reference the user.
+    await sql(`delete from wallet_accounts where user_id='${brokeId}'`);
+    await sql(`delete from profiles where user_id='${brokeId}'`);
+    await sql(`delete from device_sessions where user_id='${brokeId}'`);
+    await sql(`delete from users where id='${brokeId}'`);
+    const gone = await sql(`select count(*) from users where email='${poorEmail}'`);
+    ok(Number(gone) === 0, 'the throwaway buyer is removed, leaving no residue');
+  } else {
+    ok(true, `throwaway buyer KEPT — it has ${entries} ledger entries and the ledger is append-only`);
+  }
+}
+
+// The seller's shop and the order stay on purpose: the order projects a real
+// PURCHASE ledger transaction, and deleting it would break the very integrity
+// this suite just asserted.
+const survivingOrders = await sql(`select count(*) from orders where id='${orderId}'`);
+ok(Number(survivingOrders) === 1, 'the order and its ledger transaction are deliberately preserved');
+
 await finish();
