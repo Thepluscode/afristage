@@ -6,6 +6,7 @@ import 'package:afristage_mobile/core/api_client.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/main.dart';
 import 'package:afristage_mobile/models/models.dart';
+import 'package:afristage_mobile/widgets/afri_shop.dart';
 import 'package:afristage_mobile/widgets/afri_ui.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -407,6 +408,55 @@ void main() async {
         ),
       ));
       await _capture(tester, boundaryKey, 'live-room-heat');
+
+      // The shop shelf, over the same stage. Two products so the composition is
+      // visible: the most recent pin is the feature, the earlier one a row.
+      await tester.pumpWidget(_app(
+        viewerState,
+        boundaryKey,
+        Stack(
+          children: [
+            Positioned.fill(child: roomWithoutDrawer),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Material(
+                color: AfriColors.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  height: 600,
+                  child: AfriShopDrawer(
+                    coinBalance: 12450,
+                    products: const [
+                      PinnedProduct(
+                        pinId: 'pin1',
+                        id: 'p1',
+                        title: 'Hand-dyed Ankara Two-Piece',
+                        priceCoins: 4500,
+                        shopName: 'Ada Threads',
+                        stock: 3,
+                      ),
+                      PinnedProduct(
+                        pinId: 'pin2',
+                        id: 'p2',
+                        title: 'Shea Butter Body Melt',
+                        priceCoins: 1200,
+                        shopName: 'Bronzea',
+                        externalUrl: 'https://bronzea.example/shea',
+                      ),
+                    ],
+                    onBuy: (_) {},
+                    onOpenLink: (_) {},
+                    onBuyCoins: () {},
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ));
+      await _capture(tester, boundaryKey, 'live-room-shop');
     },
     skip: !_captureDesign,
   );

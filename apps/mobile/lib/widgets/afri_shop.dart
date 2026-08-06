@@ -254,11 +254,17 @@ class _FeatureProduct extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AspectRatio(
-            aspectRatio: 16 / 10,
+            // A cover with no photo behind it is a void, and a seller who has
+            // not uploaded one is the common case at launch. Give the imageless
+            // card a shallower band so it reads as a header rather than a
+            // failed image.
+            aspectRatio: product.imageUrl == null || product.imageUrl!.isEmpty
+                ? 16 / 5
+                : 16 / 10,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _Cover(url: product.imageUrl),
+                _Cover(url: product.imageUrl, initial: product.shopName),
                 // Bottom scrim, same value the live-room cover uses, so text
                 // stays legible over an unpredictable photo.
                 const DecoratedBox(
@@ -396,7 +402,11 @@ class _ProductRow extends StatelessWidget {
             child: SizedBox(
               width: 56,
               height: 56,
-              child: _Cover(url: product.imageUrl, decodeWidth: _thumbDecodeWidth),
+              child: _Cover(
+                  url: product.imageUrl,
+                  decodeWidth: _thumbDecodeWidth,
+                  initial: product.shopName,
+                  glyphSize: 26),
             ),
           ),
           const SizedBox(width: 12),
@@ -630,38 +640,76 @@ String? _statusText(PinnedProduct product, bool affordable) {
 /// must not be decoded at original resolution to fill a thumbnail, and this
 /// audience is assumed to be on constrained data.
 class _Cover extends StatelessWidget {
-  const _Cover({required this.url, this.decodeWidth = _heroDecodeWidth});
+  const _Cover({
+    required this.url,
+    this.decodeWidth = _heroDecodeWidth,
+    this.initial,
+    this.glyphSize = 56,
+  });
 
   final String? url;
   final int decodeWidth;
 
+  /// Seeds the imageless treatment, so a photo-less product still carries the
+  /// seller's identity instead of a generic placeholder.
+  final String? initial;
+  final double glyphSize;
+
   @override
   Widget build(BuildContext context) {
-    if (url == null || url!.isEmpty) return const _CoverFallback();
+    if (url == null || url!.isEmpty) {
+      return _CoverFallback(initial: initial, glyphSize: glyphSize);
+    }
     return Image.network(
       url!,
       fit: BoxFit.cover,
       cacheWidth: decodeWidth,
       // Hold the space rather than popping in; a jumping layout under a live
       // stream reads as breakage.
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : const _CoverFallback(),
+      loadingBuilder: (context, child, progress) => progress == null
+          ? child
+          : _CoverFallback(initial: initial, glyphSize: glyphSize),
       // A broken image URL must not blank the row the buy button is in.
-      errorBuilder: (_, __, ___) => const _CoverFallback(),
+      errorBuilder: (_, __, ___) =>
+          _CoverFallback(initial: initial, glyphSize: glyphSize),
     );
   }
 }
 
+/// The imageless treatment, in the system's own vocabulary: AfriCover fills an
+/// empty stage with a large initial rather than a small icon, because a small
+/// glyph adrift in a big box reads as a failed load, not as a design.
 class _CoverFallback extends StatelessWidget {
-  const _CoverFallback();
+  const _CoverFallback({this.initial, this.glyphSize = 56});
+
+  final String? initial;
+  final double glyphSize;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: AfriColors.surface,
+    final letter = (initial ?? '').characters.firstOrNull?.toUpperCase();
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AfriColors.soft, AfriColors.surface],
+        ),
+      ),
       child: Center(
-        child: Icon(CupertinoIcons.bag,
-            color: AfriColors.mutedText.withValues(alpha: 0.6), size: 24),
+        child: letter == null || letter.isEmpty
+            ? Icon(CupertinoIcons.bag,
+                color: AfriColors.mutedText.withValues(alpha: 0.6),
+                size: glyphSize * 0.42)
+            : Text(
+                letter,
+                style: TextStyle(
+                  fontSize: glyphSize,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white.withValues(alpha: 0.20),
+                ),
+              ),
       ),
     );
   }
