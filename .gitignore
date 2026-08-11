@@ -19,3 +19,7 @@ phase30-dashboard.png
 
 # build outputs (flutter/gradle)
 build/
+
+# python bytecode — tools/monitoring/*.py regenerate this on every run
+__pycache__/
+*.py[cod]
