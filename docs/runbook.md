@@ -47,17 +47,36 @@
 
   Cron reads it at run time (`ALERT_WEBHOOK=$(cat ~/.afristage-alert-webhook)`),
   so the URL is never in `crontab -l` or visible in `ps`, and rotating it means
-  editing one file. **If the file is absent the probes still run and still exit
-  non-zero — they just don't page.** Verify delivery without waiting for a real
-  outage by pointing a probe at something known-bad:
+  editing one file. The URL is never printed by the tool either — not even in
+  error messages, because a malformed one raises an exception carrying the URL.
+
+  **Exit codes** — `2` is separate from `1` on purpose:
+
+  | Code | Meaning | Response |
+  |---|---|---|
+  | 0 | all healthy | none |
+  | 1 | a target failed **and the alert was delivered** | handle the incident |
+  | 2 | **alerting itself is broken** — the collector rejected the alert, or `--require-webhook` is set and none is configured | fix paging first; you are blind |
+
+  Both cron entries pass `--require-webhook`, so an unconfigured hook is a
+  *failing job* rather than a silent one. Until `~/.afristage-alert-webhook`
+  exists they log `ALERTING NOT CONFIGURED` and exit 2 every 5 minutes. That is
+  intended: the previous behaviour reported `1/1 healthy` while nothing could
+  page anyone.
+
+  Verify delivery without waiting for a real outage by pointing a probe at
+  something known-bad:
 
   ```bash
   ALERT_WEBHOOK=$(cat ~/.afristage-alert-webhook) python3 tools/monitoring/synthetic_check.py \
     --url https://api-production-e12f.up.railway.app/api/health --expect-status 999 --region drill
   ```
 
-  Expect exit 1 and a message in the channel. A drill that produces no message
-  means the alerting is decoration — fix it before trusting it.
+  Expect **exit 1 and a message in the channel**. Exit 2 means the hook was
+  rejected — a revoked or mistyped URL — and nothing was delivered. A drill that
+  produces no message means the alerting is decoration; fix it before trusting
+  it. Re-run the drill after any Slack workspace or app change, since that is
+  when a hook silently stops working.
 
 - **Ledger integrity alerting**: asserted with `--expect-metric`, which parses
   the Prometheus exposition format. **Do not use `--expect-body` for metrics.**

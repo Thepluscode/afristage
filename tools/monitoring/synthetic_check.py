@@ -12,9 +12,15 @@ you're monitoring.
         --alert-webhook https://hooks.slack.com/services/XXX
   python3 synthetic_check.py --selftest
 
-Exit 0 = all healthy, 1 = at least one target failed (so CI/cron flags it, and the pipeline
-that scheduled it can page). On failure, POSTs a JSON alert to --alert-webhook (Slack-shaped
-{"text": ...}; any generic collector accepts it too). Stdlib only.
+Exit 0 = all healthy. 1 = a target failed (and the alert was delivered). 2 = ALERTING ITSELF
+IS BROKEN — the webhook rejected the alert, or --require-webhook was set and none is
+configured. 2 is separate from 1 on purpose: "the service is down" and "the service is down
+and nobody was told" need different responses, and the second is worse.
+
+On failure, POSTs a JSON alert to --alert-webhook (Slack-shaped {"text": ...}; any generic
+collector accepts it too), defaulting to $ALERT_WEBHOOK so the URL need not appear in a
+crontab or a process listing. The URL is never printed, including in error messages.
+Stdlib only.
 """
 from __future__ import annotations
 
@@ -96,7 +102,25 @@ def probe(url: str, timeout: float) -> dict:
         return {"status": 0, "latency_ms": (time.monotonic() - start) * 1000, "body": "", "error": str(e)}
 
 
-def send_alert(webhook: str, region: str, failures: list[dict]) -> None:
+# Exit codes. 2 is deliberately distinct from 1: "the service is down" and "the
+# service is down AND nobody was told" need different responses, and the second
+# is the more urgent of the two.
+EXIT_HEALTHY = 0
+EXIT_TARGET_FAILED = 1
+EXIT_ALERTING_BROKEN = 2
+
+
+def send_alert(webhook: str, region: str, failures: list[dict]) -> bool:
+    """POST the alert. True only if the collector ACCEPTED it.
+
+    This used to swallow every failure into a stderr WARN, which is how alerting
+    rots: a revoked or mistyped hook returns 404 forever while the probe keeps
+    exiting 0 on healthy runs, so broken paging is indistinguishable from
+    working paging until the day you need it.
+
+    The webhook URL is never printed. urllib raises ValueError carrying the URL
+    itself for a malformed one, and this output goes to a log file.
+    """
     lines = [f"🔴 Synthetic check FAILED (region={region})"]
     for f in failures:
         lines.append(f"• {f['url']} — {'; '.join(f['reasons'])}")
@@ -104,12 +128,27 @@ def send_alert(webhook: str, region: str, failures: list[dict]) -> None:
     try:
         req = urllib.request.Request(webhook, data=payload, method="POST",
                                      headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=10).read()
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+            if 200 <= resp.status < 300:
+                return True
+            print(f"ALERT DELIVERY FAILED: collector returned HTTP {resp.status}", file=sys.stderr)
+            return False
+    except urllib.error.HTTPError as e:
+        print(f"ALERT DELIVERY FAILED: collector returned HTTP {e.code}", file=sys.stderr)
+        return False
     except Exception as e:
-        print(f"WARN: alert webhook failed: {e}", file=sys.stderr)
+        # Type name only — the message may contain the URL.
+        print(f"ALERT DELIVERY FAILED: {type(e).__name__}", file=sys.stderr)
+        return False
 
 
-def run(urls, cfg, region, webhook, timeout) -> int:
+def run(urls, cfg, region, webhook, timeout, require_webhook: bool = False) -> int:
+    if require_webhook and not webhook:
+        print("ALERTING NOT CONFIGURED: no webhook (set $ALERT_WEBHOOK or --alert-webhook).")
+        print("Refusing to report health: a failure right now would page nobody.", file=sys.stderr)
+        return EXIT_ALERTING_BROKEN
+
     failures = []
     for url in urls:
         ok, reasons = classify(probe(url, timeout), cfg)
@@ -117,10 +156,16 @@ def run(urls, cfg, region, webhook, timeout) -> int:
         print(f"  [{status}] {url}" + ("" if ok else f"  — {'; '.join(reasons)}"))
         if not ok:
             failures.append({"url": url, "reasons": reasons})
-    if failures and webhook:
-        send_alert(webhook, region, failures)
+
     print(f"{len(urls) - len(failures)}/{len(urls)} healthy (region={region})")
-    return 1 if failures else 0
+    if not failures:
+        return EXIT_HEALTHY
+    if not webhook:
+        print("NOT PAGED: targets failed and no webhook is configured.", file=sys.stderr)
+        return EXIT_TARGET_FAILED
+    if not send_alert(webhook, region, failures):
+        return EXIT_ALERTING_BROKEN
+    return EXIT_TARGET_FAILED
 
 
 def selftest() -> int:
@@ -167,6 +212,61 @@ def selftest() -> int:
     ok, reasons = classify({"status": 200, "latency_ms": 10, "body": "", "error": None}, mcfg)
     assert not ok and "missing" in reasons[0], reasons
 
+    # --- alerting-is-broken paths ------------------------------------------
+    # Driven against real sockets, not mocks: the bug being prevented is that a
+    # collector REJECTS the alert, which only a real response can express.
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    delivered: list[bytes] = []
+
+    def serve(code: int):
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                delivered.append(self.rfile.read(int(self.headers.get("content-length", 0))))
+                self.send_response(code)
+                self.end_headers()
+
+            def do_GET(self):  # the probe target itself
+                self.send_response(500)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        return srv
+
+    down = serve(200)
+    target = f"http://127.0.0.1:{down.server_port}/health"
+    cfg200 = {"expect_status": 200}
+
+    # Missing webhook is invisible today; --require-webhook makes it a failure
+    # even while every target is healthy.
+    assert run([target], cfg200, "t", None, 2, require_webhook=True) == EXIT_ALERTING_BROKEN
+    # Without the flag, a failing target with no webhook is still just 1.
+    assert run([target], cfg200, "t", None, 2) == EXIT_TARGET_FAILED
+
+    # Accepted alert => the target failure is the story (1), not the alerting.
+    hook_ok = serve(200)
+    before = len(delivered)
+    assert run([target], cfg200, "t", f"http://127.0.0.1:{hook_ok.server_port}/hook", 2) == EXIT_TARGET_FAILED
+    assert len(delivered) == before + 1, "alert was not actually delivered"
+
+    # REGRESSION: a collector that rejects (revoked/mistyped hook) used to be
+    # swallowed into a WARN and still exit 1. It must now exit 2.
+    hook_bad = serve(404)
+    assert run([target], cfg200, "t", f"http://127.0.0.1:{hook_bad.server_port}/hook", 2) == EXIT_ALERTING_BROKEN
+    # Nothing listening at all is equally broken.
+    assert run([target], cfg200, "t", "http://127.0.0.1:1/hook", 2) == EXIT_ALERTING_BROKEN
+    # A malformed URL must not crash — and must not be echoed (checked by eye in
+    # send_alert: only the exception TYPE is printed).
+    assert run([target], cfg200, "t", "not-a-url", 2) == EXIT_ALERTING_BROKEN
+
+    for s in (down, hook_ok, hook_bad):
+        s.shutdown()
+
     print("synthetic_check.py selftest: OK")
     return 0
 
@@ -185,6 +285,9 @@ def main(argv=None) -> int:
     p.add_argument("--alert-webhook", default=os.environ.get("ALERT_WEBHOOK"),
                    help="Slack-shaped webhook to POST on failure (default: $ALERT_WEBHOOK, so the "
                         "URL stays out of crontab and process listings)")
+    p.add_argument("--require-webhook", action="store_true",
+                   help="exit 2 unless a webhook is configured. Use in cron: it turns "
+                        "'nobody wired up paging' from invisible into a failing job.")
     p.add_argument("--selftest", action="store_true")
     args = p.parse_args(argv)
     if args.selftest:
@@ -202,7 +305,7 @@ def main(argv=None) -> int:
             p.error(f"--expect-metric value must be numeric, got {value!r}")
     cfg = {"expect_status": args.expect_status, "max_latency_ms": args.max_latency_ms,
            "expect_body": args.expect_body, "expect_metric": metrics}
-    return run(args.url, cfg, args.region, args.alert_webhook, args.timeout)
+    return run(args.url, cfg, args.region, args.alert_webhook, args.timeout, args.require_webhook)
 
 
 if __name__ == "__main__":
