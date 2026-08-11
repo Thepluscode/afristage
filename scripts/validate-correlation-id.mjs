@@ -47,16 +47,20 @@ const idOf = (res) => res.headers.get('x-request-id');
 //    check here that fails.
 {
   const mine = `validate-corr-401-${Date.now()}`;
-  const res = await api('GET', '/wallet', { headers: { 'x-request-id': mine } });
-  check(res.status === 401, `unauthenticated /wallet → ${res.status} (expected 401)`);
-  check(idOf(res) === mine, `REJECTED request still carries its id (${idOf(res)})`);
+  const res = await api('GET', '/wallet/me', { headers: { 'x-request-id': mine } });
+  check(res.status === 401, `unauthenticated /wallet/me → ${res.status} (expected 401)`);
+  check(idOf(res) === mine, `GUARD-REJECTED request still carries its id (${idOf(res)})`);
 }
 
 // 4. A hostile id is replaced with a fresh one rather than sanitised or echoed:
 //    it lands in every log line, and a truncated/stripped id could collide with
 //    a real one.
+// The newline case — the log-forgery one — is NOT here: Node's fetch refuses to
+// send a header value containing a newline, so it crashes the client instead of
+// reaching the server. It is covered in request-context.spec.ts, which calls
+// normaliseRequestId directly. What can be sent live is tested here.
 for (const [label, hostile] of [
-  ['newline (log-line forgery)', 'x\nlevel=error msg=forged'],
+  ['whitespace', 'has space'],
   ['over-long (64+ chars)', 'z'.repeat(200)],
   ['quote (JSON break-out)', 'a"b']
 ]) {

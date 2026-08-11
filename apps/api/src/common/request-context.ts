@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { v4 as uuid } from 'uuid';
 
@@ -22,17 +23,44 @@ export function getRequestId(): string | undefined {
   return storage.getStore()?.requestId;
 }
 
+const logger = new Logger('http');
+
 // Registered as the FIRST middleware in main.ts, ahead of auth and the
-// throttler. Interceptors run only after guards pass, which is why the old
-// interceptor-generated id was missing from exactly the responses you most
-// want to trace: 401s and 429s.
+// throttler, and it both assigns the id AND writes the completion line.
+//
+// Both jobs used to live in a Nest interceptor, which runs only once guards
+// have passed. The result, measured against a live API: 17 log lines, all of
+// them 200. Every 401 and every 404 was invisible — no id on the response and
+// no log line at all, so a rejected request could not be found afterwards by
+// any means. res.on('finish') fires for every response, whoever ended it.
+//
+// It also removes a workaround: on the interceptor's error path res.statusCode
+// was still the pre-filter default (a rejected login logged as 201), so the
+// status had to be dug out of the exception. By 'finish' the filter has run and
+// res.statusCode is simply correct.
 export function requestContextMiddleware(
-  req: { headers: Record<string, unknown>; requestId?: string },
-  res: { setHeader: (k: string, v: string) => void },
+  req: { headers: Record<string, unknown>; requestId?: string; method?: string; originalUrl?: string; url?: string; user?: { sub?: string } },
+  res: { setHeader: (k: string, v: string) => void; on: (e: string, cb: () => void) => void; statusCode?: number },
   next: () => void
 ): void {
   const requestId = normaliseRequestId(req.headers['x-request-id']);
   req.requestId = requestId;
   res.setHeader('x-request-id', requestId);
+  const start = Date.now();
+
+  // requestId is passed explicitly rather than read from the store: the
+  // 'finish' callback is invoked by the socket, not by the request's async
+  // chain, so it cannot be relied on to still be inside the context.
+  res.on('finish', () =>
+    logger.log({
+      requestId,
+      method: req.method,
+      path: req.originalUrl || req.url,
+      statusCode: res.statusCode,
+      latencyMs: Date.now() - start,
+      userId: req.user?.sub ?? null
+    })
+  );
+
   storage.run({ requestId }, next);
 }

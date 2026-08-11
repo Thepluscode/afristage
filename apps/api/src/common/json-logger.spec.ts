@@ -39,7 +39,8 @@ describe('JsonLogger', () => {
   // The point of the ambient context: a log line written deep inside a service,
   // which knows nothing about the request, still carries the correlation id.
   it('stamps the ambient requestId onto a line that never mentions it', () => {
-    requestContextMiddleware({ headers: { 'x-request-id': 'rid-9' } } as any, { setHeader: jest.fn() } as any, () => {
+    const res: any = { setHeader: jest.fn(), on: jest.fn(), statusCode: 200 };
+    requestContextMiddleware({ headers: { 'x-request-id': 'rid-9' } } as any, res, () => {
       new JsonLogger().log('deep inside a service');
     });
     expect(JSON.parse(out.mock.calls[0][0] as string)).toMatchObject({ requestId: 'rid-9', message: 'deep inside a service' });

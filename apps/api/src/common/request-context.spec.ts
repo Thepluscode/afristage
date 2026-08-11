@@ -1,8 +1,22 @@
+import { Logger } from '@nestjs/common';
 import { getRequestId, normaliseRequestId, requestContextMiddleware } from './request-context';
+
+// Captures the 'finish' listener so a test can end the response itself.
+const mkRes = (statusCode = 200) => {
+  const listeners: Record<string, () => void> = {};
+  return {
+    setHeader: jest.fn(),
+    on: (e: string, cb: () => void) => {
+      listeners[e] = cb;
+    },
+    statusCode,
+    finish: () => listeners.finish?.()
+  } as any;
+};
 
 const run = (headers: Record<string, unknown>) => {
   const req: any = { headers };
-  const res: any = { setHeader: jest.fn() };
+  const res = mkRes();
   let seenInside: string | undefined;
   requestContextMiddleware(req, res, () => {
     seenInside = getRequestId();
@@ -66,7 +80,7 @@ describe('requestContextMiddleware', () => {
   // and most service-level log lines silently lose it.
   it('keeps the id across await boundaries', async () => {
     const req: any = { headers: { 'x-request-id': 'rid-async' } };
-    const res: any = { setHeader: jest.fn() };
+    const res = mkRes();
     const seen = await new Promise<string | undefined>((resolve) => {
       requestContextMiddleware(req, res, async () => {
         await new Promise((r) => setTimeout(r, 1));
@@ -79,7 +93,7 @@ describe('requestContextMiddleware', () => {
   it('isolates concurrent requests from each other', async () => {
     const capture = (id: string) =>
       new Promise<string | undefined>((resolve) => {
-        requestContextMiddleware({ headers: { 'x-request-id': id } } as any, { setHeader: jest.fn() } as any, async () => {
+        requestContextMiddleware({ headers: { 'x-request-id': id } } as any, mkRes() as any, async () => {
           await new Promise((r) => setTimeout(r, 5));
           resolve(getRequestId());
         });
@@ -89,5 +103,42 @@ describe('requestContextMiddleware', () => {
 
   it('returns undefined outside any request', () => {
     expect(getRequestId()).toBeUndefined();
+  });
+});
+
+// The regression this whole change exists for. Measured against a live API, the
+// old interceptor produced 17 log lines and every one was a 200: guards reject
+// before an interceptor runs, so 401s and 404s were logged nowhere at all.
+describe('completion logging', () => {
+  const drive = (statusCode: number, req: any = { headers: {} }) => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const res = mkRes(statusCode);
+    requestContextMiddleware(req, res, () => {});
+    res.finish();
+    const entry = log.mock.calls[0]?.[0];
+    log.mockRestore();
+    return entry as any;
+  };
+
+  it('logs a successful request with id, method, path, status, latency and user', () => {
+    const entry = drive(200, { headers: { 'x-request-id': 'ok-1' }, method: 'GET', url: '/x', user: { sub: 'u1' } });
+    expect(entry).toMatchObject({ requestId: 'ok-1', method: 'GET', path: '/x', statusCode: 200, userId: 'u1' });
+    expect(typeof entry.latencyMs).toBe('number');
+  });
+
+  it.each([401, 403, 404, 429, 500])('logs a %s — the statuses the interceptor never saw', (status) => {
+    const entry = drive(status, { headers: { 'x-request-id': `rej-${status}` }, method: 'GET', originalUrl: '/wallet/me' });
+    expect(entry).toMatchObject({ requestId: `rej-${status}`, statusCode: status, path: '/wallet/me', userId: null });
+  });
+
+  it('prefers originalUrl over url so the global /api prefix is not lost', () => {
+    expect(drive(200, { headers: {}, method: 'GET', originalUrl: '/api/health', url: '/health' }).path).toBe('/api/health');
+  });
+
+  it('does not log until the response actually finishes', () => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    requestContextMiddleware({ headers: {} } as any, mkRes(), () => {});
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 });
