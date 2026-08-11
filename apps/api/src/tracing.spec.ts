@@ -63,11 +63,50 @@ describe('startTracing', () => {
     expect(hook({})).toBe(false); // urlless request must not throw
   });
 
-  // Spans buffered at SIGTERM are the ones from the deploy that broke something.
-  it('flushes on SIGTERM', () => {
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://c:4318';
-    startTracing();
-    process.emit('SIGTERM' as never);
-    expect(mockShutdown).toHaveBeenCalled();
+  // Every SIGTERM test runs on fake timers. The handler arms a real 3s fallback
+  // timer, and an unref'd timer that outlives the test would fire the REAL
+  // process.exit after the spy is restored — which killed a jest worker
+  // ("worker process crashed: exitCode=0") with every test still reporting pass.
+  describe('shutdown', () => {
+    let exit: jest.SpyInstance;
+    beforeEach(() => {
+      jest.useFakeTimers();
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://c:4318';
+      exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    });
+    afterEach(() => {
+      jest.clearAllTimers();
+      jest.useRealTimers();
+      exit.mockRestore();
+    });
+
+    // Spans buffered at SIGTERM are the ones from the deploy that broke something.
+    it('flushes on SIGTERM', async () => {
+      startTracing();
+      process.emit('SIGTERM' as never);
+      await Promise.resolve();
+      expect(mockShutdown).toHaveBeenCalled();
+    });
+
+    // Registering a SIGTERM listener overrides Node's default terminate-on-SIGTERM,
+    // so this handler owns the exit. Without it the process ignores SIGTERM and the
+    // platform must SIGKILL it after the grace period — every deploy stalls and
+    // in-flight requests are cut. Reproduced against plain node before fixing.
+    it('exits after flushing, so SIGTERM still terminates the process', async () => {
+      startTracing();
+      process.emit('SIGTERM' as never);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(exit).toHaveBeenCalledWith(0);
+    });
+
+    it('exits even when the collector never answers', () => {
+      mockShutdown.mockReturnValueOnce(new Promise(() => {})); // never settles
+      startTracing();
+      process.emit('SIGTERM' as never);
+      expect(exit).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(3000);
+      expect(exit).toHaveBeenCalledWith(0);
+    });
   });
 });
