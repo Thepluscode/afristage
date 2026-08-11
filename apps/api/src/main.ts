@@ -1,3 +1,7 @@
+// MUST be the first import: the OpenTelemetry instrumentations patch `http`,
+// `express` and `ioredis` as they are required, so anything imported above this
+// line would be loaded unpatched and would produce no spans.
+import './tracing';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -7,6 +11,7 @@ import { corsOrigin } from './config/cors-origins';
 import { validateEnv } from './config/validate-env';
 import { JsonLogger } from './common/json-logger';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
+import { requestContextMiddleware } from './common/request-context';
 import { RequestLoggingInterceptor } from './common/request-logging.interceptor';
 
 // ponytail: Prisma money fields are BigInt; Express JSON.stringify can't serialize them.
@@ -19,6 +24,11 @@ async function bootstrap() {
   validateEnv(); // crash before listening if production secrets/config are missing or unsafe
   const app = await NestFactory.create(AppModule, { rawBody: true, bufferLogs: true });
   app.useLogger(new JsonLogger());
+  // FIRST middleware, deliberately ahead of helmet, CORS, auth and the
+  // throttler: a request rejected by any of those still gets an id on its
+  // response and on its log line. Registered after useLogger only because the
+  // logger must exist before anything writes through it.
+  app.use(requestContextMiddleware);
   // Security headers: removes X-Powered-By, adds nosniff / frame-deny / HSTS /
   // referrer-policy. CSP is off here — this is a JSON API (no HTML documents to
   // protect), and it keeps cross-origin API consumers unaffected.

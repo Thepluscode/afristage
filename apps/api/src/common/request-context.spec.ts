@@ -1,0 +1,93 @@
+import { getRequestId, normaliseRequestId, requestContextMiddleware } from './request-context';
+
+const run = (headers: Record<string, unknown>) => {
+  const req: any = { headers };
+  const res: any = { setHeader: jest.fn() };
+  let seenInside: string | undefined;
+  requestContextMiddleware(req, res, () => {
+    seenInside = getRequestId();
+  });
+  return { req, res, seenInside };
+};
+
+describe('normaliseRequestId', () => {
+  it('keeps a well-formed client id', () => {
+    expect(normaliseRequestId('abc-123_XY.z')).toBe('abc-123_XY.z');
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['non-string', 42],
+    ['empty', ''],
+    ['with a space', 'has space'],
+    // Would forge a second log line in a line-delimited log if it were echoed verbatim.
+    ['with a newline', 'a\nlevel=error'],
+    ['with a quote', 'a"b'],
+    ['over 64 chars', 'x'.repeat(65)]
+  ])('replaces an id that is %s', (_label, raw) => {
+    const id = normaliseRequestId(raw);
+    expect(id).not.toBe(raw);
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('accepts exactly 64 chars (boundary)', () => {
+    const id = 'y'.repeat(64);
+    expect(normaliseRequestId(id)).toBe(id);
+  });
+
+  it('never reuses a generated id', () => {
+    expect(normaliseRequestId(undefined)).not.toBe(normaliseRequestId(undefined));
+  });
+});
+
+describe('requestContextMiddleware', () => {
+  it('reuses a valid inbound id on the request, the response and the context', () => {
+    const { req, res, seenInside } = run({ 'x-request-id': 'rid-1' });
+    expect(req.requestId).toBe('rid-1');
+    expect(res.setHeader).toHaveBeenCalledWith('x-request-id', 'rid-1');
+    expect(seenInside).toBe('rid-1');
+  });
+
+  it('generates one when the client sends none', () => {
+    const { req, res, seenInside } = run({});
+    expect(req.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(res.setHeader).toHaveBeenCalledWith('x-request-id', req.requestId);
+    expect(seenInside).toBe(req.requestId);
+  });
+
+  it('does not echo an unsafe client id back', () => {
+    const { req, res } = run({ 'x-request-id': 'bad\nid' });
+    expect(req.requestId).not.toContain('\n');
+    expect(res.setHeader).toHaveBeenCalledWith('x-request-id', req.requestId);
+  });
+
+  // The value of ambient context is that async work keeps the id without being
+  // handed it. If this ever breaks, the id survives only on synchronous paths
+  // and most service-level log lines silently lose it.
+  it('keeps the id across await boundaries', async () => {
+    const req: any = { headers: { 'x-request-id': 'rid-async' } };
+    const res: any = { setHeader: jest.fn() };
+    const seen = await new Promise<string | undefined>((resolve) => {
+      requestContextMiddleware(req, res, async () => {
+        await new Promise((r) => setTimeout(r, 1));
+        resolve(getRequestId());
+      });
+    });
+    expect(seen).toBe('rid-async');
+  });
+
+  it('isolates concurrent requests from each other', async () => {
+    const capture = (id: string) =>
+      new Promise<string | undefined>((resolve) => {
+        requestContextMiddleware({ headers: { 'x-request-id': id } } as any, { setHeader: jest.fn() } as any, async () => {
+          await new Promise((r) => setTimeout(r, 5));
+          resolve(getRequestId());
+        });
+      });
+    await expect(Promise.all([capture('a1'), capture('b2')])).resolves.toEqual(['a1', 'b2']);
+  });
+
+  it('returns undefined outside any request', () => {
+    expect(getRequestId()).toBeUndefined();
+  });
+});

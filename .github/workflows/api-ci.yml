@@ -70,6 +70,7 @@ jobs:
           npm run validate:money
           npm run validate:marketplace
           npm run validate:cross-user
+          npm run validate:correlation-id
           npm run validate:moderation
           npm run validate:moderation-ops
           npm run validate:security

@@ -1,4 +1,6 @@
+import { trace } from '@opentelemetry/api';
 import { JsonLogger } from './json-logger';
+import { requestContextMiddleware } from './request-context';
 
 describe('JsonLogger', () => {
   let out: jest.SpyInstance;
@@ -32,5 +34,27 @@ describe('JsonLogger', () => {
     l.debug('d');
     l.verbose('v');
     expect(out).toHaveBeenCalledTimes(2);
+  });
+
+  // The point of the ambient context: a log line written deep inside a service,
+  // which knows nothing about the request, still carries the correlation id.
+  it('stamps the ambient requestId onto a line that never mentions it', () => {
+    requestContextMiddleware({ headers: { 'x-request-id': 'rid-9' } } as any, { setHeader: jest.fn() } as any, () => {
+      new JsonLogger().log('deep inside a service');
+    });
+    expect(JSON.parse(out.mock.calls[0][0] as string)).toMatchObject({ requestId: 'rid-9', message: 'deep inside a service' });
+  });
+
+  it('omits requestId and traceId when there is no request and no active span', () => {
+    new JsonLogger().log('boot');
+    const entry = JSON.parse(out.mock.calls[0][0] as string);
+    expect(entry).not.toHaveProperty('requestId');
+    expect(entry).not.toHaveProperty('traceId');
+  });
+
+  it('stamps traceId when a span is active, linking the line to its trace', () => {
+    jest.spyOn(trace, 'getActiveSpan').mockReturnValue({ spanContext: () => ({ traceId: 'tr-1' }) } as any);
+    new JsonLogger().log('inside a span');
+    expect(JSON.parse(out.mock.calls[0][0] as string)).toMatchObject({ traceId: 'tr-1' });
   });
 });

@@ -16,25 +16,41 @@ describe('RequestLoggingInterceptor', () => {
     });
   });
 
-  it('reuses an incoming x-request-id and logs on success', (done) => {
-    const req: any = { headers: { 'x-request-id': 'rid' }, method: 'GET', url: '/x', user: { sub: 'u1' } };
-    const res: any = { setHeader: jest.fn(), statusCode: 200 };
+  it('logs method, path, status and user on success', (done) => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const req: any = { headers: {}, method: 'GET', url: '/x', user: { sub: 'u1' } };
+    const res: any = { statusCode: 200 };
     new RequestLoggingInterceptor().intercept(ctx(req, res), { handle: () => of('ok') } as any).subscribe(() => {
-      expect(res.setHeader).toHaveBeenCalledWith('x-request-id', 'rid');
-      expect(req.requestId).toBe('rid');
+      expect(log).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'GET', path: '/x', statusCode: 200, userId: 'u1', latencyMs: expect.any(Number) })
+      );
+      log.mockRestore();
       done();
     });
   });
 
-  it('generates a request id and still logs on error (anonymous user)', (done) => {
+  it('logs a null userId for anonymous requests', (done) => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
     const req: any = { headers: {}, method: 'POST', originalUrl: '/y' };
-    const res: any = { setHeader: jest.fn(), statusCode: 500 };
+    const res: any = { statusCode: 500 };
     new RequestLoggingInterceptor().intercept(ctx(req, res), { handle: () => throwError(() => new Error('boom')) } as any).subscribe({
       error: () => {
-        expect(req.requestId).toBeDefined();
-        expect(res.setHeader).toHaveBeenCalled();
+        expect(log).toHaveBeenCalledWith(expect.objectContaining({ path: '/y', userId: null }));
+        log.mockRestore();
         done();
       }
+    });
+  });
+
+  // Regression guard for the split: the interceptor must NOT set the header any
+  // more. If it starts doing so again it will overwrite the middleware's id on
+  // the happy path only, so 200s and 401s would disagree about the same request.
+  it('does not touch the response headers', (done) => {
+    const req: any = { headers: {}, method: 'GET', url: '/x' };
+    const res: any = { setHeader: jest.fn(), statusCode: 200 };
+    new RequestLoggingInterceptor().intercept(ctx(req, res), { handle: () => of('ok') } as any).subscribe(() => {
+      expect(res.setHeader).not.toHaveBeenCalled();
+      done();
     });
   });
 

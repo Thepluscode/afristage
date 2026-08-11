@@ -64,6 +64,42 @@ npm run start:dev -w apps/api
 curl http://localhost:3000/api/health
 ```
 
+## Tracing one request through the logs
+
+Every response carries `x-request-id`, and every log line written while serving
+that request carries the same value in its `requestId` field — including lines
+from deep inside a service that never mention the request. The id is assigned by
+the first middleware in the chain, ahead of CORS, the JWT guard and the
+throttler, so a `401` or `429` is just as traceable as a `200`.
+
+A user reporting a failure can be asked for the `x-request-id` from their
+browser's network tab; otherwise send one yourself:
+
+```bash
+curl -sD- -H 'x-request-id: support-1234' http://localhost:3000/api/health -o /dev/null | grep -i x-request-id
+railway logs --service api | grep support-1234        # every line for that request
+```
+
+A client-supplied id is only honoured if it matches `[A-Za-z0-9._-]{1,64}`;
+anything else is replaced with a fresh UUID rather than sanitised, so an id in
+the logs is never a forged log line and never collides with a real request's.
+
+`npm run validate:correlation-id` (runs in CI) proves the chain against a live
+API, including the rejected-request case that unit tests cannot see.
+
+### Distributed tracing (optional, off by default)
+
+Tracing is disabled unless a collector is configured. To enable:
+
+| Variable | Effect |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector base URL, e.g. `http://otel-collector:4318`. **Unset = tracing off**, no SDK started. |
+| `OTEL_SERVICE_NAME` | Service name on spans. Default `afristage-api`. |
+
+Inbound/outbound HTTP, Express routing and Redis are instrumented; `/api/health`
+is excluded so the probe does not become the bulk of the trace volume. While
+tracing is on, log lines also carry `traceId`, which joins a log line to its span.
+
 ## Closed beta launch gate
 
 Run the non-live gate before every beta build handoff:
