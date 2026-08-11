@@ -65,8 +65,19 @@ def metric_value(body: str, name: str) -> float | None:
     return None
 
 
-def classify(result: dict, cfg: dict) -> tuple[bool, list[str]]:
-    """Pure decision: is this probe healthy? Returns (ok, reasons_it_failed). Unit-tested."""
+# A probe and the service it watches keep separate clocks. Small disagreement is
+# normal; a timestamp far in the FUTURE is not, and it matters because it makes
+# every staleness check pass forever — the vacuous-pass failure this whole file
+# exists to avoid.
+CLOCK_SKEW_TOLERANCE_S = 120
+
+
+def classify(result: dict, cfg: dict, now: float | None = None) -> tuple[bool, list[str]]:
+    """Pure decision: is this probe healthy? Returns (ok, reasons_it_failed). Unit-tested.
+
+    `now` is injectable so staleness is tested deterministically rather than by
+    sleeping.
+    """
     reasons = []
     if result.get("error"):
         return False, [f"unreachable: {result['error']}"]
@@ -84,6 +95,27 @@ def classify(result: dict, cfg: dict) -> tuple[bool, list[str]]:
             reasons.append(f"metric {name} missing")
         elif actual != expected:
             reasons.append(f"metric {name}={actual:g} != {expected:g}")
+
+    # Freshness. A gauge whose writer has died keeps publishing its last value
+    # forever, so `integrity_ok 1` goes on reading healthy while nothing is
+    # actually checking. The value assertion above cannot see that; only the age
+    # of the accompanying timestamp can.
+    ages = cfg.get("max_metric_age") or {}
+    if ages:
+        now = time.time() if now is None else now
+        for name, limit in ages.items():
+            ts = metric_value(result.get("body") or "", name)
+            if ts is None:
+                reasons.append(f"metric {name} missing")
+                continue
+            age = now - ts
+            if age > limit:
+                reasons.append(f"metric {name} stale: {age:.0f}s old > {limit:.0f}s")
+            elif age < -CLOCK_SKEW_TOLERANCE_S:
+                # Left unchecked this is indistinguishable from "perfectly fresh"
+                # and would silence the staleness check permanently.
+                reasons.append(f"metric {name} timestamp {-age:.0f}s in the future (clock skew)")
+
     return (len(reasons) == 0), reasons
 
 
@@ -212,6 +244,41 @@ def selftest() -> int:
     ok, reasons = classify({"status": 200, "latency_ms": 10, "body": "", "error": None}, mcfg)
     assert not ok and "missing" in reasons[0], reasons
 
+    # --- freshness ---------------------------------------------------------
+    # The gap this closes: if the server-side sweep dies while the process stays
+    # up, integrity_ok holds 1 forever and every value assertion keeps passing.
+    NOW = 1_000_000.0
+    def body_at(ts):
+        return (f"# HELP afristage_ledger_integrity_last_check_timestamp_seconds Unix time\n"
+                f"afristage_ledger_integrity_ok 1\n"
+                f"afristage_ledger_integrity_last_check_timestamp_seconds {ts}\n")
+    fcfg = {"max_metric_age": {"afristage_ledger_integrity_last_check_timestamp_seconds": 900}}
+    fresh = {"status": 200, "latency_ms": 5, "error": None}
+
+    assert classify({**fresh, "body": body_at(NOW - 60)}, fcfg, now=NOW)[0]          # 1 min old
+    assert classify({**fresh, "body": body_at(NOW - 900)}, fcfg, now=NOW)[0]         # exactly at limit
+    ok, reasons = classify({**fresh, "body": body_at(NOW - 901)}, fcfg, now=NOW)     # one past
+    assert not ok and "stale" in reasons[0], reasons
+    ok, reasons = classify({**fresh, "body": body_at(NOW - 86400)}, fcfg, now=NOW)   # a dead sweep
+    assert not ok and "86400s old" in reasons[0], reasons
+
+    # A gauge that stops being published must page, not pass.
+    ok, reasons = classify({**fresh, "body": "afristage_ledger_integrity_ok 1\n"}, fcfg, now=NOW)
+    assert not ok and "missing" in reasons[0], reasons
+
+    # Clock skew. A timestamp in the future reads as "negative age", which would
+    # satisfy any staleness limit forever — the check would be permanently
+    # green for the one reason it must never be.
+    assert classify({**fresh, "body": body_at(NOW + 30)}, fcfg, now=NOW)[0]          # within tolerance
+    ok, reasons = classify({**fresh, "body": body_at(NOW + 3600)}, fcfg, now=NOW)
+    assert not ok and "future" in reasons[0], reasons
+
+    # Value and freshness are independent failures and both get reported.
+    both = {"expect_metric": {"afristage_ledger_integrity_ok": 1.0}, **fcfg}
+    ok, reasons = classify({**fresh, "body": body_at(NOW - 5000).replace("integrity_ok 1", "integrity_ok 0")},
+                           both, now=NOW)
+    assert not ok and len(reasons) == 2, reasons
+
     # --- alerting-is-broken paths ------------------------------------------
     # Driven against real sockets, not mocks: the bug being prevented is that a
     # collector REJECTS the alert, which only a real response can express.
@@ -280,6 +347,10 @@ def main(argv=None) -> int:
     p.add_argument("--expect-metric", action="append", default=[], metavar="NAME=VALUE",
                    help="Prometheus sample that must equal VALUE (repeatable). Parses the "
                         "exposition format, so HELP/TYPE comments cannot satisfy it.")
+    p.add_argument("--max-metric-age", action="append", default=[], metavar="NAME=SECONDS",
+                   help="Prometheus sample holding a unix timestamp that must be newer than "
+                        "SECONDS (repeatable). Catches a dead writer whose gauge still reads "
+                        "healthy.")
     p.add_argument("--timeout", type=float, default=10.0, help="per-request timeout (s)")
     p.add_argument("--region", default="local", help="vantage-point label for the alert")
     p.add_argument("--alert-webhook", default=os.environ.get("ALERT_WEBHOOK"),
@@ -294,17 +365,22 @@ def main(argv=None) -> int:
         return selftest()
     if not args.url:
         p.error("at least one --url is required")
-    metrics = {}
-    for pair in args.expect_metric:
-        name, sep, value = pair.partition("=")
-        if not sep:
-            p.error(f"--expect-metric expects NAME=VALUE, got {pair!r}")
-        try:
-            metrics[name.strip()] = float(value)
-        except ValueError:
-            p.error(f"--expect-metric value must be numeric, got {value!r}")
+    def numeric_pairs(pairs, flag):
+        out = {}
+        for pair in pairs:
+            name, sep, value = pair.partition("=")
+            if not sep:
+                p.error(f"{flag} expects NAME=VALUE, got {pair!r}")
+            try:
+                out[name.strip()] = float(value)
+            except ValueError:
+                p.error(f"{flag} value must be numeric, got {value!r}")
+        return out
+
     cfg = {"expect_status": args.expect_status, "max_latency_ms": args.max_latency_ms,
-           "expect_body": args.expect_body, "expect_metric": metrics}
+           "expect_body": args.expect_body,
+           "expect_metric": numeric_pairs(args.expect_metric, "--expect-metric"),
+           "max_metric_age": numeric_pairs(args.max_metric_age, "--max-metric-age")}
     return run(args.url, cfg, args.region, args.alert_webhook, args.timeout, args.require_webhook)
 
 

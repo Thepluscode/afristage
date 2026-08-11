@@ -88,6 +88,23 @@
 
   A metric that goes missing is a failure, not a pass, so a rename or a dropped
   gauge pages rather than silently ending the check.
+
+- **Gauge freshness** (`--max-metric-age NAME=SECONDS`): a value assertion alone
+  cannot see a **dead writer**. If the server-side sweep stops while the process
+  stays up, `afristage_ledger_integrity_ok` keeps publishing the last `1` it ever
+  wrote and every check passes forever. Demonstrated: the same response body
+  passes `--expect-metric afristage_ledger_integrity_ok=1` with exit 0 while its
+  timestamp is two hours old.
+
+  Both sweeps (`LedgerIntegrityService`, `RevenueMonitorService`) run every 5
+  minutes, so cron allows `900` seconds — three missed runs — before paging on
+  `afristage_ledger_integrity_last_check_timestamp_seconds` and
+  `afristage_revenue_last_check_timestamp_seconds`.
+
+  A timestamp in the **future** also fails, beyond 120s of tolerance. That is
+  not pedantry: a future timestamp produces a negative age, which satisfies any
+  staleness limit permanently — it would silence the check for exactly the
+  reason it exists.
 - **Mobile against staging**: no code change needed —
   `flutter run --dart-define=API_BASE=https://api-production-e12f.up.railway.app/api`
   (an explicit `API_BASE` define always wins over the localhost defaults).
