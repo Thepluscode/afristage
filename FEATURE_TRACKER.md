@@ -40,6 +40,19 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-08-11 — a rejected request is now as traceable as a successful one
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Every response carries a correlation id, and every response is logged — including the ones a guard rejected.** The id and the completion log both used to live in a Nest interceptor, which runs only *after* guards. Measured against a live API before the change: **17 http log lines, every one a `200`.** A 401 or a 404 had no id on its response and **no log line at all** — a user reporting a failure could not be found in the logs by any means. Both jobs moved to the first middleware in the chain, ahead of CORS, JWT and the throttler, with the completion line written from `res.on('finish')` (which fires whoever ended the response). This also deleted a workaround: on the interceptor's error path `res.statusCode` was the pre-filter default, so a rejected login logged as `201` and the status had to be dug out of the exception; by `finish` it is simply correct. | VERIFIED | Live API, `validate:correlation-id` **10 passed / 0 failed, 9 of 9 checks**. Guard-rejected: `{"requestId":"validate-corr-401-1786444903309","path":"/api/wallet/me","statusCode":401}`. Router 404: `{"requestId":"live-404-proof","path":"/api/does-not-exist","statusCode":404}`. Throttler run with rate limiting **on**: 130 requests → **100×200 + 31×429**, each logged, e.g. `{"requestId":"live-429-130","statusCode":429}`. Unit: 1018/1018 (`JEST_EXIT=0`); changed files 100% stmts/branch/func/lines. |
+| **The id is ambient, not a parameter**, held in `AsyncLocalStorage`, so a log line written deep in a service that knows nothing about the request still carries `requestId`. A client-supplied id is honoured (so it can be quoted in a support ticket) only if it matches `[A-Za-z0-9._-]{1,64}`; anything else is **replaced** with a fresh UUID rather than sanitised, because a stripped id can collide with a real request's. | VERIFIED | Live: client id `validate-corr-…` echoed unchanged; whitespace / 200-char / quote ids each replaced with a UUID; 5 concurrent requests → 5 distinct ids. Mutation-checked: dropping the validation regex fails 6 tests, replacing `AsyncLocalStorage` with a module-level variable fails the isolation and concurrency tests. |
+| **OpenTelemetry tracing, off unless `OTEL_EXPORTER_OTLP_ENDPOINT` names a collector** — an SDK exporting to nowhere buffers spans for a backend that will never read them. Instrumentation is an explicit list (http, express, ioredis) rather than `auto-instrumentations-node`, which pulls in every exporter (gRPC, protobuf, Prometheus). `/api/health` is excluded so the probe does not become the trace volume. While tracing is on, log lines also carry `traceId`. | IMPLEMENTED | Unit-tested at 100% incl. the disabled path, the health-ignore hook and the SIGTERM flush. **No collector is deployed**, so no spans have been observed end-to-end — this is deliberately not VERIFIED. Dependency cost measured: `auto-instrumentations-node` added 45 production advisories / 168 packages; the pinned explicit set adds **0** (15 before, 15 after). |
+
+Correction to an earlier claim in this session: a Prometheus metrics module already exists
+(`prom-client`, business counters and histograms), so metrics was **not** an observability gap.
+The remaining one is background jobs — there is no queue or worker in the API (0 hits for
+Bull/queue/cron), so payouts, refunds, retries and email all run inline on the request thread.
+
 ## Session 2026-08-01 — the payment loop, proven against the real Stripe
 
 | Feature | Status | Evidence |

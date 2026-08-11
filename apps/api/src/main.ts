@@ -1,3 +1,7 @@
+// MUST be the first import: the OpenTelemetry instrumentations patch `http`,
+// `express` and `ioredis` as they are required, so anything imported above this
+// line would be loaded unpatched and would produce no spans.
+import './tracing';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -7,7 +11,7 @@ import { corsOrigin } from './config/cors-origins';
 import { validateEnv } from './config/validate-env';
 import { JsonLogger } from './common/json-logger';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
-import { RequestLoggingInterceptor } from './common/request-logging.interceptor';
+import { requestContextMiddleware } from './common/request-context';
 
 // ponytail: Prisma money fields are BigInt; Express JSON.stringify can't serialize them.
 // Serialize all BigInt to string globally (matches wallet endpoints already returning strings).
@@ -19,6 +23,11 @@ async function bootstrap() {
   validateEnv(); // crash before listening if production secrets/config are missing or unsafe
   const app = await NestFactory.create(AppModule, { rawBody: true, bufferLogs: true });
   app.useLogger(new JsonLogger());
+  // FIRST middleware, deliberately ahead of helmet, CORS, auth and the
+  // throttler: a request rejected by any of those still gets an id on its
+  // response and on its log line. Registered after useLogger only because the
+  // logger must exist before anything writes through it.
+  app.use(requestContextMiddleware);
   // Security headers: removes X-Powered-By, adds nosniff / frame-deny / HSTS /
   // referrer-policy. CSP is off here — this is a JSON API (no HTML documents to
   // protect), and it keeps cross-origin API consumers unaffected.
@@ -31,7 +40,6 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.enableCors({ origin: corsOrigin(), credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalInterceptors(new RequestLoggingInterceptor());
   // Floor under every un-caught database rule: a constraint violation becomes an
   // honest 4xx instead of "500 Internal server error". Call sites that can say
   // something more specific still catch their own (see auth.register).

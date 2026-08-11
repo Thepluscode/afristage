@@ -1,4 +1,6 @@
 import { LoggerService, LogLevel } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
+import { getRequestId } from './request-context';
 
 // Minimal structured logger: one JSON object per line to stdout/stderr.
 // No external logging dep — Nest's own logs flow through this too.
@@ -6,7 +8,18 @@ export class JsonLogger implements LoggerService {
   private write(level: LogLevel, message: unknown, params: unknown[]) {
     // Nest passes the context (e.g. "RouterExplorer") as the last string param.
     const context = params.length && typeof params[params.length - 1] === 'string' ? (params.pop() as string) : undefined;
-    const base = { time: new Date().toISOString(), level, context };
+    // Pulled from ambient async context so EVERY line under a request carries
+    // the id — not only the ones whose author remembered to include it. traceId
+    // is present only while tracing is enabled, and links a log line to its span.
+    const requestId = getRequestId();
+    const traceId = trace.getActiveSpan()?.spanContext().traceId;
+    const base = {
+      time: new Date().toISOString(),
+      level,
+      context,
+      ...(requestId ? { requestId } : {}),
+      ...(traceId ? { traceId } : {})
+    };
     // Object messages are spread into flat, queryable fields; strings stay as `message`.
     const entry =
       message && typeof message === 'object'
