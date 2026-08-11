@@ -60,9 +60,15 @@ describe('LedgerService overdraw protection under concurrency (integration)', ()
   afterAll(async () => {
     if (dbReady) {
       const accountIds = [coinId, sinkId];
-      await prisma.ledgerEntry.deleteMany({ where: { accountId: { in: accountIds } } });
-      await prisma.ledgerTransaction.deleteMany({ where: { idempotencyKey: { startsWith: PREFIX } } });
-      await prisma.walletAccount.deleteMany({ where: { id: { in: accountIds } } });
+      // One database transaction, not three. Deleting the entries in their own
+      // commit leaves their transactions with zero entries — the exact corrupt
+      // shape the deferred balance constraint rejects. Teardown has to hold the
+      // ledger invariant on the way out just as posting does on the way in.
+      await prisma.$transaction([
+        prisma.ledgerEntry.deleteMany({ where: { accountId: { in: accountIds } } }),
+        prisma.ledgerTransaction.deleteMany({ where: { idempotencyKey: { startsWith: PREFIX } } }),
+        prisma.walletAccount.deleteMany({ where: { id: { in: accountIds } } })
+      ]);
       await prisma.user.delete({ where: { id: userId } });
     }
     await prisma?.$disconnect();
