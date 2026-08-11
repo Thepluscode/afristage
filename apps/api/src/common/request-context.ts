@@ -40,7 +40,12 @@ const logger = new Logger('http');
 // res.statusCode is simply correct.
 export function requestContextMiddleware(
   req: { headers: Record<string, unknown>; requestId?: string; method?: string; originalUrl?: string; url?: string; user?: { sub?: string } },
-  res: { setHeader: (k: string, v: string) => void; on: (e: string, cb: () => void) => void; statusCode?: number },
+  res: {
+    setHeader: (k: string, v: string) => void;
+    on: (e: string, cb: () => void) => void;
+    statusCode?: number;
+    writableFinished?: boolean;
+  },
   next: () => void
 ): void {
   const requestId = normaliseRequestId(req.headers['x-request-id']);
@@ -48,17 +53,25 @@ export function requestContextMiddleware(
   res.setHeader('x-request-id', requestId);
   const start = Date.now();
 
-  // requestId is passed explicitly rather than read from the store: the
-  // 'finish' callback is invoked by the socket, not by the request's async
-  // chain, so it cannot be relied on to still be inside the context.
-  res.on('finish', () =>
+  // 'close', not 'finish'. 'finish' only fires when a response was fully sent,
+  // so a client that gives up — a slow endpoint, a phone losing signal — would
+  // produce no line at all, and abandoned requests are among the most worth
+  // seeing. 'close' fires either way; writableFinished tells them apart.
+  //
+  // requestId is passed explicitly rather than read from the store: this
+  // callback is invoked by the socket, not by the request's async chain, so it
+  // cannot be relied on to still be inside the context.
+  res.on('close', () =>
     logger.log({
       requestId,
       method: req.method,
       path: req.originalUrl || req.url,
       statusCode: res.statusCode,
       latencyMs: Date.now() - start,
-      userId: req.user?.sub ?? null
+      userId: req.user?.sub ?? null,
+      // A 200 the client never received is not a success; say so rather than
+      // letting it read as one in the logs.
+      ...(res.writableFinished === false ? { aborted: true } : {})
     })
   );
 

@@ -4,14 +4,22 @@ import { getRequestId, normaliseRequestId, requestContextMiddleware } from './re
 // Captures the 'finish' listener so a test can end the response itself.
 const mkRes = (statusCode = 200) => {
   const listeners: Record<string, () => void> = {};
-  return {
+  const res: any = {
     setHeader: jest.fn(),
     on: (e: string, cb: () => void) => {
       listeners[e] = cb;
     },
     statusCode,
-    finish: () => listeners.finish?.()
-  } as any;
+    writableFinished: true,
+    // A response that completed: node emits 'close' after 'finish'.
+    finish: () => listeners.close?.(),
+    // A client that gave up: 'close' fires with writableFinished still false.
+    abort: () => {
+      res.writableFinished = false;
+      listeners.close?.();
+    }
+  };
+  return res;
 };
 
 const run = (headers: Record<string, unknown>) => {
@@ -135,10 +143,27 @@ describe('completion logging', () => {
     expect(drive(200, { headers: {}, method: 'GET', originalUrl: '/api/health', url: '/health' }).path).toBe('/api/health');
   });
 
-  it('does not log until the response actually finishes', () => {
+  it('does not log until the response actually closes', () => {
     const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
     requestContextMiddleware({ headers: {} } as any, mkRes(), () => {});
     expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it('does not mark a completed response as aborted', () => {
+    expect(drive(200)).not.toHaveProperty('aborted');
+  });
+
+  // Listening on 'finish' would drop this line entirely: 'finish' fires only for
+  // a response that was fully sent, so a client giving up on a slow endpoint —
+  // a phone losing signal — vanished from the logs. Verified against real node:
+  // on abort, finish never fires, close does, writableFinished stays false.
+  it('logs a request the client abandoned, and marks it aborted', () => {
+    const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const res = mkRes(200);
+    requestContextMiddleware({ headers: { 'x-request-id': 'gave-up' }, method: 'GET', url: '/slow' } as any, res, () => {});
+    res.abort();
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'gave-up', path: '/slow', aborted: true }));
     log.mockRestore();
   });
 });
