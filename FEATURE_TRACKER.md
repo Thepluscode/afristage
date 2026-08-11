@@ -40,6 +40,12 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-08-11 — ledger paging is live, and broken paging fails closed
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Outside-in paging for service health and ledger integrity.** The probe parses Prometheus sample values rather than matching HELP-text substrings, requires a configured webhook in cron, and distinguishes a target failure whose alert was accepted (`1`) from broken alert delivery (`2`). The Slack credential is read from `~/.afristage-alert-webhook`, never stored in the repository or crontab. | VERIFIED | `synthetic_check.py --selftest`: OK against local 200, 404, unreachable and malformed collectors. Live forced failure against Railway (`--expect-status 999`, region `drill-rotated`) exited **1** and the resulting `Synthetic check FAILED` message was observed in `#all-afristage-alerts`; the healthy control exited **0** without paging. Both installed cron commands then exited **0**: service reachability `2/2 healthy`, ledger metrics `1/1 healthy`. The initially exposed Slack installation was revoked, a distinct replacement webhook was issued for the same channel, and the local file was verified as mode `0600`, 81 bytes, with no trailing newline. |
+
 ## Session 2026-08-11 — a rejected request is now as traceable as a successful one
 
 | Feature | Status | Evidence |
