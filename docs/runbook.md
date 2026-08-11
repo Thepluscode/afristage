@@ -32,12 +32,43 @@
   KNOWN LIMIT: the Android **emulator** cannot publish its camera
   (`setCameraEnabled` throws even with `hw.camera.front=emulated`) — camera
   publish must be verified on a physical device before wave 1.
-- **Monitoring**: cron on the ops Mac probes both services every 5 min
-  (`crontab -l`, logs in `tmp/synthetic-check.log`):
-  `python3 tools/monitoring/synthetic_check.py --url .../api/health --url
-  https://admin-web-production-803b.up.railway.app/api/health --expect-status
-  200 --max-latency-ms 3000` — add `--alert-webhook <hook>` once a Slack or
-  Discord hook exists so failures page instead of logging.
+- **Monitoring**: two cron entries on the ops Mac, every 5 min (`crontab -l`):
+  reachability of both services (`tmp/synthetic-check.log`) and **ledger
+  integrity** (`tmp/ledger-integrity-check.log`). Both alert through
+  `synthetic_check.py`.
+
+  **To make alerts actually page, create the hook file — this is the only
+  manual step:**
+
+  ```bash
+  printf '%s' 'https://hooks.slack.com/services/XXX' > ~/.afristage-alert-webhook
+  chmod 600 ~/.afristage-alert-webhook
+  ```
+
+  Cron reads it at run time (`ALERT_WEBHOOK=$(cat ~/.afristage-alert-webhook)`),
+  so the URL is never in `crontab -l` or visible in `ps`, and rotating it means
+  editing one file. **If the file is absent the probes still run and still exit
+  non-zero — they just don't page.** Verify delivery without waiting for a real
+  outage by pointing a probe at something known-bad:
+
+  ```bash
+  ALERT_WEBHOOK=$(cat ~/.afristage-alert-webhook) python3 tools/monitoring/synthetic_check.py \
+    --url https://api-production-e12f.up.railway.app/api/health --expect-status 999 --region drill
+  ```
+
+  Expect exit 1 and a message in the channel. A drill that produces no message
+  means the alerting is decoration — fix it before trusting it.
+
+- **Ledger integrity alerting**: asserted with `--expect-metric`, which parses
+  the Prometheus exposition format. **Do not use `--expect-body` for metrics.**
+  It is a substring search, and this metric's own HELP text reads
+  `# HELP afristage_ledger_integrity_ok 1 when the last integrity sweep was clean, 0 otherwise`
+  — so `--expect-body 'afristage_ledger_integrity_ok 1'` matches the comment and
+  reports a **corrupt ledger as healthy**. That was confirmed against the live
+  endpoint, and the selftest carries it as a regression case.
+
+  A metric that goes missing is a failure, not a pass, so a rename or a dropped
+  gauge pages rather than silently ending the check.
 - **Mobile against staging**: no code change needed —
   `flutter run --dart-define=API_BASE=https://api-production-e12f.up.railway.app/api`
   (an explicit `API_BASE` define always wins over the localhost defaults).
