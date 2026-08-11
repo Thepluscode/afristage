@@ -15,14 +15,23 @@
 //   API_BASE=https://<host>/api npm run validate:correlation-id
 import { ok, api, finish } from './_lib.mjs';
 
+// finish() exits 0 on "0 passed, 0 failed". If an early throw or a refactor ever
+// skips the checks, a silent pass is worse than a failure, so count them.
+const EXPECTED_CHECKS = 9;
+let ran = 0;
+const check = (cond, msg) => {
+  ran += 1;
+  ok(cond, msg);
+};
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const idOf = (res) => res.headers.get('x-request-id');
 
 // 1. The happy path.
 {
   const res = await api('GET', '/health');
-  ok(res.status === 200, `health → ${res.status}`);
-  ok(UUID.test(idOf(res) || ''), `health carries a generated x-request-id (${idOf(res)})`);
+  check(res.status === 200, `health → ${res.status}`);
+  check(UUID.test(idOf(res) || ''), `health carries a generated x-request-id (${idOf(res)})`);
 }
 
 // 2. A client id is honoured end to end — this is what makes a support ticket
@@ -30,7 +39,7 @@ const idOf = (res) => res.headers.get('x-request-id');
 {
   const mine = `validate-corr-${Date.now()}`;
   const res = await api('GET', '/health', { headers: { 'x-request-id': mine } });
-  ok(idOf(res) === mine, `client-supplied id echoed unchanged (${idOf(res)})`);
+  check(idOf(res) === mine, `client-supplied id echoed unchanged (${idOf(res)})`);
 }
 
 // 3. THE REGRESSION. A request rejected before any controller runs must still be
@@ -39,8 +48,8 @@ const idOf = (res) => res.headers.get('x-request-id');
 {
   const mine = `validate-corr-401-${Date.now()}`;
   const res = await api('GET', '/wallet', { headers: { 'x-request-id': mine } });
-  ok(res.status === 401, `unauthenticated /wallet → ${res.status} (expected 401)`);
-  ok(idOf(res) === mine, `REJECTED request still carries its id (${idOf(res)})`);
+  check(res.status === 401, `unauthenticated /wallet → ${res.status} (expected 401)`);
+  check(idOf(res) === mine, `REJECTED request still carries its id (${idOf(res)})`);
 }
 
 // 4. A hostile id is replaced with a fresh one rather than sanitised or echoed:
@@ -53,14 +62,16 @@ for (const [label, hostile] of [
 ]) {
   const res = await api('GET', '/health', { headers: { 'x-request-id': hostile } });
   const got = idOf(res) || '';
-  ok(got !== hostile && UUID.test(got), `hostile id replaced — ${label} → ${got}`);
+  check(got !== hostile && UUID.test(got), `hostile id replaced — ${label} → ${got}`);
 }
 
 // 5. Ids are per-request, not per-process. A shared module-level variable would
 //    pass every check above and fail this one.
 {
   const ids = (await Promise.all([1, 2, 3, 4, 5].map(() => api('GET', '/health')))).map(idOf);
-  ok(new Set(ids).size === ids.length, `5 concurrent requests → ${new Set(ids).size} distinct ids`);
+  check(new Set(ids).size === ids.length, `5 concurrent requests → ${new Set(ids).size} distinct ids`);
 }
+
+ok(ran === EXPECTED_CHECKS, `ran ${ran} of ${EXPECTED_CHECKS} checks`);
 
 await finish();
