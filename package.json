@@ -39,6 +39,7 @@
     "validate:provider-sandbox": "node scripts/validate-provider-sandbox.mjs",
     "preflight:live-session": "node scripts/preflight-live-session.mjs",
     "validate:error-paths": "node scripts/validate-error-paths.mjs",
+    "validate:seller-withdrawal": "node scripts/validate-seller-withdrawal.mjs",
     "validate:correlation-id": "node scripts/validate-correlation-id.mjs",
     "validate:cross-user": "node scripts/validate-cross-user.mjs"
   },

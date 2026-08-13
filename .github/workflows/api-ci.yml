@@ -69,6 +69,7 @@ jobs:
           set -e
           npm run validate:money
           npm run validate:marketplace
+          npm run validate:seller-withdrawal
           npm run validate:cross-user
           npm run validate:correlation-id
           npm run validate:moderation
