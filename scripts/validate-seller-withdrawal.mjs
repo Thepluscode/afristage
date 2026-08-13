@@ -1,21 +1,27 @@
 // Can a MARKETPLACE SELLER actually get their money out?
 //
-// validate:marketplace proves a sale moves coins into the seller's EARNING
-// account and stops there. validate:money proves a payout — but for a seeded
-// CREATOR, who earns through gifts. Nobody has ever driven the leg in between:
-// a plain shop owner, with no creator profile, withdrawing money that arrived
-// from a product sale rather than a gift.
+// It used to be: no. A shop owner who was not a creator could register, open a
+// shop, sell, accrue a correctly-ledgered EARNING balance and register a bank
+// account — then be refused at the withdrawal with 400 "Payout not enabled",
+// because the payout gate requires a creatorProfile and shop creation did not.
+// Every step before the money left succeeded, so the trap was invisible until a
+// merchant tried to get paid. The gap sat exactly between two green suites:
+// validate:marketplace stops at the EARNING credit, validate:money exercises a
+// payout but only for a seeded CREATOR earning through gifts.
 //
-// That leg is the first question any merchant asks, and "the code looks like it
-// should work" is not an answer. Reading the source says a sale credits
-// WalletAccountType.EARNING and a payout debits WalletAccountType.EARNING, and
-// that neither POST /shops nor POST /payouts/request carries a role gate — so
-// the prediction is that it works. This runs it.
+// The two endpoints disagreed about who a seller is. Shop creation was the side
+// that was wrong — the marketplace is creator-led by construction (pinProduct
+// requires room.hostUserId === userId, so a seller sells their own products in
+// their own live room). Selling now requires a creator account, and the trap is
+// refused at the entrance instead of at the till.
+//
+// This suite proves BOTH halves: the door is shut, and the path behind it works
+// end to end.
 //
 //   API_BASE=https://<host>/api npm run validate:seller-withdrawal
 import { ok, sql, api, login, finish, buyCoins, SEED } from './_lib.mjs';
 
-const EXPECTED_CHECKS = 17;
+const EXPECTED_CHECKS = 22;
 let ran = 0;
 const check = (cond, msg) => {
   ran += 1;
@@ -31,9 +37,8 @@ const bal = async (type, userId) =>
                 where a.user_id='${userId}' and a.account_type='${type}'`)) || 0
   );
 
-// --- a seller who is NOT a creator ------------------------------------------
-// The whole point: validate:marketplace uses the seeded creator, so a role gate
-// on payouts would have gone unnoticed. This account has no creator profile.
+console.log('\n=== THE DOOR: selling requires a creator account ===');
+
 const email = `seller-${stamp}@afristage.local`;
 const reg = await api('POST', '/auth/register', {
   body: {
@@ -41,106 +46,133 @@ const reg = await api('POST', '/auth/register', {
     country: 'NG', language: 'pidgin', ageConfirmed: true
   }
 });
-check(reg.status === 201 || reg.status === 200, `register a plain (non-creator) seller (status ${reg.status})`);
+check(reg.status === 201 || reg.status === 200, `register a plain (non-creator) account (status ${reg.status})`);
 const STOK = await login(email, 'SellerPay1!');
-check(!!STOK, 'seller logged in');
+check(!!STOK, 'non-creator logged in');
 const sellerId = await sql(`select id from users where email='${email}'`);
-check(!!sellerId, `resolved seller id (${sellerId})`);
+check(!!sellerId, `resolved account id (${sellerId})`);
+check(
+  Number(await sql(`select count(*) from creator_profiles where user_id='${sellerId}'`)) === 0,
+  'the account has NO creator profile'
+);
 
-const isCreator = await sql(`select count(*) from creator_profiles where user_id='${sellerId}'`);
-check(Number(isCreator) === 0, `the seller has NO creator profile (${isCreator}) — this is the untested case`);
-
-// --- shop + product, approved ------------------------------------------------
-const ATOK = await login('admin@afristage.local', SEED.admin);
-check(!!ATOK, 'admin logged in');
-
-const shop = await api('POST', '/shops', {
+// REGRESSION: this returned 201 before the fix, and the money trap opened here.
+const shopAttempt = await api('POST', '/shops', {
   token: STOK,
-  body: { name: `Seller Shop ${stamp}`, slug: `seller-shop-${stamp}`, description: 'withdrawal test' }
+  body: { name: `Seller Shop ${stamp}`, slug: `seller-shop-${stamp}`, description: 'should be refused' }
 });
-check(shop.status === 201 || shop.status === 200, `a non-creator can open a shop (status ${shop.status})`);
-const shopId = shop.data?.id;
+check(shopAttempt.status === 403, `a non-creator is REFUSED a shop (status ${shopAttempt.status}, was 201 before the fix)`);
+check(
+  /creator/i.test(JSON.stringify(shopAttempt.data ?? {})),
+  `and the refusal says why: ${JSON.stringify(shopAttempt.data?.message ?? shopAttempt.data)}`
+);
 
+// The three payout states used to share one message ("Payout not enabled"), so a
+// seller with no profile looked identical to a creator waiting on KYC.
+const noProfilePayout = await api('POST', '/payouts/request', {
+  token: STOK,
+  body: { coinAmount: 500, idempotencyKey: `noprofile-${stamp}` }
+});
+check(
+  /no creator profile/i.test(JSON.stringify(noProfilePayout.data ?? {})),
+  `payout without a profile names THAT reason, not a generic one: ${JSON.stringify(noProfilePayout.data?.message)}`
+);
+
+console.log('\n=== THE PATH BEHIND IT: a creator-seller gets paid, end to end ===');
+
+const CTOK = await login('creator@afristage.local', SEED.creator);
+const ATOK = await login('admin@afristage.local', SEED.admin);
+check(!!CTOK && !!ATOK, 'seeded creator + admin logged in');
+const creatorId = await sql(`select id from users where email='creator@afristage.local'`);
+
+// One shop per account, so reuse the creator's if earlier suites made one.
+let shopId = await sql(`select id from shops where owner_user_id='${creatorId}'`);
+if (!shopId) {
+  const created = await api('POST', '/shops', { token: CTOK, body: { name: `Creator Shop ${stamp}` } });
+  shopId = created.data?.id;
+}
+check(!!shopId, `the creator has a shop (${shopId})`);
 const approved = await api('PATCH', `/admin/shops/${shopId}/status`, { token: ATOK, body: { status: 'APPROVED' } });
-check(approved.status === 200, `admin approves the shop (status ${approved.status})`);
+check(approved.status === 200, `shop APPROVED (status ${approved.status})`);
 
 const PRICE = 5000;
 const product = await api('POST', '/shops/me/products', {
-  token: STOK,
-  body: { title: `Test Good ${stamp}`, description: 'physical good', priceCoins: PRICE, stock: 5 }
+  token: CTOK,
+  body: { title: `Payout Good ${stamp}`, description: 'physical good', priceCoins: PRICE, stock: 5 }
 });
-check(product.status === 201 || product.status === 200, `product created at ${PRICE} coins (status ${product.status})`);
+check(product.status === 201 || product.status === 200, `product listed at ${PRICE} coins (status ${product.status})`);
 const productId = product.data?.id;
-const live = await api('PATCH', `/shops/me/products/${productId}`, { token: STOK, body: { status: 'ACTIVE' } });
+const live = await api('PATCH', `/shops/me/products/${productId}`, { token: CTOK, body: { status: 'ACTIVE' } });
 check(live.status === 200, `product set live (status ${live.status})`);
 
-// --- a real sale -------------------------------------------------------------
 const vtok = await login('viewer@afristage.local', SEED.viewer);
-check(!!vtok, 'buyer logged in');
 await buyCoins(vtok, PRICE * 2);
-
-const earnedBefore = await bal('EARNING', sellerId);
+const earnBefore = await bal('EARNING', creatorId);
 const order = await api('POST', '/orders', {
   token: vtok,
   body: { productId, quantity: 1, idempotencyKey: `sellerpay-${stamp}` }
 });
-check(order.status === 201 || order.status === 200, `buyer purchases the product (status ${order.status})`);
-const earnedAfter = await bal('EARNING', sellerId);
-const earned = earnedAfter - earnedBefore;
+check(order.status === 201 || order.status === 200, `buyer purchases it (status ${order.status})`);
+const earned = (await bal('EARNING', creatorId)) - earnBefore;
 check(earned > 0n, `the sale credited the seller's EARNING account (+${earned} coins)`);
 
-// --- the leg nobody has run: withdraw it -------------------------------------
 const method = await api('POST', '/payouts/methods', {
-  token: STOK,
-  body: {
-    provider: 'BANK', country: 'NG', currency: 'NGN',
-    destinationReference: '0123456789', label: 'Seller bank', isDefault: true
-  }
+  token: CTOK,
+  body: { provider: 'BANK', country: 'NG', currency: 'NGN', destinationReference: '0123456789', label: `Bank ${stamp}` }
 });
-check(method.status === 201 || method.status === 200, `seller adds a payout method (status ${method.status})`);
+check(method.status === 201 || method.status === 200, `seller registers a payout method (status ${method.status})`);
 
+// THE LEG NOBODY HAD EVER RUN: withdrawing money that arrived from a SALE.
+const holdBefore = await bal('PAYOUT_HOLD', creatorId);
 const req = await api('POST', '/payouts/request', {
-  token: STOK,
+  token: CTOK,
   body: { coinAmount: Number(earned), idempotencyKey: `sellerpay-req-${stamp}` }
 });
-
-// KNOWN GAP, pinned 2026-08-13. A marketplace seller who is not a creator
-// CANNOT withdraw. payouts.service.ts requires a creatorProfile with
-// payoutEnabled + kycStatus APPROVED; a plain shop owner has no such row, so
-// the request is refused while the money sits correctly in their EARNING
-// account. Every step before this one succeeds — the shop, the sale, even
-// registering a bank account — which is what makes it a trap.
-//
-// This suite PINS that behaviour rather than failing CI, so the gap cannot be
-// forgotten and cannot silently change. When it is fixed, this check goes RED
-// and tells you to rewrite it against the success path.
-const blockedMsg = JSON.stringify(req.data ?? {});
-const isBlocked = req.status === 400 && /Payout not enabled/.test(blockedMsg);
 check(
-  isBlocked,
-  isBlocked
-    ? `KNOWN GAP pinned: seller withdrawal refused — 400 "Payout not enabled" (earned ${earned} coins, unwithdrawable)`
-    : `SELLER WITHDRAWAL BEHAVIOUR CHANGED (status ${req.status} ${blockedMsg}). If this is the fix, rewrite this suite to assert the success path: EARNING -> PAYOUT_HOLD -> PAYOUT_CLEARING.`
+  req.status === 201 || req.status === 200,
+  `SELLER WITHDRAWS MARKETPLACE EARNINGS (status ${req.status})${req.status >= 400 ? ` — ${JSON.stringify(req.data)}` : ''}`
 );
+const payoutId = req.data?.id;
 
-// The money must not be lost or half-moved by the refusal.
-const earningAfterRefusal = await bal('EARNING', sellerId);
-const heldAfterRefusal = await bal('PAYOUT_HOLD', sellerId);
+const holdDelta = (await bal('PAYOUT_HOLD', creatorId)) - holdBefore;
+const earnDelta = (await bal('EARNING', creatorId)) - earnBefore;
 check(
-  earningAfterRefusal === earnedAfter && heldAfterRefusal === 0n,
-  `the refused withdrawal left the balance intact (earning=${earningAfterRefusal}, hold=${heldAfterRefusal})`
+  earned > 0n && holdDelta === earned && earnDelta === 0n,
+  `funds moved EARNING -> PAYOUT_HOLD (moved=${earned}, holdDelta=${holdDelta}, earningDelta=${earnDelta})`
 );
 
-// A creator CAN withdraw — this is the control that proves the block is about
-// the missing creator profile, not a broken payout path.
-const ctok = await login('creator@afristage.local', SEED.creator);
-const creatorId = await sql(`select id from users where email='creator@afristage.local'`);
-const creatorGate = await sql(
-  `select count(*) from creator_profiles where user_id='${creatorId}' and payout_enabled = true and kyc_status='APPROVED'`
-);
-check(!!ctok && Number(creatorGate) === 1, `control: the seeded creator DOES pass the payout gate (${creatorGate})`);
+// PAYOUT_CLEARING is a SYSTEM account, not per-user, and accumulates across
+// runs — assert the delta on the system balance, as validate:money does.
+const clearingSql = `select coalesce(sum(case when e.direction='CREDIT' then e.amount_minor else -e.amount_minor end),0)
+                     from ledger_entries e join wallet_accounts a on a.id=e.account_id
+                     where a.user_id is null and a.account_type='PAYOUT_CLEARING'`;
+const clearBefore = BigInt((await sql(clearingSql)) || 0);
 
-// The ledger must still balance after all of it.
+// A new creator requesting a large payout is fraud-HELD instead of queued for
+// review, and CI lowers FRAUD_LARGE_PAYOUT_COIN to 2000 with freshly-seeded
+// creators — so the path taken depends on the environment. Assuming
+// UNDER_REVIEW passed locally and 409'd in CI. Follow the state machine
+// instead: release a hold first, exactly as an admin would.
+const requested = req.data?.status;
+if (requested === 'HELD') {
+  const released = await api('POST', `/admin/payouts/${payoutId}/release`, { token: ATOK, body: {} });
+  check(released.data?.status === 'UNDER_REVIEW', `fraud-held payout released for review (${released.data?.status})`);
+} else {
+  check(requested === 'UNDER_REVIEW', `payout queued for review (${requested})`);
+}
+// These are POSTs: Nest answers 201, not 200. Assert the resulting STATE, which
+// is what actually matters and cannot be satisfied by a stray 2xx.
+const approveRes = await api('POST', `/admin/payouts/${payoutId}/approve`, { token: ATOK, body: {} });
+check(approveRes.data?.status === 'APPROVED', `admin approves the payout (${approveRes.data?.status})`);
+const paidRes = await api('POST', `/admin/payouts/${payoutId}/mark-paid`, { token: ATOK, body: {} });
+check(paidRes.data?.status === 'PAID', `admin marks it PAID (${paidRes.data?.status})`);
+const clearDelta = BigInt((await sql(clearingSql)) || 0) - clearBefore;
+const holdEnd = (await bal('PAYOUT_HOLD', creatorId)) - holdBefore;
+check(
+  clearDelta === earned && holdEnd === 0n,
+  `funds settled HOLD -> PAYOUT_CLEARING (clearing +${clearDelta}, hold back to ${holdEnd})`
+);
+
 const imbalance = await sql(
   `select count(*) from (
      select t.id from ledger_transactions t left join ledger_entries e on e.transaction_id=t.id
@@ -149,12 +181,6 @@ const imbalance = await sql(
          <> coalesce(sum(e.amount_minor) filter (where e.direction='CREDIT'),0)) x`
 );
 check(imbalance !== '' && Number(imbalance) === 0, `every ledger transaction still balances (${imbalance} unbalanced)`);
-
-console.log(
-  '\n  ⚠ KNOWN GAP: a marketplace seller without a creator profile cannot withdraw earnings.\n' +
-  '    Sale credits EARNING correctly; POST /payouts/request refuses with "Payout not enabled".\n' +
-  '    Tracker: FEATURE_TRACKER.md, session 2026-08-13. This suite pins it — fix it and this goes red.\n'
-);
 
 ok(ran === EXPECTED_CHECKS, `ran ${ran} of ${EXPECTED_CHECKS} checks`);
 await finish();

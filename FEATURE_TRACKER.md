@@ -46,6 +46,22 @@ Flutter mobile (`apps/mobile`).
 |---------|--------|----------|
 | **Outside-in paging for service health and ledger integrity.** The probe parses Prometheus sample values rather than matching HELP-text substrings, requires a configured webhook in cron, and distinguishes a target failure whose alert was accepted (`1`) from broken alert delivery (`2`). The Slack credential is read from `~/.afristage-alert-webhook`, never stored in the repository or crontab. | VERIFIED | `synthetic_check.py --selftest`: OK against local 200, 404, unreachable and malformed collectors. Live forced failure against Railway (`--expect-status 999`, region `drill-rotated`) exited **1** and the resulting `Synthetic check FAILED` message was observed in `#all-afristage-alerts`; the healthy control exited **0** without paging. Both installed cron commands then exited **0**: service reachability `2/2 healthy`, ledger metrics `1/1 healthy`. The initially exposed Slack installation was revoked, a distinct replacement webhook was issued for the same channel, and the local file was verified as mode `0600`, 81 bytes, with no trailing newline. |
 
+## Session 2026-08-13 (later) — the seller/creator identity mismatch, closed
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **A marketplace seller can be paid — and the money trap is refused at the entrance.** The two endpoints disagreed about who a seller is: `POST /shops` accepted anyone, `POST /payouts/request` required a `creatorProfile`. Shop creation was the side that was wrong — the marketplace is creator-led by construction (`pinProduct` requires `room.hostUserId === userId`, so a seller sells their own products in their own live room). Selling now requires a creator account; the refusal happens before anyone is charged rather than after the money is unwithdrawable. Deliberately **not** gated on KYC or `payoutEnabled` — selling may begin while verification is in progress. | VERIFIED | Live: non-creator → `POST /shops` **403** *"Selling needs a creator account — earnings are paid out through it"* (was `201`). Creator-seller full loop: product `201` → purchase `201` → **EARNING +4500** → withdraw **201** → `EARNING→PAYOUT_HOLD` (holdDelta 4500, earningDelta 0) → approve `APPROVED` → mark-paid `PAID` → **`HOLD→PAYOUT_CLEARING` +4500, hold back to 0** → 0 unbalanced. `validate:seller-withdrawal` **22 passed / 0 failed, 21 of 21 checks**. Unit 1027/1027; `marketplace.service.ts` and `payouts.service.ts` both **100%** stmts/branch/func/lines. Neighbours re-run: `validate:marketplace`, `validate:money`, `validate:cross-user` all PASS. |
+| **The payout refusal now names which of three things is wrong.** `!creator?.payoutEnabled \|\| kycStatus !== 'APPROVED'` collapsed *no creator profile*, *KYC not approved* and *payouts disabled* into one message ("Payout not enabled"), so a marketplace seller was indistinguishable from a creator waiting on review — and the only way to find out was to ask a human. | VERIFIED | Live: no profile → *"This account has no creator profile, so there is nowhere to pay earnings from"*; KYC pending → *"Payout needs approved identity verification (KYC is PENDING)"*; disabled → *"Payouts are disabled on this account"*. Each covered by its own unit test. |
+| **The pinning tripwire did its job and was retired.** `validate:seller-withdrawal` was committed in `#241` asserting the *refusal*, so it would go red the moment the behaviour changed. It did exactly that on this fix — `a non-creator can open a shop (status 403)` plus the message *"If this is the fix, rewrite this suite to assert the success path"* — and was rewritten to prove both halves: the door is shut, and the path behind it works. | VERIFIED | Observed failing (`RESULT: 11 passed, 7 failed`) against the fix before rewrite; observed passing (`22 passed, 0 failed`) after. |
+
+**Residual, deliberately not closed:** a creator whose KYC is still `PENDING` can open a
+shop and accrue earnings before they are withdrawable. That is a smaller and honest version
+of the same shape — the seller now knows why, and selling during verification is a product
+choice rather than an accident. Closing it would mean gating shop approval on KYC, coupling
+two admin workflows.
+
+---
+
 ## Session 2026-08-13 — a marketplace seller cannot get their money out
 
 | Feature | Status | Evidence |

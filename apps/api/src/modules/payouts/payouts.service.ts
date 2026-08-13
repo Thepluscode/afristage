@@ -175,8 +175,19 @@ export class PayoutsService {
     const minCoin = BigInt(process.env.MIN_PAYOUT_COIN || 500);
     if (BigInt(dto.coinAmount) < minCoin) throw new BadRequestException('Below minimum payout threshold');
 
+    // Three distinct states used to share one message ("Payout not enabled"),
+    // which is why a marketplace seller with no creator profile looked identical
+    // to a creator whose KYC was still in review. An earner who cannot withdraw
+    // is entitled to know WHICH of these is true — otherwise the only way to
+    // find out is to ask a human.
     const creator = await this.prisma.creatorProfile.findUnique({ where: { userId: creatorUserId } });
-    if (!creator?.payoutEnabled || creator.kycStatus !== 'APPROVED') throw new BadRequestException('Payout not enabled');
+    if (!creator) {
+      throw new BadRequestException('This account has no creator profile, so there is nowhere to pay earnings from');
+    }
+    if (creator.kycStatus !== 'APPROVED') {
+      throw new BadRequestException(`Payout needs approved identity verification (KYC is ${creator.kycStatus})`);
+    }
+    if (!creator.payoutEnabled) throw new BadRequestException('Payouts are disabled on this account');
 
     const earningBalance = BigInt(await this.wallet.balance(creatorUserId, WalletAccountType.EARNING, 'COIN'));
     if (earningBalance < BigInt(dto.coinAmount)) throw new BadRequestException('Insufficient earnings');

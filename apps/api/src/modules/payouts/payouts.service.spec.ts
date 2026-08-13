@@ -45,11 +45,30 @@ describe('PayoutsService', () => {
     await expect(service.request('c1', { coinAmount: 100, idempotencyKey: 'k' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects a payout when creator KYC/payout is not enabled', async () => {
+  // These three used to share one message ("Payout not enabled"), which is why a
+  // marketplace seller with no creator profile was indistinguishable from a
+  // creator waiting on KYC. An earner who cannot withdraw is entitled to know
+  // which of the three is true.
+  it('rejects a payout when payouts are disabled, and says so', async () => {
     const { service, prisma } = build();
     prisma.payoutRequest.findUnique.mockResolvedValue(null);
     prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: false, kycStatus: 'APPROVED', createdAt: new Date() });
     await expect(service.request('c1', reqDto)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.request('c1', reqDto)).rejects.toThrow(/disabled/i);
+  });
+
+  it('rejects a payout when KYC is not approved, and names the actual status', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue({ payoutEnabled: true, kycStatus: 'PENDING', createdAt: new Date() });
+    await expect(service.request('c1', reqDto)).rejects.toThrow(/KYC is PENDING/);
+  });
+
+  it('rejects a payout when there is no creator profile at all — the marketplace-seller case', async () => {
+    const { service, prisma } = build();
+    prisma.payoutRequest.findUnique.mockResolvedValue(null);
+    prisma.creatorProfile.findUnique.mockResolvedValue(null);
+    await expect(service.request('c1', reqDto)).rejects.toThrow(/no creator profile/i);
   });
 
   it('approves an UNDER_REVIEW payout', async () => {

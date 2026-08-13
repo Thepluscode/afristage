@@ -35,6 +35,29 @@ export class MarketplaceService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.status !== UserStatus.ACTIVE) throw new ForbiddenException('Account is not active');
 
+    // A seller must be a creator. Two reasons, and the second is the important one:
+    //
+    // 1. The marketplace is creator-led by construction — pinProduct requires
+    //    room.hostUserId === userId, so a seller sells their own products in
+    //    their own live room. A shop owner who is not a creator has no room to
+    //    sell in.
+    // 2. Payout eligibility (payoutEnabled + kycStatus) lives on creatorProfile,
+    //    so without one a seller could open a shop, sell, and accrue a correctly
+    //    ledgered EARNING balance they could NEVER withdraw — every step
+    //    succeeding right up to the money leaving. Refusing here turns a silent
+    //    money trap into an honest answer before anyone has been charged.
+    //
+    // Deliberately NOT gated on KYC or payoutEnabled: selling can begin while
+    // verification is in progress. Only the identity question is settled here.
+    const creator = await this.prisma.creatorProfile.findUnique({ where: { userId } });
+    if (!creator) {
+      throw new ForbiddenException(
+        actorIsAdmin
+          ? 'That account has no creator profile, so it could never be paid out. Create one before opening a shop for it.'
+          : 'Selling needs a creator account — earnings are paid out through it. Apply as a creator first.'
+      );
+    }
+
     const existing = await this.prisma.shop.findUnique({ where: { ownerUserId: userId } });
     if (existing) throw new BadRequestException('This account already has a shop');
 
