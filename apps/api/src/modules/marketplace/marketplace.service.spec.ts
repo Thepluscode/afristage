@@ -8,7 +8,14 @@ function build(overrides: any = {}) {
     product: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     liveRoom: { findUnique: jest.fn() },
     roomProductPin: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), update: jest.fn() },
-    adminAuditLog: { create: jest.fn().mockResolvedValue({}) }
+    adminAuditLog: { create: jest.fn().mockResolvedValue({}) },
+    creatorProfile: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(
+          overrides.creatorProfile === undefined ? { id: 'cp1', userId: 'u1', kycStatus: 'APPROVED', payoutEnabled: true } : overrides.creatorProfile
+        )
+    }
   };
   prisma.shop.findUnique.mockResolvedValue(overrides.shop === undefined ? { id: 's1', ownerUserId: 'u1', status: 'APPROVED', externalUrl: null } : overrides.shop);
   prisma.shop.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 's1', ...data }));
@@ -24,6 +31,29 @@ describe('MarketplaceService.createShop', () => {
     const shop = await service.createShop('u1', { name: 'Ada Threads' }, false);
     expect(shop.status).toBeUndefined(); // the DB default supplies PENDING
     expect(prisma.shop.create.mock.calls[0][0].data).not.toHaveProperty('status');
+  });
+
+  // A seller who is not a creator could open a shop, sell, accrue a correctly
+  // ledgered EARNING balance — and never withdraw it, because the payout gate
+  // requires a creatorProfile. Every step before the withdrawal succeeded, so
+  // the money trap was invisible until a merchant tried to get paid. The two
+  // endpoints disagreed about who a seller is; shop creation is the side that
+  // was wrong, because the marketplace is creator-led by design (a seller pins
+  // their own products to their own live room).
+  it('refuses a shop to an account with no creator profile — the money trap, closed at the entrance', async () => {
+    const { service } = build({ shop: null, creatorProfile: null });
+    await expect(service.createShop('u1', { name: 'Ada Threads' }, false)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.createShop('u1', { name: 'Ada Threads' }, false)).rejects.toThrow(/creator/i);
+  });
+
+  it('refuses it for an admin acting on someone else\'s behalf too — same trap, same rule', async () => {
+    const { service } = build({ shop: null, creatorProfile: null });
+    await expect(service.createShop('u1', { name: 'Ada Threads' }, true)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows a creator whose KYC is still pending — selling is not gated on payout readiness', async () => {
+    const { service } = build({ shop: null, creatorProfile: { id: 'cp1', userId: 'u1', kycStatus: 'PENDING', payoutEnabled: false } });
+    await expect(service.createShop('u1', { name: 'Ada Threads' }, false)).resolves.toBeDefined();
   });
 
   it('rejects a suspended account', async () => {
