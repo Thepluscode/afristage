@@ -21,7 +21,7 @@
 //   API_BASE=https://<host>/api npm run validate:seller-withdrawal
 import { ok, sql, api, login, finish, buyCoins, SEED } from './_lib.mjs';
 
-const EXPECTED_CHECKS = 21;
+const EXPECTED_CHECKS = 22;
 let ran = 0;
 const check = (cond, msg) => {
   ran += 1;
@@ -147,6 +147,19 @@ const clearingSql = `select coalesce(sum(case when e.direction='CREDIT' then e.a
                      from ledger_entries e join wallet_accounts a on a.id=e.account_id
                      where a.user_id is null and a.account_type='PAYOUT_CLEARING'`;
 const clearBefore = BigInt((await sql(clearingSql)) || 0);
+
+// A new creator requesting a large payout is fraud-HELD instead of queued for
+// review, and CI lowers FRAUD_LARGE_PAYOUT_COIN to 2000 with freshly-seeded
+// creators — so the path taken depends on the environment. Assuming
+// UNDER_REVIEW passed locally and 409'd in CI. Follow the state machine
+// instead: release a hold first, exactly as an admin would.
+const requested = req.data?.status;
+if (requested === 'HELD') {
+  const released = await api('POST', `/admin/payouts/${payoutId}/release`, { token: ATOK, body: {} });
+  check(released.data?.status === 'UNDER_REVIEW', `fraud-held payout released for review (${released.data?.status})`);
+} else {
+  check(requested === 'UNDER_REVIEW', `payout queued for review (${requested})`);
+}
 // These are POSTs: Nest answers 201, not 200. Assert the resulting STATE, which
 // is what actually matters and cannot be satisfied by a stray 2xx.
 const approveRes = await api('POST', `/admin/payouts/${payoutId}/approve`, { token: ATOK, body: {} });
