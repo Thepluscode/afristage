@@ -46,6 +46,28 @@ Flutter mobile (`apps/mobile`).
 |---------|--------|----------|
 | **Outside-in paging for service health and ledger integrity.** The probe parses Prometheus sample values rather than matching HELP-text substrings, requires a configured webhook in cron, and distinguishes a target failure whose alert was accepted (`1`) from broken alert delivery (`2`). The Slack credential is read from `~/.afristage-alert-webhook`, never stored in the repository or crontab. | VERIFIED | `synthetic_check.py --selftest`: OK against local 200, 404, unreachable and malformed collectors. Live forced failure against Railway (`--expect-status 999`, region `drill-rotated`) exited **1** and the resulting `Synthetic check FAILED` message was observed in `#all-afristage-alerts`; the healthy control exited **0** without paging. Both installed cron commands then exited **0**: service reachability `2/2 healthy`, ledger metrics `1/1 healthy`. The initially exposed Slack installation was revoked, a distinct replacement webhook was issued for the same channel, and the local file was verified as mode `0600`, 81 bytes, with no trailing newline. |
 
+## Session 2026-08-13 — a marketplace seller cannot get their money out
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Marketplace seller withdrawal — BLOCKED.** A shop owner who is not a creator can register, open a shop, list a product, make a sale, accrue a correctly-ledgered `EARNING` balance and register a bank payout method — and is then refused at the last step. `payouts.service.ts:179` requires a `creatorProfile` with `payoutEnabled` **and** `kycStatus = APPROVED`; a plain shop owner has no such row, so `creator` is `null` and every withdrawal returns `400 "Payout not enabled"`. Nothing before that step fails, which is what makes it a trap rather than an obstacle. | SCAFFOLDED | Live, local stack: non-creator seller registered → shop `201` → admin approve `200` → product `201`/live `200` → purchase `201` → **EARNING +4500 coins** (ledger-derived) → payout method `201` → **withdrawal `400 "Payout not enabled"`**. Balance left intact (`earning=4500, hold=0`); ledger 0 unbalanced. Cause isolated **without touching code**: inserting the demanded `creator_profiles` row (`payout_enabled=true, kyc_status=APPROVED`) for the same seller with the same 4500 coins flipped the same request to **`201`, ₦4,500.00, `EARNING 4500→0`, `PAYOUT_HOLD 0→4500`**. Row then deleted; ledger still 0 unbalanced. Suite: `npm run validate:seller-withdrawal`. |
+| **`validate:seller-withdrawal` pins the gap in CI as a tripwire.** It asserts every working step (real regression cover for shop/sale/EARNING credit) and then asserts the refusal *itself* — `400` with `"Payout not enabled"`. It therefore passes today and goes **red the moment the behaviour changes in either direction**, with a message telling the next person to rewrite it against the success path. A failing suite would have turned `main` red and been muted; a suite that merely skipped the step would have hidden the gap. | VERIFIED | `RESULT: 18 passed, 0 failed`, `ran 17 of 17 checks`, exit 0, and the run prints a `⚠ KNOWN GAP` banner naming the defect. The changed-behaviour branch was exercised by the data-side proof above (same request returned `201` once the gate was satisfied). |
+
+**Consequence for strategy.** The marketplace cannot be pitched to merchants until this
+is resolved — "can I get my money out" is the first question any seller asks, and today
+the answer is no unless they are also an approved creator. This is the second independent
+reason the 2026-08-13 council's commerce-first verdict was overturned (the first being that
+the marketplace is priced and settled in coins, not currency — see
+`council-out/2026-08-13-afristage-whats-next.md`). Gifting creators are unaffected: they
+hold `creatorProfile` rows and their payout path is covered by `validate:money`.
+
+**The fix is a product decision, not a patch.** Either shop owners get their own
+lightweight KYC / payout-enable path, or shop creation requires a creator profile up front
+(`POST /shops` currently has no role gate at all). Choosing the second silently narrows who
+can sell; choosing the first means a second KYC surface. Not decided.
+
+---
+
 ## Session 2026-08-11 — a rejected request is now as traceable as a successful one
 
 | Feature | Status | Evidence |
