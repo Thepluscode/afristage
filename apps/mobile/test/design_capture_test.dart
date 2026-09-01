@@ -335,8 +335,13 @@ void main() async {
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
                 clipBehavior: Clip.antiAlias,
-                child: SizedBox(
-                  height: 560,
+                // Was SizedBox(height: 560) — a fixture number that forced the
+                // drawer to 66% of the screen and put 93px of empty background
+                // under the Send row. The app sizes this sheet to its content
+                // under RoomScreen's 0.78 cap, so the reference now does too:
+                // a design review off these PNGs should see what users see.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 844 * 0.78),
                   child: AfriGiftDrawer(
                     gifts: const [
                       Gift(id: 'rose', name: 'Rose', coinPrice: 10),
