@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 /// colours across 111 literals, and the accent the theme declared primary
 /// (`orange`) was only the third most used.
 ///
-/// `action` is gold because that is what the landing page's CTA already is
-/// (`--gold-hot: #ffc857` in apps/landing/index.html). A visitor who taps
+/// `action` is gold because that is what the funnel's CTA already is:
+/// `--gold: #e9b44c` in apps/landing/index.html (`.btn` background) and
+/// `--stage-gold: #e9b44c` in apps/web/app/globals.css. A visitor who taps
 /// "Claim your stage" and installs should meet the same colour, doing the same
-/// job, on the other side.
+/// job, on the other side. Mobile used #ffc857 — which is the landing's
+/// `--gold-hot`, reserved there for *emphasis*, not for the button.
 class AfriColors {
   // ---- surfaces ----
   static const stage = Color(0xFF07070A);
@@ -22,7 +24,7 @@ class AfriColors {
   // ---- roles ----
   /// The one filled call-to-action on a screen. If two things are `action`,
   /// one of them is wrong.
-  static const action = Color(0xFFFFC857);
+  static const action = Color(0xFFE9B44C);
 
   /// Foreground on [action]. Dark, because gold cannot carry white text.
   static const onAction = Color(0xFF170B02);
