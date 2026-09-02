@@ -167,7 +167,15 @@ class _CreatorScreenState extends State<CreatorScreen> {
             final status = creator?['status'] as String? ??
                 (creator == null ? 'PENDING' : 'APPROVED');
             final stageName = creator?['stageName'] as String? ?? 'Creator';
+            // Two different numbers that were both being drawn from
+            // data['earnings']: what was EARNED this week, and what is
+            // WITHDRAWABLE now. WalletScreen already renders the second one
+            // correctly from wallet.earningBalance, so the dashboard was
+            // showing a creator a different figure under the same
+            // "Available balance" label as their own wallet.
             final earnings = usd(asNumOr(data?['earnings']));
+            final available =
+                usd(context.watch<AppState>().wallet.earningBalance);
             final rawViews = data?['views'] ?? data?['totalViews'];
             final views = rawViews == null
                 ? _formatWatch(data?['totalWatchSeconds'])
@@ -285,7 +293,7 @@ class _CreatorScreenState extends State<CreatorScreen> {
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   alignment: Alignment.centerLeft,
-                                  child: Text(earnings,
+                                  child: Text(available,
                                       maxLines: 1,
                                       style: const TextStyle(
                                           fontSize: 21,
