@@ -478,6 +478,39 @@ void main() {
     expect(find.text('Available balance'), findsOneWidget);
   });
 
+  testWidgets(
+      'CreatorScreen Available balance is the withdrawable wallet balance, '
+      'not this week\'s earnings', (tester) async {
+    // The two were the same field once, so the dashboard told a creator they
+    // could withdraw a number that was really this week's takings. Distinct
+    // values here: if anyone points the panel back at data['earnings'], the
+    // $6.20 assertion fails.
+    final api = _FakeApi(maps: {
+      '/creators/me/dashboard': {
+        'creator': {'stageName': 'Zola Kim', 'status': 'APPROVED'},
+        'earnings': 1500, // this week: $15.00
+        'topSupporters': [],
+        'totalRooms': 8,
+        'followers': 12,
+        'totalWatchSeconds': 3600,
+      },
+    });
+    final state = AppState(api: api)
+      ..wallet = const Wallet(
+          coinBalance: 0, earningBalance: 620, payoutHoldBalance: 0);
+    await tester.pumpWidget(_wrapState(state, const CreatorScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Available balance'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    // withdrawable, from the wallet — the same figure WalletScreen shows
+    expect(find.text(r'$6.20'), findsWidgets);
+    // this week's earnings still appear, in the Overview tile
+    expect(find.text(r'$15.00'), findsWidgets);
+  });
+
   testWidgets('SupportTicketScreen shows subject + no-replies state',
       (tester) async {
     final api = _FakeApi(maps: {
