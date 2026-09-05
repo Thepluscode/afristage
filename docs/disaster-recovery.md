@@ -6,6 +6,36 @@ local Postgres volume; recovery below is the path that worked).
 
 A restore is not done until `scripts/verify-restore.sh` passes.
 
+## Drill record
+
+`verify-restore.sh` asks whether the restored *app* is alive. `scripts/restore-drill.sh`
+asks the question Rule 0.8 actually asks — whether the **data** came back intact —
+by backing up, dropping the database, restoring it, and comparing. Documentation is
+not evidence; only a dated run below is.
+
+**The runs themselves are recorded in [`restore-drill-record.md`](restore-drill-record.md)** —
+one row per executed drill, kept in a dedicated file so a drill can never be
+claimed in passing by a sentence of prose. Latest: **2026-09-05, 25 passed / 0
+failed**, local compose Postgres.
+
+**What that run does and does not prove.** It proves the restore *procedure* and
+the integrity checks are sound, and that the checks can fail — they were watched
+doing so. It does **not** prove Railway's managed backups: nothing has yet restored
+a provider snapshot. Under the Rule 0.8 ladder this is `RESTORE TESTED FOR
+DEVELOPMENT`, not `CONTROLLED PILOT READY`.
+
+**To reach pilot-ready**, run the same drill against a scratch database restored
+from a real Railway snapshot:
+
+```bash
+# restore a Railway backup into a NEW scratch Postgres service, then:
+PGURL='postgres://...scratch...' ALLOW_REMOTE_DRILL=yes scripts/restore-drill.sh
+```
+
+The script refuses a non-local host without `ALLOW_REMOTE_DRILL=yes` because it
+drops the database it is pointed at. **Never point it at production.** A drill
+older than 90 days is stale — re-run it and add a row.
+
 ## Backups (verify these are ON — do not assume)
 
 Production Postgres is Railway-managed (Rule 0: use the managed backups, don't

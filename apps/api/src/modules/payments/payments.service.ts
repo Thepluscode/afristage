@@ -45,9 +45,16 @@ export class PaymentsService {
     return AFRICAN_CURRENCIES.has(currency.toUpperCase()) ? this.paystack : this.stripe;
   }
 
-  // Catalog of purchasable coin packages (server-authoritative pricing).
+  // Catalog of purchasable coin packages (server-authoritative pricing) — and
+  // only the tiers that can actually be bought HERE. The catalog is static but
+  // the processors are not: a deployment with only STRIPE_SECRET_KEY set can
+  // settle USD and nothing else, and listing the NGN tiers on it put three
+  // unbuyable buttons on the storefront — a Nigerian buyer picked one and got
+  // "Paystack is not configured" at checkout, which is both a dead end and a
+  // leak of our own deployment config. An empty list is the honest answer when
+  // no processor is configured: nothing is for sale.
   listPackages() {
-    return COIN_PACKAGES;
+    return COIN_PACKAGES.filter((pkg) => this.providerForCurrency(pkg.currency).isConfigured());
   }
 
   async createIntent(userId: string, dto: CreatePaymentIntentDto) {

@@ -351,10 +351,37 @@ describe('PaymentsService.verifyCheckout (intent-type guard)', () => {
 });
 
 describe('PaymentsService catalog + history', () => {
-  it('listPackages returns the server-authoritative catalog', () => {
+  // Counts are hard-coded rather than derived from COIN_PACKAGES: an expectation
+  // computed from the catalog under test would still pass if a tier went missing.
+  it('listPackages returns the server-authoritative catalog when both processors are configured', () => {
     const { service } = build();
-    expect(Array.isArray(service.listPackages())).toBe(true);
-    expect(service.listPackages().length).toBeGreaterThan(0);
+    const listed = service.listPackages();
+    expect(listed).toHaveLength(6);
+    expect(listed.filter((p) => p.currency === 'NGN')).toHaveLength(3);
+    expect(listed.filter((p) => p.currency === 'USD')).toHaveLength(3);
+  });
+
+  // The Stripe-only deployment. The NGN tiers route to Paystack, so listing them
+  // here put three buttons on the storefront that answered 400 at checkout.
+  it('hides the NGN tiers when only Stripe is configured', () => {
+    const { service, paystack } = build();
+    jest.spyOn(paystack, 'isConfigured').mockReturnValue(false);
+    const listed = service.listPackages();
+    expect(listed).toHaveLength(3);
+    expect(listed.every((p) => p.currency === 'USD')).toBe(true);
+  });
+
+  it('hides the USD tiers when only Paystack is configured', () => {
+    const { service, stripe } = build();
+    jest.spyOn(stripe, 'isConfigured').mockReturnValue(false);
+    const listed = service.listPackages();
+    expect(listed).toHaveLength(3);
+    expect(listed.every((p) => p.currency === 'NGN')).toBe(true);
+  });
+
+  it('offers nothing when no processor is configured', () => {
+    const { service } = build({ configured: false });
+    expect(service.listPackages()).toHaveLength(0);
   });
 
   it('mine lists a user’s payment intents newest-first', async () => {

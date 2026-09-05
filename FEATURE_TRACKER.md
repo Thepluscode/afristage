@@ -40,6 +40,39 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-09-05 (later) — a Stripe-only launch was impossible, in three separate places
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **The API boots with either processor, and refuses with neither.** `PAYSTACK_SECRET_KEY` sat in `PROD_REQUIRED`, so a Stripe-only production deploy crashed at boot naming a vendor the operator had deliberately not adopted — while `STRIPE_SECRET_KEY` was required *nowhere*, so the provider that WAS configured counted for nothing. The requirement is now the honest invariant: at least one of the two, placeholder rules still applied to whichever is set. | VERIFIED | Unit: Stripe-only boots, Paystack-only boots, neither throws `no payment provider configured`, and a `replace_me` Stripe key still throws `unsafe placeholder values`. `validate-env.ts` **100%** stmts/branch/func/lines. |
+| **The storefront no longer offers tiers nobody can pay for.** `listPackages()` returned all six packages unconditionally. On a Stripe-only deployment the three NGN tiers still rendered, routed to Paystack, and answered `400 "Paystack is not configured"` at checkout — a dead button that also leaked our deployment config to the buyer. It now filters by the configured processor; an empty list is the honest answer when none is. | VERIFIED | Unit, with hard-coded counts rather than counts derived from `COIN_PACKAGES`: both configured → 6 (3 NGN + 3 USD); Stripe-only → 3, all USD; Paystack-only → 3, all NGN; neither → 0. **Mutation-checked**: reverting the filter to `return COIN_PACKAGES` against a green baseline failed exactly the three new tests and nothing else — a precise kill, no collateral. `payments.service.ts` **100%** stmts/branch/func/lines. |
+| **`launch:production` passes for a Stripe-only env and fails with no processor.** The gate's `required` list is documented as needing to stay in lockstep with the boot validator and had drifted the moment the validator changed. | VERIFIED | Live gate runs: Stripe-only with `PAYSTACK_SECRET_KEY` unset → **30 passed, 0 failed**, `a payment provider is configured (STRIPE_SECRET_KEY)`. Both keys unset → exit **1**, `FAIL a payment provider is configured (NONE)`. |
+| **`go-live-checklist.md` stops telling you Paystack is mandatory.** §1 and §2 were merged into one "pick at least one processor" section with a table of what each choice puts on the storefront, the sections renumbered, and the FX trade-off of Stripe-only stated plainly. | IMPLEMENTED | Doc-only. The claims in it are the ones verified by the three rows above. |
+
+**Residual, deliberately not closed:** a Stripe-only launch means Nigerian buyers
+pay USD on an international card, where domestic naira cards decline far more
+often and the buyer absorbs the FX spread. That is a commercial trade-off, not a
+defect, and it is now written into the checklist rather than discovered at the
+first failed checkout. Full API suite **1034/1034**.
+
+## Session 2026-09-05 — the deployment is a month behind main, and a restore has now actually been run
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **A restore is proven to return the DATA, not just a running database.** `verify-restore.sh` only ever asked whether a restored app answers `/health`; nothing had performed a restore and checked what came back, so Rule 0.8 scored the repo `BACKUPS CONFIGURED BUT UNPROVEN`. `scripts/restore-drill.sh` (`npm run drill:restore`) dumps, **drops**, restores and compares. It refuses to run on an empty database or from a red baseline, and refuses a non-local host without `ALLOW_REMOTE_DRILL=yes`. | VERIFIED | Run 2026-09-05 against local compose Postgres 16: **25 passed, 0 failed**, exit 0. Database confirmed absent between drop and restore. All 42 tables matched the pre-backup row-count fingerprint; 33 migrations intact; every FK re-validated against restored rows; ledger debits==credits, ≥2 legs, single currency, 0 orphans; the `ledger_entries_balanced` trigger survived and was still armed. Recorded in `docs/restore-drill-record.md`. |
+| **The drill's own checks were watched failing.** The first negative control deleted a ledger leg through ordinary SQL and reported "corruption went UNDETECTED" — which was wrong about its own result: the deferred trigger had **refused** the delete (`debits=0 credits=10`, rolled back, row count unchanged), so there was never any corruption to detect. A control that cannot plant the defect proves nothing about the detector. Rewritten to disable the trigger, plant the corruption the way a bad restore or torn page would, and re-arm. | VERIFIED | Observed red then green: with the trigger bypassed the suite reported `unbalanced=1`; a second restore from the same backup returned the fingerprint to baseline and the ledger to balanced. The refusal is now asserted as its own separate check so it can never stand in for the negative control. |
+| **The deployed API is running code from before 2026-08-11 while `main` is at 2026-09-02.** No workflow deploys anything — `.github/workflows/` has a single `build-test` job and no `railway up`, no `RAILWAY_TOKEN`; `docs/runbook.md` deploys by hand. `synthetic-check` has been green every few hours against the stale build, so the green check on `main` says nothing about `main`. | IMPLEMENTED | Two independent live markers against `api-production-e12f`: `POST /shops` as a non-creator returns **201** (the #242 fix merged 2026-08-13 makes it 403), and a 401 response carries **no** `x-request-id` while hostile ids (whitespace, 200 chars, `"`) are echoed verbatim (the #236 fix merged 2026-08-11 replaces them). `validate:correlation-id` against the deployment: **6 passed, 4 failed**. Not fixed here — the fixes are already merged; they are simply not deployed. |
+| **The deployed build was measured, and what it does answer, it answers correctly.** Ran against `api-production-e12f`, not locally. | VERIFIED | `validate:error-paths` **23/23** — every ordinary repeated mistake answers 4xx, duplicate signup 409, missing room 404 not 200-null. `validate:cross-user` **31/31** — including the cache-warming scenario; the shared feed is byte-identical for both callers and leaks no id, email or private content. Headers: HSTS, `nosniff`, COOP/CORP, `referrer-policy: no-referrer`, rate-limit headers; CORS returns no `access-control-allow-origin` for a hostile origin. API unit suite **1027/1027**. **These certify the stale build and must be re-run after a deploy.** |
+
+**Residual, deliberately not closed:** the drill has never restored a Railway
+managed snapshot, so the provider's backups, the RPO and the RTO remain unproven —
+`disaster-recovery.md` still states the latter two only as targets. The
+`data-resilience-gate` now reports `CONTROLLED PILOT READY`, which **overstates
+it**: the gate cannot distinguish a local drill from a provider-snapshot drill. The
+honest level is `RESTORE TESTED FOR DEVELOPMENT`, and both the record file and the
+DR doc say so. The gate also still flags no cross-region or immutable copy — the
+backups share a failure domain with production.
+
 ## Session 2026-08-11 — ledger paging is live, and broken paging fails closed
 
 | Feature | Status | Evidence |

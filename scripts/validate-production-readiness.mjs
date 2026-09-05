@@ -56,22 +56,28 @@ if (checkEnv) {
     'LIVEKIT_API_KEY',
     'LIVEKIT_API_SECRET',
     'DATABASE_URL',
-    'REDIS_URL',
-    'PAYSTACK_SECRET_KEY'
+    'REDIS_URL'
   ];
   // Must stay in lockstep with the API boot validator
   // (apps/api/src/config/validate-env.ts) — the pre-deploy gate should reject
   // anything that would crash the API on startup, so a bad config never ships.
+  // That includes this: either processor satisfies the requirement, because
+  // requiring Paystack by name made a Stripe-only launch fail a gate it should
+  // have passed.
+  const providerKeys = ['PAYSTACK_SECRET_KEY', 'STRIPE_SECRET_KEY'];
   const unsafe = {
     JWT_ACCESS_SECRET: ['dev', 'replace_with_long_random_access_secret'],
     JWT_REFRESH_SECRET: ['dev-refresh', 'replace_with_long_random_refresh_secret'],
     PAYSTACK_SECRET_KEY: ['replace_me'],
+    STRIPE_SECRET_KEY: ['replace_me'],
     LIVEKIT_API_KEY: ['devkey'],
     LIVEKIT_API_SECRET: ['secret']
   };
 
   ok(process.env.NODE_ENV === 'production', 'NODE_ENV is production');
   for (const key of required) ok(Boolean(process.env[key]), `${key} is set`);
+  const configured = providerKeys.filter((key) => Boolean(process.env[key]));
+  ok(configured.length > 0, `a payment provider is configured (${configured.join(', ') || 'NONE'})`);
   for (const [key, values] of Object.entries(unsafe)) {
     ok(!values.includes(process.env[key] ?? ''), `${key} is not an unsafe placeholder`);
   }
