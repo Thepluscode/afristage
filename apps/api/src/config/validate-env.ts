@@ -7,18 +7,28 @@ const PROD_REQUIRED = [
   'LIVEKIT_API_SECRET',
   'DATABASE_URL',
   'REDIS_URL',
-  'PAYSTACK_SECRET_KEY',
   // Without this the API would refuse every browser origin in production. Crash
   // at boot instead: a dead service is diagnosed in minutes, an API that
   // silently rejects the admin UI's every request is diagnosed in hours.
   'CORS_ORIGINS'
 ];
 
+// Taking money needs A processor, not a SPECIFIC one.
+//
+// PAYSTACK_SECRET_KEY used to sit in PROD_REQUIRED above, which quietly made an
+// African corridor mandatory: a Stripe-only launch could not boot at all, and
+// the crash named a vendor the operator had deliberately chosen not to use.
+// Meanwhile STRIPE_SECRET_KEY was required nowhere, so the one provider that
+// WAS configured counted for nothing. Either key satisfies the requirement; the
+// placeholder rules below still apply to whichever one is set.
+const PAYMENT_PROVIDER_KEYS = ['PAYSTACK_SECRET_KEY', 'STRIPE_SECRET_KEY'];
+
 // Known unsafe placeholder/fallback values that must never run in production.
 const UNSAFE_VALUES: Record<string, string[]> = {
   JWT_ACCESS_SECRET: ['dev', 'replace_with_long_random_access_secret'],
   JWT_REFRESH_SECRET: ['dev-refresh', 'replace_with_long_random_refresh_secret'],
   PAYSTACK_SECRET_KEY: ['replace_me'],
+  STRIPE_SECRET_KEY: ['replace_me'],
   LIVEKIT_API_KEY: ['devkey'],
   LIVEKIT_API_SECRET: ['secret']
 };
@@ -41,12 +51,24 @@ export function validateEnv(): void {
   }
 
   const unsafe = Object.entries(UNSAFE_VALUES)
-    // Every UNSAFE_VALUES key is also in PROD_REQUIRED, so it is guaranteed
-    // present by the missing-vars check above; the '' fallback is defensive.
-    .filter(([key, vals]) => vals.includes(process.env[key] ?? /* istanbul ignore next */ ''))
+    // The payment-provider keys are OPTIONAL individually (see
+    // PAYMENT_PROVIDER_KEYS), so an unset one reaches here as ''. No entry in
+    // UNSAFE_VALUES lists '', which is what keeps an absent key from being
+    // reported as a placeholder.
+    .filter(([key, vals]) => vals.includes(process.env[key] ?? ''))
     .map(([key]) => key);
   if (unsafe.length) {
     throw new Error(`Refusing to start: unsafe placeholder values in production for ${unsafe.join(', ')}`);
+  }
+
+  // At least one processor must be able to take a payment. Checked after the
+  // placeholder rules so `PAYSTACK_SECRET_KEY=replace_me` reports the specific
+  // problem rather than the generic one.
+  const configuredProviders = PAYMENT_PROVIDER_KEYS.filter((key) => !!process.env[key]);
+  if (!configuredProviders.length) {
+    throw new Error(
+      `Refusing to start: no payment provider configured — set at least one of ${PAYMENT_PROVIDER_KEYS.join(' or ')}`
+    );
   }
 
   if (process.env.REQUIRE_ADMIN_MFA !== 'true') {

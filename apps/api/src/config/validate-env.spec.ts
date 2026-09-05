@@ -18,6 +18,10 @@ describe('validateEnv', () => {
     process.env.DATABASE_URL = 'postgres://x';
     process.env.REDIS_URL = 'redis://x';
     process.env.PAYSTACK_SECRET_KEY = 'sk_live_real';
+    // Deleted, not set: the provider tests below assert one-key-only cases, and
+    // a STRIPE_SECRET_KEY inherited from the developer's shell would make them
+    // pass for the wrong reason.
+    delete process.env.STRIPE_SECRET_KEY;
     process.env.CORS_ORIGINS = 'https://admin.example.com';
     process.env.REQUIRE_ADMIN_MFA = 'true';
     delete process.env.ENABLE_MOCK_PAYMENTS;
@@ -32,6 +36,37 @@ describe('validateEnv', () => {
     process.env.NODE_ENV = 'production';
     for (const k of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'DATABASE_URL', 'REDIS_URL', 'PAYSTACK_SECRET_KEY', 'CORS_ORIGINS']) delete process.env[k];
     expect(() => validateEnv()).toThrow(/Missing required production env vars/);
+  });
+
+  // A Stripe-only launch used to be impossible: PAYSTACK_SECRET_KEY sat in
+  // PROD_REQUIRED, so the API refused to boot naming a provider the operator had
+  // deliberately not adopted, while STRIPE_SECRET_KEY was required nowhere.
+  it('boots Stripe-only, with no Paystack key at all', () => {
+    setAllGood();
+    delete process.env.PAYSTACK_SECRET_KEY;
+    process.env.STRIPE_SECRET_KEY = 'sk_live_real_stripe';
+    expect(() => validateEnv()).not.toThrow();
+  });
+
+  it('boots Paystack-only, with no Stripe key at all', () => {
+    setAllGood();
+    delete process.env.STRIPE_SECRET_KEY;
+    process.env.PAYSTACK_SECRET_KEY = 'sk_live_real_paystack';
+    expect(() => validateEnv()).not.toThrow();
+  });
+
+  it('refuses to start when NO payment provider is configured', () => {
+    setAllGood();
+    delete process.env.PAYSTACK_SECRET_KEY;
+    delete process.env.STRIPE_SECRET_KEY;
+    expect(() => validateEnv()).toThrow(/no payment provider configured/);
+  });
+
+  it('still rejects a placeholder Stripe key', () => {
+    setAllGood();
+    delete process.env.PAYSTACK_SECRET_KEY;
+    process.env.STRIPE_SECRET_KEY = 'replace_me';
+    expect(() => validateEnv()).toThrow(/unsafe placeholder values/);
   });
 
   it('rejects known unsafe placeholder values', () => {
