@@ -41,7 +41,8 @@
     "validate:error-paths": "node scripts/validate-error-paths.mjs",
     "validate:seller-withdrawal": "node scripts/validate-seller-withdrawal.mjs",
     "validate:correlation-id": "node scripts/validate-correlation-id.mjs",
-    "validate:cross-user": "node scripts/validate-cross-user.mjs"
+    "validate:cross-user": "node scripts/validate-cross-user.mjs",
+    "drill:restore": "bash scripts/restore-drill.sh"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
