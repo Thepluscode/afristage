@@ -10,11 +10,30 @@
   private mesh (`AFRISTAGE_API_BASE=http://api.railway.internal:8080/api` —
   Railway injects `PORT=8080` at runtime, so internal callers use 8080, not
   the app default 3000).
-- **Deploy**: `railway up --service api` / `railway up --service admin-web`
-  from the repo root. Each service's `RAILWAY_DOCKERFILE_PATH` variable picks
-  its image (a `dockerfilePath` in railway.toml would override BOTH — don't
-  add one back). Shared `railway.toml`: healthcheck `/api/health` (both apps
-  serve it) + conditional prisma migrate (api image only).
+- **Deploy**: **automatic on merge to `main`** — the `deploy` job in
+  `.github/workflows/api-ci.yml` runs after `build-test` passes in the same run,
+  stamps `GIT_SHA`, deploys both services, then **polls `/api/health` until it
+  reports that commit** and fails the run if it never does. Requires a
+  `RAILWAY_TOKEN` repository secret (Settings → Secrets and variables → Actions);
+  a **project**-scoped token is what the job expects, since it omits `--project`.
+
+  Manual fallback, unchanged: `railway up --service api` /
+  `railway up --service admin-web` from the repo root — followed by
+  `npm run verify:deployed-commit <health-url> <sha>`, because `railway up` has
+  returned 0 while doing nothing at all.
+
+  Each service's `RAILWAY_DOCKERFILE_PATH` variable picks its image (a
+  `dockerfilePath` in railway.toml would override BOTH — don't add one back).
+  Shared `railway.toml`: healthcheck `/api/health` (both apps serve it) +
+  conditional prisma migrate (api image only).
+
+- **A green pipeline used to mean nothing about what was live.** Before
+  2026-09-05 nothing deployed `main`: the API served pre-2026-08-11 code for
+  about four weeks while the scheduled `synthetic-check` went green against that
+  stale build. `/api/health` now carries `commit`, so **`curl <api>/api/health`
+  answers "what is actually deployed?" directly** — compare it against
+  `git rev-parse origin/main` before believing any claim about production. A
+  build that reports `"commit":"unknown"` was deployed without a stamp.
 - **Credentials**: seeded accounts exist but their passwords are ROTATED to
   strong randoms — read `STAGING_ADMIN_PASSWORD` / `STAGING_CREATOR_PASSWORD` /
   `STAGING_VIEWER_PASSWORD` from the api service's Railway variables. Never

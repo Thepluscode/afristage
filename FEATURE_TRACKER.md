@@ -40,6 +40,21 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-09-05 (later still) — merging to main now deploys, and proves it deployed
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **`/api/health` reports the commit it was built from.** Nothing on the wire distinguished a stale deployment from a current one, which is why a four-week-old build sat behind green checks unnoticed. `commit` comes from `GIT_SHA`, falling back to Railway's `RAILWAY_GIT_COMMIT_SHA`, then the honest `'unknown'`. | VERIFIED | Unit: reports `GIT_SHA`; falls back to the Railway value; prefers `GIT_SHA` when both are set; returns `'unknown'` when neither is; treats `''` as absent rather than as a sha. `health.controller.ts` **100%** stmts/branch/func/lines. Downstream parsers re-checked: `verify-restore.sh`'s `grep -o '"status":"[^"]*"'` still yields `"status":"ok"`, and `synthetic_check.py --expect-body` is a substring match. |
+| **A deploy is verified against the origin, not assumed from an exit code.** `scripts/verify-deployed-commit.sh` polls the real health URL until it reports the expected commit and fails if it never does — because `railway up` has returned 0 while doing nothing. The logic is a script rather than inline YAML specifically so it can be exercised. | VERIFIED | `npm run test:deploy-verify` — **8 passed, 0 failed**, against the real script (not a copy) with a local fixture origin. Five of the eight are red cases, each asserting the exact exit status: a stale commit → 1, a build with no `commit` field → 1, `"unknown"` → 1, an HTML edge error page → 1, an unreachable origin → 1, and an `unknown` *expectation* → refused with 2. Wired into `build-test` on every PR so the guard cannot rot between deploys. |
+| **`deploy` job added to `API CI`.** `needs: build-test` and `if: ref == main && event == push`, so it is the same run that ran the suite — no window where a deploy fires for a commit whose tests never passed. Serialised via `concurrency: deploy-railway` with `cancel-in-progress: false`, since two `railway up`s racing would leave whichever finished last live. Fails with an actionable message when `RAILWAY_TOKEN` is absent rather than letting the CLI print `Unauthorized` and exit 0. | IMPLEMENTED | YAML parses; job graph, condition and step order asserted. Every CLI flag checked against the real binary (`@railway/cli` 4.68.0) rather than from memory: `variable set --skip-deploys` exists and is the non-legacy form, `up --service --ci` exists. **The job itself has never run** — there is no `RAILWAY_TOKEN` in the repo, so nothing here is production-observed. Its first run on `main` is its first real test. |
+
+**Residual, deliberately not closed:** `synthetic_check.py` still only asks
+whether the service answers — it does not compare the reported `commit` against
+`origin/main`, so it would still go green against a stale build if the deploy job
+were removed or disabled. The deploy job catches staleness at deploy time, which
+is the cheaper place; making the probe freshness-aware is a separate change.
+Full API suite **1039/1039**.
+
 ## Session 2026-09-05 (later) — a Stripe-only launch was impossible, in three separate places
 
 | Feature | Status | Evidence |
