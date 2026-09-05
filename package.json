@@ -42,7 +42,9 @@
     "validate:seller-withdrawal": "node scripts/validate-seller-withdrawal.mjs",
     "validate:correlation-id": "node scripts/validate-correlation-id.mjs",
     "validate:cross-user": "node scripts/validate-cross-user.mjs",
-    "drill:restore": "bash scripts/restore-drill.sh"
+    "drill:restore": "bash scripts/restore-drill.sh",
+    "verify:deployed-commit": "bash scripts/verify-deployed-commit.sh",
+    "test:deploy-verify": "bash scripts/deploy-verify-selftest.sh"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
