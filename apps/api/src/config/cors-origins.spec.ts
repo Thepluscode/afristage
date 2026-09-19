@@ -29,6 +29,10 @@ describe('corsOrigin', () => {
     expect(allow(prod, 'https://admin.afristage.live')).toBe(true);
   });
 
+  it('allows the deployed Flutter web client alongside configured origins', () => {
+    expect(allow(prod, 'https://flutter-web-production-b292.up.railway.app')).toBe(true);
+  });
+
   it('allows a configured origin sent with a trailing slash', () => {
     expect(allow(prod, 'https://afristage.live/')).toBe(true);
   });
@@ -45,7 +49,8 @@ describe('corsOrigin', () => {
     expect(allow(prod, undefined)).toBe(true);
   });
 
-  it('refuses everything cross-origin in production when nothing is configured', () => {
+  it('allows the deployed client in production when Railway config is absent', () => {
+    expect(allow({ NODE_ENV: 'production' }, 'https://flutter-web-production-b292.up.railway.app')).toBe(true);
     expect(allow({ NODE_ENV: 'production' }, 'https://admin.afristage.live')).toBe(false);
   });
 
