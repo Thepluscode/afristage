@@ -35,10 +35,18 @@ function AgenciesPageInner() {
   const [bps, setBps] = useState("");
   const [expanded, setExpanded] = useState<AgencyDetail | null>(null);
   const [assignId, setAssignId] = useState("");
+  const [creatorsError, setCreatorsError] = useState(false);
   const { id: highlightId, missing } = useRowHighlight(rows);
 
   useEffect(() => {
-    adminGet<Creator[]>("/admin/creators").then(setCreators).catch(() => {});
+    // A failed fetch left the creator picker empty, indistinguishable from
+    // "no creators exist" — the operator concludes there is nobody to assign.
+    adminGet<Creator[]>("/admin/creators")
+      .then(setCreators)
+      .catch((e) => {
+        console.warn("Creator list unavailable for assignment", e);
+        setCreatorsError(true);
+      });
   }, []);
 
   async function openDetail(id: string) {
@@ -156,8 +164,8 @@ function AgenciesPageInner() {
               ))}
               <tr>
                 <td colSpan={4}>
-                  <select value={assignId} onChange={(e) => setAssignId(e.target.value)}>
-                    <option value="">Assign a creator…</option>
+                  <select value={assignId} onChange={(e) => setAssignId(e.target.value)} disabled={creatorsError}>
+                    <option value="">{creatorsError ? "Creator list unavailable — reload" : "Assign a creator…"}</option>
                     {creators.map((c) => (
                       <option key={c.userId} value={c.userId}>
                         {c.stageName} ({c.userId.slice(0, 8)}…)

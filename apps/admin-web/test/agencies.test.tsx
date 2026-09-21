@@ -226,3 +226,30 @@ describe('AgenciesPage', () => {
     expect(await screen.findByText('Creator is already managed by another agency')).toBeInTheDocument();
   });
 });
+
+describe('AgenciesPage creator list failure', () => {
+  // A swallowed fetch left the picker empty, which is indistinguishable from
+  // "no creators exist" — the operator concludes there is nobody to assign.
+  it('says the list is unavailable rather than showing an empty picker', async () => {
+    vi.mocked(adminGet).mockImplementation((path: string) => {
+      if (path === '/admin/creators') return Promise.reject(new Error('creators-down'));
+      if (path.startsWith('/admin/agencies/')) return Promise.resolve(detail() as any);
+      return Promise.resolve([agency()] as any);
+    });
+    render(<AgenciesPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'View' }));
+    expect(await screen.findByText(/Creator list unavailable/i)).toBeInTheDocument();
+  });
+
+  it('shows the normal picker when the list loads', async () => {
+    vi.mocked(adminGet).mockImplementation((path: string) => {
+      if (path === '/admin/creators') return Promise.resolve([{ userId: 'c9', stageName: 'Nova' }] as any);
+      if (path.startsWith('/admin/agencies/')) return Promise.resolve(detail() as any);
+      return Promise.resolve([agency()] as any);
+    });
+    render(<AgenciesPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'View' }));
+    expect(await screen.findByText('Assign a creator…')).toBeInTheDocument();
+    expect(screen.queryByText(/Creator list unavailable/i)).not.toBeInTheDocument();
+  });
+});
