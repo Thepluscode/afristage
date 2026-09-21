@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminGet } from '../../lib/api';
-import { DataTable, EmptyState, ErrorState, LedgerIntegrityPanel, PageHeader, StatusBadge } from '../admin-ui';
+import { DataTable, EmptyState, ErrorState, LedgerIntegrityPanel, PageHeader, StatusBadge, WarningBanner } from '../admin-ui';
 
 type Entry = { direction: string; amountMinor: string | number };
 type Txn = {
@@ -21,11 +21,14 @@ const sum = (entries: Entry[] = [], dir: string) =>
 export default function LedgerPage() {
   const [rows, setRows] = useState<Txn[]>([]);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
+  const [integrityError, setIntegrityError] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     adminGet<Txn[]>('/admin/ledger/transactions').then(setRows).catch((e) => setError(e.message));
-    adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => {});
+    // A swallowed failure left the panel simply absent, and on a money page an
+    // absent imbalance warning reads as "no imbalance". Say which it is.
+    adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => setIntegrityError(true));
   }, []);
 
   if (error) return <ErrorState error={error} />;
@@ -33,7 +36,15 @@ export default function LedgerPage() {
   return (
     <>
       <PageHeader title="Ledger" kicker="Transaction ledger with debit/credit visibility for investigation and reconciliation." />
-      {integrity ? <LedgerIntegrityPanel ok={integrity.ok} unbalanced={integrity.unbalancedTransactions} /> : null}
+      {integrity ? (
+        <LedgerIntegrityPanel ok={integrity.ok} unbalanced={integrity.unbalancedTransactions} />
+      ) : (
+        <WarningBanner>
+          {integrityError
+            ? 'Ledger integrity check unavailable — balance is UNKNOWN, not verified. Reload to retry.'
+            : 'Checking ledger integrity…'}
+        </WarningBanner>
+      )}
       <br />
       <DataTable columns={['Type', 'Status', 'Reference', 'Entries', 'Debits', 'Credits', 'Created']} empty={<EmptyState>No ledger transactions.</EmptyState>}>
             {rows.map((t) => {

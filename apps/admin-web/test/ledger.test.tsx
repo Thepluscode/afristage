@@ -74,3 +74,28 @@ describe('LedgerPage', () => {
     expect(container.querySelectorAll('tr.ledger-imbalance').length).toBe(1);
   });
 });
+
+describe('LedgerPage integrity check failure', () => {
+  // The integrity fetch used to be `.catch(() => {})`: the panel just vanished.
+  // On a money page, no imbalance warning reads as "no imbalance", so the
+  // failure has to be stated rather than implied by absence.
+  it('says balance is UNKNOWN when the integrity check fails, and never claims balanced', async () => {
+    vi.mocked(adminGet).mockImplementation(async (path: string) => {
+      if (path.includes('integrity')) throw new Error('integrity-down');
+      return [];
+    });
+    render(<LedgerPage />);
+    expect(await screen.findByText(/UNKNOWN, not verified/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Ledger balanced/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No imbalanced transactions detected/i)).not.toBeInTheDocument();
+  });
+
+  it('still shows the balanced panel when the check succeeds', async () => {
+    vi.mocked(adminGet).mockImplementation(async (path: string) =>
+      path.includes('integrity') ? { ok: true, unbalancedTransactions: 0 } : []
+    );
+    render(<LedgerPage />);
+    expect(await screen.findByText(/Ledger balanced/i)).toBeInTheDocument();
+    expect(screen.queryByText(/UNKNOWN, not verified/i)).not.toBeInTheDocument();
+  });
+});

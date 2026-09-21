@@ -42,8 +42,16 @@ export function useRoomLive(roomId: string | null) {
 
     (async () => {
       const base = apiBase();
-      fetchTopGifters(base, roomId).then((t) => { if (!cancelled) setTopGifters(t); }).catch(() => {});
-      const token = await fetchSocketToken().catch(() => null);
+      // Both failures degrade the room rather than break it, so they stay
+      // non-fatal — but they must not be INVISIBLE: an empty supporter list and
+      // a read-only chat are exactly what a healthy guest session looks like.
+      fetchTopGifters(base, roomId)
+        .then((t) => { if (!cancelled) setTopGifters(t); })
+        .catch((e) => console.warn('Top supporters unavailable — list shown empty, not confirmed empty', e));
+      const token = await fetchSocketToken().catch((e) => {
+        console.warn('Socket token unavailable — chat will be read-only', e);
+        return null;
+      });
       if (cancelled) return;
       setCanSend(!!token);
 
