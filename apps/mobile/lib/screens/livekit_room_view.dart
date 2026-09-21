@@ -54,12 +54,28 @@ class _LiveKitRoomViewState extends State<LiveKitRoomView> {
         await _room.localParticipant?.setMicrophoneEnabled(widget.micEnabled);
       }
       if (mounted) setState(() => _connected = true);
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        setState(() => _status =
-            'Could not connect to video. Check your network and retry.');
+        final message = error.toString().toLowerCase();
+        final mediaPermission = message.contains('permission') ||
+            message.contains('notallowed') ||
+            message.contains('camera') ||
+            message.contains('microphone');
+        setState(() => _status = mediaPermission
+            ? 'Camera or microphone access was denied. Allow access in device settings and retry.'
+            : 'Could not connect to video. Check your network and retry.');
       }
     }
+  }
+
+  Future<void> _retry() async {
+    await _room.disconnect();
+    if (!mounted) return;
+    setState(() {
+      _status = 'Connecting…';
+      _connected = false;
+    });
+    await _connect();
   }
 
   void _onRoomChange() {
@@ -134,6 +150,20 @@ class _LiveKitRoomViewState extends State<LiveKitRoomView> {
                 style: const TextStyle(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
+              if (!_connected &&
+                  (_status.startsWith('Could not') ||
+                      _status.contains('denied'))) ...[
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: _retry,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AfriColors.action,
+                    foregroundColor: AfriColors.onAction,
+                    minimumSize: const Size(0, 44),
+                  ),
+                  child: const Text('Retry camera and mic'),
+                ),
+              ],
             ],
           ),
         ),

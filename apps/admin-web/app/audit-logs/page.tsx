@@ -35,8 +35,8 @@ export default function AuditLogsPage() {
     <>
       <PageHeader title="Audit Logs" kicker="Read-only operator trail for moderation, account, payout, and system actions." />
       <FilterBar onSubmit={(e) => e.preventDefault()}>
-        <input placeholder="Actor id" value={actor} onChange={(e) => setActor(e.target.value)} />
-        <input placeholder="Action" value={action} onChange={(e) => setAction(e.target.value)} />
+        <input aria-label="Actor ID" placeholder="Actor id" value={actor} onChange={(e) => setActor(e.target.value)} />
+        <input aria-label="Action" placeholder="Action" value={action} onChange={(e) => setAction(e.target.value)} />
         <span />
       </FilterBar>
       <div className="command-grid">

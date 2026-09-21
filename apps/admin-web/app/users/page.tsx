@@ -106,6 +106,7 @@ function UsersPageInner() {
         }}
       >
         <input
+          aria-label="Search users"
           placeholder="Search email / username / phone"
           value={q}
           onChange={(e) => setQ(e.target.value)}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import AfriStageSitePage from '../app/site/page';
 
@@ -35,6 +35,10 @@ describe('public marketing page (/site)', () => {
     // marketing CTAs reach the consumer web app, never the staff admin login
     expect(document.querySelectorAll('a[href="/login"]').length).toBe(0);
     expect(document.querySelectorAll('a[href$="/watch"]').length).toBeGreaterThan(0);
+    const rail = document.querySelector('[class*="productFlipRail"]');
+    expect(rail).toBeTruthy();
+    expect(within(rail as HTMLElement).getAllByRole('button', { name: /^(0[1-5]) / })).toHaveLength(10);
+    expect(within(rail as HTMLElement).getByRole('group', { name: 'Product screens' })).toBeInTheDocument();
   });
 
   it('step selector switches the active step on click', () => {
@@ -42,5 +46,14 @@ describe('public marketing page (/site)', () => {
     const goLive = screen.getByRole('button', { name: /go live/i });
     fireEvent.click(goLive);
     expect(goLive.className).toContain('active');
+  });
+
+  it('product rail flips to the selected phone screen', () => {
+    render(<AfriStageSitePage />);
+    const rail = document.querySelector('[class*="productFlipRail"]') as HTMLElement;
+    const wallet = within(within(rail).getByRole('group', { name: 'Product screens' })).getByRole('button', { name: /^05 Move the money$/i });
+    fireEvent.click(wallet);
+    expect(wallet).toHaveAttribute('aria-pressed', 'true');
+    expect(within(rail).getAllByRole('button', { name: /^05 Move the money$/i }).every(button => button.getAttribute('aria-pressed') === 'true')).toBe(true);
   });
 });

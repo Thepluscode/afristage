@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <!-- Defense-in-depth CSP. Self-contained page (inline style/script) so script/style
      allow 'unsafe-inline'; no user-supplied HTML is rendered. frame-ancestors,
      HSTS, and X-Frame-Options are ignored in <meta> — set those as host headers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:3000 https:; form-action 'self'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:3000 https:; form-action 'self'" />
+<link rel="stylesheet" href="assets/scroll-world/runtime/world.css" />
 <title>AfriStage — Africa, centre stage</title>
 <meta name="description" content="AfriStage is live streaming built for African creators: perform for the whole continent and its diaspora, keep 60% of every gift, and get paid on rails that reach home." />
 <meta property="og:type" content="website" />
@@ -94,7 +95,7 @@
     position:fixed;top:0;left:0;right:0;z-index:50;
     display:flex;align-items:center;justify-content:space-between;
     padding:22px var(--pad);
-    mix-blend-mode:difference;
+    background:rgba(12,12,10,.96);border-bottom:1px solid rgba(255,248,232,.15);
   }
   .wordmark{font-family:var(--serif);font-size:20px;letter-spacing:.3em;color:#fff;text-decoration:none}
   .wordmark i{font-style:italic}
@@ -187,6 +188,7 @@
   }
   .thesis em{color:var(--gold)}
 
+
   /* ————— features ————— */
   .features{background:var(--soot)}
   .feature{
@@ -225,14 +227,25 @@
   .product-reel-copy{max-width:42ch;color:var(--bone-dim);font-size:15px;margin-left:auto}
   .product-window{margin:clamp(48px,8vh,96px) calc(var(--pad) * -1) 0;overflow-x:auto;scrollbar-width:none;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:radial-gradient(70% 80% at 50% 0,rgba(233,180,76,.12),transparent 70%),#050505}
   .product-window::-webkit-scrollbar{display:none}
-  .product-window img{display:block;width:100%;height:auto;min-width:980px}
-  .product-caption{display:grid;grid-template-columns:repeat(5,1fr);min-width:980px;border-top:1px solid var(--line)}
-  .product-caption span{padding:16px 20px;border-right:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ash)}
-  .product-caption span:last-child{border-right:0}
+  .product-flip-stage{position:relative;height:clamp(460px,43vw,590px);overflow:hidden;perspective:1200px;background:radial-gradient(circle at 50% 0,rgba(233,180,76,.17),transparent 42rem),linear-gradient(180deg,#09090a,#030304)}
+  .product-phone{position:absolute;top:clamp(28px,4vw,54px);left:50%;width:clamp(154px,15vw,232px);height:clamp(360px,34vw,520px);margin-left:clamp(-116px,-7.5vw,-77px);padding:0 0 46px;overflow:hidden;border:1px solid rgba(255,248,232,.24);border-radius:clamp(22px,2.1vw,34px);background:#08090a;box-shadow:0 22px 54px rgba(0,0,0,.5),0 0 0 5px rgba(255,255,255,.035);color:var(--bone);cursor:pointer;text-align:left;transform-origin:50% 90%;transition:transform 850ms cubic-bezier(.16,1,.3,1),filter 500ms ease,opacity 500ms ease}
+  .product-phone:not(.is-active){filter:saturate(.68) brightness(.65);opacity:.9}
+  .product-phone:hover,.product-phone:focus-visible,.product-phone.is-active{filter:saturate(1) brightness(1)}
+  .product-phone:focus-visible{outline:2px solid var(--gold);outline-offset:8px}
+  .product-phone-art{display:block;width:100%;height:100%;background-image:url("assets/afristage-mobile-suite.jpg");background-repeat:no-repeat;background-size:500% 100%;background-position:0 center}
+  .product-phone:nth-child(2) .product-phone-art{background-position:25% center}.product-phone:nth-child(3) .product-phone-art{background-position:50% center}.product-phone:nth-child(4) .product-phone-art{background-position:75% center}.product-phone:nth-child(5) .product-phone-art{background-position:100% center}
+  .product-phone-index,.product-phone-name{position:absolute;z-index:1;bottom:15px;font-family:var(--mono);font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+  .product-phone-index{left:16px;color:var(--gold)}.product-phone-name{right:16px;color:rgba(255,248,232,.62);letter-spacing:.08em}
+  .product-flip-controls{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line)}
+  .product-flip-controls button{min-height:66px;padding:14px 16px;border:0;border-right:1px solid var(--line);background:transparent;color:rgba(255,248,232,.8);font-family:var(--mono);font-size:12px;font-weight:900;letter-spacing:.05em;text-align:left;text-transform:uppercase;cursor:pointer}
+  .product-flip-controls button:last-child{border-right:0}.product-flip-controls button span{display:block;margin-bottom:5px;color:rgba(255,248,232,.7)}
+  .product-flip-controls button[aria-pressed="true"]{background:rgba(233,180,76,.08);color:var(--bone)}.product-flip-controls button[aria-pressed="true"] span{color:var(--gold)}
+  .product-flip-controls button:focus-visible{outline:2px solid var(--gold);outline-offset:-4px}
+  section[id]{scroll-margin-top:84px}
   @media(max-width:880px){
     .product-reel-head{grid-template-columns:1fr}
     .product-reel-copy{margin-left:0}
-    .product-window img,.product-caption{min-width:900px}
+    .product-flip-stage{height:500px}.product-phone{width:190px;height:430px;margin-left:-95px}.product-flip-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
 
   /* ————— proof (ivory interlude) ————— */
@@ -347,6 +360,12 @@
   footer .fm{font-family:var(--serif);font-size:18px;letter-spacing:.3em;color:var(--bone);text-decoration:none}
   footer span{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--ash)}
 </style>
+<noscript><style>
+  .rv{opacity:1;transform:none}
+  .product-flip-stage{display:flex;gap:24px;height:auto;padding:32px;overflow-x:auto}
+  .product-phone{position:relative;top:auto;left:auto;flex:0 0 190px;width:190px;height:430px;margin:0;filter:none!important;opacity:1!important}
+  .product-flip-controls{display:none}
+</style></noscript>
 </head>
 <body>
 
@@ -431,6 +450,16 @@
   </div>
 </section>
 
+<!-- scroll-world:start -->
+<div class="aw-world" id="scroll-world" aria-label="One night on AfriStage"><div class="aw-pin">
+<div class="aw-controls"><a class="aw-skip" href="#stagecraft">Skip the story</a></div><div class="aw-scenes">
+<figure class="aw-scene"><div class="aw-visual"><img src="assets/scroll-world/web/scene-1.jpg" srcset="assets/scroll-world/web/scene-1.jpg 1264w, assets/scroll-world/web/scene-1@2x.jpg 2560w" sizes="100vw" width="1264" height="848" loading="lazy" decoding="async" alt="An African creator preparing to perform on a circular stage, with her phone on a tripod and city lights beyond." /></div><figcaption class="aw-caption"><span class="aw-eyebrow">01 — Before the lights</span><h2>Your stage starts here.</h2><p>Set up your camera, choose your room, and bring your audience together.</p></figcaption></figure>
+<figure class="aw-scene"><div class="aw-visual"><img src="assets/scroll-world/web/scene-2.jpg" srcset="assets/scroll-world/web/scene-2.jpg 1536w, assets/scroll-world/web/scene-2@2x.jpg 2560w" sizes="100vw" width="1536" height="1024" loading="lazy" decoding="async" alt="The same creator singing under a gold spotlight, surrounded by a seated audience and gold light trails." /></div><figcaption class="aw-caption"><span class="aw-eyebrow">02 — The house fills</span><h2>Local roots. A wider audience.</h2><p>Perform live with chat and gifts in the same room, connecting fans at home and across the diaspora.</p></figcaption></figure>
+<figure class="aw-scene"><div class="aw-visual"><img src="assets/scroll-world/web/scene-3.jpg" srcset="assets/scroll-world/web/scene-3.jpg 1264w, assets/scroll-world/web/scene-3@2x.jpg 2560w" sizes="100vw" width="1264" height="848" loading="lazy" decoding="async" alt="Gold light trails connect the audience to the creator through a transparent glass panel representing the ledger." /></div><figcaption class="aw-caption"><span class="aw-eyebrow">03 — Applause, accounted</span><h2>Support you can account for.</h2><p>Keep 60% of each gift, with the fan’s coins, your earnings, and the platform’s share recorded in the ledger.</p></figcaption></figure>
+<figure class="aw-scene"><div class="aw-visual"><img src="assets/scroll-world/web/scene-4.jpg" srcset="assets/scroll-world/web/scene-4.jpg 1264w, assets/scroll-world/web/scene-4@2x.jpg 2560w" sizes="100vw" width="1264" height="848" loading="lazy" decoding="async" alt="The creator after her performance, with gold trails stretching toward distant city lights." /></div><figcaption class="aw-caption"><span class="aw-eyebrow">04 — After the encore</span><h2>Your performance. Your earnings.</h2><p>See your earnings and request a payout when eligible. Follow its progress through review and payment.</p><a class="aw-cta" href="#begin">Claim your stage</a></figcaption></figure>
+</div></div></div>
+<!-- scroll-world:end -->
+
 <!-- ————————————————— 3 · STAGECRAFT ————————————————— -->
 <section class="features" id="stagecraft" aria-label="Stagecraft">
   <div class="ghost" aria-hidden="true">II</div>
@@ -510,14 +539,20 @@
     </div>
     <p class="product-reel-copy rv d2">Discovery, performance, gifting, creator control and payout confidence share one visual language — so the energy never disappears when the work begins.</p>
   </div>
-  <figure class="product-window rv d2">
-    <img src="assets/afristage-mobile-suite.jpg" width="1693" height="929" loading="lazy" decoding="async" alt="Five AfriStage mobile screens showing the live discovery feed, live room and gift drawer, Go Live setup, creator dashboard, and wallet." />
-    <figcaption class="product-caption">
-      <span>Discover live</span>
-      <span>Join the room</span>
-      <span>Open your stage</span>
-      <span>Run the show</span>
-      <span>Move the money</span>
+  <figure class="product-window rv d2" aria-label="Five sides of the AfriStage product">
+    <div class="product-flip-stage">
+      <button class="product-phone is-active" type="button" data-product-card="0" aria-label="01 Discover live" aria-pressed="true"><span class="product-phone-art" aria-hidden="true"></span><span class="product-phone-index">01</span><span class="product-phone-name">Discover live</span></button>
+      <button class="product-phone" type="button" data-product-card="1" aria-label="02 Join the room" aria-pressed="false"><span class="product-phone-art" aria-hidden="true"></span><span class="product-phone-index">02</span><span class="product-phone-name">Join the room</span></button>
+      <button class="product-phone" type="button" data-product-card="2" aria-label="03 Open your stage" aria-pressed="false"><span class="product-phone-art" aria-hidden="true"></span><span class="product-phone-index">03</span><span class="product-phone-name">Open your stage</span></button>
+      <button class="product-phone" type="button" data-product-card="3" aria-label="04 Run the show" aria-pressed="false"><span class="product-phone-art" aria-hidden="true"></span><span class="product-phone-index">04</span><span class="product-phone-name">Run the show</span></button>
+      <button class="product-phone" type="button" data-product-card="4" aria-label="05 Move the money" aria-pressed="false"><span class="product-phone-art" aria-hidden="true"></span><span class="product-phone-index">05</span><span class="product-phone-name">Move the money</span></button>
+    </div>
+    <figcaption class="product-flip-controls" role="group" aria-label="Product screens">
+      <button type="button" aria-pressed="true" data-product-tab="0"><span>01</span>Discover live</button>
+      <button type="button" aria-pressed="false" data-product-tab="1"><span>02</span>Join the room</button>
+      <button type="button" aria-pressed="false" data-product-tab="2"><span>03</span>Open your stage</button>
+      <button type="button" aria-pressed="false" data-product-tab="3"><span>04</span>Run the show</button>
+      <button type="button" aria-pressed="false" data-product-tab="4"><span>05</span>Move the money</button>
     </figcaption>
   </figure>
 </section>
@@ -789,6 +824,25 @@
       if (e.key === "ArrowUp" || e.key === "ArrowLeft"){ e.preventDefault(); tabs[(i + 4) % tabs.length].focus(); select((i + 4) % tabs.length); }
     });
   });
+
+  /* ——— product reel: five phone frames, one quiet flip-through ——— */
+  var cards = document.querySelectorAll("[data-product-card]"), productTabs = document.querySelectorAll("[data-product-tab]");
+  var productIndex = 0;
+  function showProduct(i){
+    productIndex = (i + cards.length) % cards.length;
+    cards.forEach(function(card, j){
+      var distance = (j - productIndex + cards.length) % cards.length;
+      var offset = distance > 2 ? distance - cards.length : distance;
+      card.style.transform = "translateX(" + (offset * 82) + "%) rotate(" + (offset * 3.5) + "deg) scale(" + (j === productIndex ? 1 : .92) + ")";
+      card.style.zIndex = String(cards.length - Math.abs(offset));
+      card.classList.toggle("is-active", j === productIndex);
+      card.setAttribute("aria-pressed", String(j === productIndex));
+    });
+    productTabs.forEach(function(tab, j){ tab.setAttribute("aria-pressed", String(j === productIndex)); });
+  }
+  cards.forEach(function(card, i){ card.addEventListener("click", function(){ showProduct(i); }); });
+  productTabs.forEach(function(tab, i){ tab.addEventListener("click", function(){ showProduct(i); }); });
+  showProduct(0);
 })();
 </script>
 <script>
@@ -842,6 +896,10 @@
     });
   });
 })();
+</script>
+<script type="module">
+  import { mountScrollWorld } from './assets/scroll-world/runtime/engine.mjs';
+  mountScrollWorld(document.getElementById('scroll-world'), { base: './assets/scroll-world/' });
 </script>
 </body>
 </html>

@@ -91,10 +91,10 @@ function EventsPageInner() {
         kicker="Limited-time campaigns: window, exclusive gifts, and the PROMO-funded prize pool settled over the supporter leaderboard."
       />
       <FilterBar onSubmit={create}>
-        <input placeholder="Event name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input aria-label="Event name" placeholder="Event name" value={name} onChange={(e) => setName(e.target.value)} />
         <input type="datetime-local" aria-label="Starts at" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
         <input type="datetime-local" aria-label="Ends at" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
-        <input placeholder="Prize pool coins" type="number" value={pool} onChange={(e) => setPool(e.target.value)} />
+        <input aria-label="Prize pool coins" placeholder="Prize pool coins" type="number" value={pool} onChange={(e) => setPool(e.target.value)} />
         <button className="button">Create Event</button>
       </FilterBar>
       {settled && (

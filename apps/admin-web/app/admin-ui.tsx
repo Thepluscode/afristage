@@ -26,7 +26,7 @@ export function SidebarGroup({
       {links.map(([label, href, icon]) => {
         const count = badges?.[href] ?? 0;
         return (
-          <Link key={href} href={href} className={pathname === href ? 'active' : ''}>
+          <Link key={href} href={href} aria-current={pathname === href ? 'page' : undefined} className={pathname === href ? 'active' : ''}>
             {icon ? <span className="nav-icon">{icon}</span> : null}
             {label}
             {count > 0 ? (
@@ -47,9 +47,9 @@ export function SystemStatus({ ok, environment }: { ok: boolean | null; environm
     <div className={`system-status ${state}`}>
       <span className="system-dot" aria-hidden="true" />
       <span>
-        <strong>System status</strong>
+        <strong>Admin API connection</strong>
         <small>
-          {ok === null ? 'Checking…' : ok ? 'All systems operational' : 'Degraded — needs review'}
+          {ok === null ? 'Checking…' : ok ? 'Connected — dashboard reachable' : 'Unavailable — needs review'}
           {' · '}
           {environment}
         </small>
@@ -84,7 +84,7 @@ export function PageHeader({
   return (
     <header className="page-header">
       <div>
-        <h2>{title}</h2>
+        <h1>{title}</h1>
         <p className="page-kicker">{kicker}</p>
       </div>
       {action}
@@ -511,11 +511,11 @@ export function EmptyState({ children }: { children: React.ReactNode }) {
 }
 
 export function ErrorState({ error }: { error: string }) {
-  return <p className="error">{error}</p>;
+  return <section role="alert"><p className="error">{error}</p><button className="button secondary" onClick={() => window.location.reload()}>Retry loading</button></section>;
 }
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
-  return <p className="loading-state">{label}</p>;
+  return <p className="loading-state" role="status">{label}</p>;
 }
 
 export function AuditTimeline({ rows }: { rows: { action: string; actorId?: string; createdAt: string }[] }) {

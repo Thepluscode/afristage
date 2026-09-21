@@ -15,12 +15,12 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setError(null);
+    try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ identifier, password })
     });
-    setLoading(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setError(body.message || 'Login failed');
@@ -29,6 +29,11 @@ export default function LoginPage() {
     // Return to where they were before the session ended (validated), not the dashboard.
     const next = new URLSearchParams(window.location.search).get('next');
     window.location.href = safeNext(next);
+    } catch {
+      setError('Unable to connect. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -38,13 +43,13 @@ export default function LoginPage() {
         <p>Sign in to manage moderation, payouts, reports, and platform operations.</p>
         <label>
           Email or phone
-          <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+          <input required autoComplete="username" autoCapitalize="none" spellCheck={false} value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
         </label>
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input required autoComplete="current-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error" role="alert">{error}</p> : null}
         <button className="button" disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>

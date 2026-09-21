@@ -100,9 +100,10 @@ function ShopsPageInner() {
         kicker="Approval is the gate that decides who may take coins from viewers. Every status change is audited."
       />
       <FilterBar onSubmit={createShop}>
-        <input placeholder="Owner user id" value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)} />
-        <input placeholder="Shop name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input aria-label="Owner user ID" placeholder="Owner user id" value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)} />
+        <input aria-label="Shop name" placeholder="Shop name" value={name} onChange={(e) => setName(e.target.value)} />
         <input
+          aria-label="Referral URL"
           placeholder="Referral URL (blank = sells in-app)"
           value={externalUrl}
           onChange={(e) => setExternalUrl(e.target.value)}

@@ -50,6 +50,7 @@ export default function BetaInvitesPage() {
       ) : null}
       <FilterBar onSubmit={create}>
         <input
+          aria-label="Invite email (optional)"
           placeholder="Email (optional)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
