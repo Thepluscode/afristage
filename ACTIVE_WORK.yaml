@@ -1,0 +1,149 @@
+# The authorised current task. This file decides what a session works on.
+#
+# Counts, SHAs, test totals and coverage figures do NOT belong here — they go
+# stale and this file is hand-edited. They live in PROJECT_STATE.json, generated.
+
+schema: active-work/1
+repository: afristage
+canonical_remote: https://github.com/Thepluscode/afristage.git
+governing_standard: docs/PRODUCT_BUILDING_STANDARD.md
+
+environments:
+  deployed: staging
+  production: none yet
+  bar: >
+    Staging is the only deployed environment, so "staging live" is the
+    verification bar — not local-only. A money change is proven by a real funnel
+    against the deployed API, followed by a ledger-safe teardown leaving
+    ledger_integrity_ok=1.
+  ci: >
+    GitHub Actions is billing-blocked, so API CI evidence is unavailable and
+    merges rest on local green. The green checks visible on main are usually the
+    scheduled synthetic-check probe, a different workflow.
+
+active:
+  task: >
+    Close the open distribution and launch gates on work already built — the
+    native store pipeline, which is blocked on accounts and keys that no agent
+    can create, and the remaining wave-1 beta-launch checks.
+  status: blocked_on_owner
+  claim_level: tested
+  source: FEATURE_TRACKER.md
+  corroborated_by: docs/mobile-release.md
+  why_this_and_not_new_features: >
+    The product already completes its v1 loop end to end and has been proven on
+    staging through a real gift-to-earnings funnel. What stands between it and a
+    first external user is not more features: it is a Play Console account, a
+    real upload keystore, a service-account JSON, a Mac for iOS, and the wave-1
+    launch checks. Building another feature underneath an unopened distribution
+    gate adds verification debt without moving the product closer to a user.
+  permitted_without_further_approval:
+    - Correctness, test, security and documentation work that does not touch the
+      ledger or the money boundaries in AGENT_CONTEXT.md.
+    - Retiring verification debt by gathering staging evidence for an entry that
+      is currently DEPLOYED or IMPLEMENTED.
+    - Running any validate:* suite and recording what it found.
+  forbidden:
+    - Calling LedgerService.postTransaction from anywhere but MoneyService.
+    - Minting a ledger idempotency key outside money-keys.ts.
+    - Adding a cache key that does not contain the owner.
+    - Relabelling historical tracker entries as a side effect of other work.
+    - Labelling anything VERIFIED on build-and-tests-pass alone.
+
+blocked:
+  - what: Native store distribution — Android foundation
+    detail: >
+      Release signing is wired and verified: a signed AAB builds, and the signer
+      certificate was proven to be the upload key rather than Android Debug,
+      using a throwaway key since removed. Fastlane is scaffolded for Play
+      internal/production and TestFlight, and loads its lanes under Ruby 3.4.
+    blocked_on: >
+      The owner's Play Console account, a real upload keystore and a
+      service-account JSON — accounts and keys an agent cannot create. iOS
+      additionally needs a Mac and an Apple Developer account.
+    interim: The hosted flutter-web service remains the distribution channel.
+  - what: Physical-device camera publish
+    detail: Still pending; an emulator cannot capture.
+    blocked_on: a physical device
+  - what: Wave-1 beta-launch checks
+    detail: Remaining items in the beta-launch operations playbook.
+    blocked_on: owner action, including RESEND_API_KEY to light up email delivery
+
+parked:
+  - id: SELF-SERVE-KYC
+    what: Self-serve creator KYC
+    why: >
+      Admin payout enablement closed the immediate gap — an admin can now enable
+      payout without hand-editing the database — so creators are unblocked
+      without it.
+    unparks_when: Creator volume makes admin enablement the bottleneck.
+  - id: GLOBAL-PAYOUTS-PHASE-B
+    what: Stripe Connect international rails
+    why: >
+      Phase A already fixed the real defect: a GBP payout method was being
+      recorded as NGN because the fiat snapshot came from global env rather than
+      the payout method's own currency. Phase B is scoped in
+      docs/global-payouts-upgrade-scope.md and gated on demand.
+    unparks_when: A creator needs a rail Phase A cannot settle.
+  - id: PAYOUT-RATE-PRICING
+    what: Per-currency coin-to-fiat rates
+    why: >
+      The current value of 100 minor units per coin is a placeholder. Setting the
+      real rates is a pricing decision, not an engineering one.
+    unparks_when: The founder sets the rates.
+  - id: WEB-PAYOUT-REQUESTS
+    what: Payout requests from the web earnings view
+    why: >
+      Deliberately deferred. The earnings view is read-only; payout requests stay
+      on the KYC-gated mobile flow so there is one gated path, not two.
+    unparks_when: The mobile flow stops being sufficient.
+
+verification_debt:
+  # Stated here because it is the honest position, and because a session that
+  # cannot see it will mistake DEPLOYED for proven.
+  retired: >
+    The payments work, the whole web client and the diamonds/earnings work are
+    now staging-verified with live evidence from a real creator funnel.
+  outstanding: >
+    The older mobile and landing design passes remain local-only — host-GPU
+    emulator plus jest/flutter suites, no deployed evidence. The coin-overdraw
+    fix is covered by a real-DB concurrency test with verified teeth, but its
+    remaining gap to VERIFIED is the same as everything else: evidence from a
+    deployed environment rather than a local one.
+
+uncommitted_in_working_tree:
+  # Recorded as fact, not as authorisation. Not reviewed by this migration.
+  what: >
+    An admin-web redesign and a ScrollWorld landing feature in progress — admin
+    pages and tests, globals.css, the landing page, a Flutter LiveKit room view,
+    the web Viewer and live library, plus scripts/scroll-world.*, an untracked
+    ScrollWorld.tsx, a public-live API route and around thirty screenshot
+    captures. CLAUDE.md also carries a one-word correction.
+  note: >
+    Whoever wrote it owns the decision to commit, finish or discard it. This
+    migration was authored in a separate worktree and touched none of it.
+
+task_switch_requires:
+  - FOUNDER_OVERRIDE
+  - CURRENT_TASK_COMPLETED
+  - RELEASE_CONDITION_MET
+  - VERIFIED_P0_P1_INTERRUPT
+
+history:
+  - date: 2026-09-21
+    from: (no continuity contract)
+    to: >
+      Continuity migration — charter, active work, parking lot, generated state
+      and an enforcing contract test.
+    reason: >
+      The most active repository in the portfolio owned a money authority and
+      could not state its mission, its boundaries or its authorised task to a
+      fresh session. It was also absent from the portfolio map's product tables,
+      filed under active experiments. Claude memory is a cache; the repository
+      is the authority.
+    evidence: >
+      Phase 0 recorded the two commits that day landing via merged pull requests
+      and already pushed, no file activity in thirty minutes, and a prunable
+      worktree from a finished session. Authored in a detached worktree so the
+      74 uncommitted paths in the canonical checkout were never touched.
+    approved_by: founder
