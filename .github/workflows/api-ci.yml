@@ -56,6 +56,10 @@ jobs:
       # PRODUCTION-READY claim with no evidence behind it.
       - run: npm run test:tracker-lint
       - run: npm run validate:tracker
+      # The deploy job's verification is CI-only shell, so this is the only thing
+      # that ever proves it rejects a stale deployment. Runs on every PR, not just
+      # main, so the guard cannot quietly break between deploys.
+      - run: npm run test:deploy-verify
       - run: npm run lint -w apps/api # typecheck
       - run: npm run test -w apps/api # unit (ledger invariants)
       - run: npm run build -w apps/api
@@ -92,3 +96,60 @@ jobs:
           set -e
           npm run validate:hardening
           kill "$(cat /tmp/api.pid)" || true
+
+  # Ship what just passed.
+  #
+  # Until 2026-09-05 nothing here deployed anything: `docs/runbook.md` documented
+  # a human typing `railway up`, and the deployed API drifted roughly four weeks
+  # behind main — #236, #242, the ledger and SIGTERM fixes all merged and none of
+  # them live. The scheduled synthetic-check went green throughout, because it was
+  # probing the stale build. A green check on main proved nothing about main.
+  #
+  # `needs: build-test` makes this the same run that ran the tests, so there is no
+  # window where a deploy can be triggered by a commit whose suite never passed.
+  deploy:
+    needs: build-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Deploys are serialised and never cancelled midway: two `railway up`s racing
+    # would leave whichever finished last live, which may not be the newer commit.
+    concurrency:
+      group: deploy-railway
+      cancel-in-progress: false
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      API_HEALTH_URL: https://api-production-e12f.up.railway.app/api/health
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail with a sentence someone can act on, rather than letting the CLI emit
+      # "Unauthorized" and exit 0 — which is exactly how a deploy silently does
+      # nothing while the pipeline stays green.
+      - name: Require the deploy credential
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::RAILWAY_TOKEN is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli@4
+
+      # Stamped so the deployed process can say which commit it is. The verify
+      # step below is only meaningful because of this.
+      # --skip-deploys: setting a variable normally triggers its own redeploy, which
+      # would race the `railway up` below and could leave the older image live.
+      - name: Stamp the commit onto the API service
+        run: railway variable set "GIT_SHA=$GITHUB_SHA" --service api --skip-deploys
+
+      - name: Deploy api
+        run: railway up --service api --ci
+
+      - name: Deploy admin-web
+        run: railway up --service admin-web --ci
+
+      # The step that makes this a deploy rather than an upload. The logic lives
+      # in the script so scripts/deploy-verify-selftest.sh can prove it rejects a
+      # stale deployment — a check never observed failing is decoration.
+      - name: Verify the deployed commit is this commit
+        run: bash scripts/verify-deployed-commit.sh "$API_HEALTH_URL" "$GITHUB_SHA" 60 10
