@@ -1,94 +1,48 @@
-# AfriStage — agent instructions
+# Start here
 
-## The standard
+A fresh session reconstructs AfriStage from this repository, never from memory or
+from the previous conversation. Six steps, in order.
 
-**[docs/PRODUCT_BUILDING_STANDARD.md](docs/PRODUCT_BUILDING_STANDARD.md) is mandatory
-and governs every change in this repository.** Read it before planning or writing
-code. It defines the required pre-implementation output (problem, user, outcome,
-workflow, acceptance criteria, invariants, failure cases, security, test plan),
-the required post-implementation report (changes, files, test evidence,
-verification status, remaining risks, next decision), and the definition of done.
+1. **Verify you are in the canonical repository.**
+   `~/projects/ai/afristage`, remote `Thepluscode/afristage`. Anywhere else: stop.
 
-That file is the single canonical copy. `AGENTS.md` points here; do not fork the
-text into other files, or the copies will drift.
+2. **Read `docs/PRODUCT_BUILDING_STANDARD.md`** — it is mandatory and governs
+   every change here. It defines the required pre-implementation output and
+   post-implementation report, and the definition of done. It is the single
+   canonical copy; do not fork its text.
 
-## How it relates to the existing doctrine
+3. **Read `AGENT_CONTEXT.md`** — mission, the money authorities, the verification
+   bar. Stable.
 
-The company doctrine at `~/projects/theplus-tech-knowledge/doctrine/AGENTS.md`
-(Premise Gate, the Build Standard, the 12 engineering rules) still applies. The
-product standard is compatible with it and mostly more specific. Where both speak
-to the same thing, the stricter requirement wins — neither relaxes the other.
+4. **Read `ACTIVE_WORK.yaml`** — the authorised current task, what is blocked,
+   what is parked. This file decides what you work on.
 
-## Status vocabulary
+5. **Run preflight and refresh state.** `~/.claude/scripts/preflight .` exits
+   non-zero rather than warning. `npm run project-state` writes
+   `PROJECT_STATE.json`; every count and SHA comes from there, never from memory.
 
-The standard's vocabulary governs: `PLANNED → SCAFFOLDED → IMPLEMENTED →
-VERIFIED → PILOT-READY → PRODUCTION-READY`. Use it for new tracker entries and
-for the per-change "Verification status" report.
+6. **Act only on the task `ACTIVE_WORK.yaml` names.**
 
-`FEATURE_TRACKER.md` previously used `PLANNED → IN PROGRESS → DEPLOYED →
-VERIFIED`. The historical entries were **not** relabelled — they were assessed
-against the definitions in force when their evidence was gathered, and rewriting
-the labels would imply a re-audit that did not happen. The tracker header carries
-the mapping needed to read them.
+The durable engineering invariants — API error conventions, the money rules, the
+status vocabulary, the repository facts an agent needs — are in
+`CLAUDE-INVARIANTS.md`. They are not repeated here.
 
-Do not relabel historical entries as a side effect of unrelated work. If an old
-`DEPLOYED` entry needs a current label, re-check its evidence first and say what
-you checked.
+## The three rules this file exists to enforce
 
-`npm run validate:tracker` enforces the machine-checkable half of this in CI: a
-status must be a real label, and `VERIFIED` / `PILOT-READY` / `PRODUCTION-READY`
-must carry evidence that is not merely "tests pass" or "build succeeded". Whether
-the evidence is *good* is your judgement, not the linter's.
+**Discovery is not authorisation.** The most recently discussed defect, feature
+or idea does **not** become the current task. Park it in `PARKING_LOT.md` and
+carry on with what `ACTIVE_WORK.yaml` says.
 
-## API error conventions
+Changing the active task requires `FOUNDER_OVERRIDE`, `CURRENT_TASK_COMPLETED`,
+`RELEASE_CONDITION_MET`, or a verified `P0`/`P1` interrupt — and the switch
+records its reason. See `~/.claude/rules/rule-precedence.md` §B.
 
-- **A missing single resource is a `404`** — never `200` with a `null` or empty
-  body. A client cannot tell "gone" from "arrived empty", the response caches as
-  though it were valid, and the failure is invisible in every dashboard. This is
-  already the convention: 33 `NotFoundException` throws across the API.
-- **An empty collection is `200` with `[]`** — never a `404`.
-- **A database constraint the code did not anticipate must not reach the client
-  as a `500`.** `PrismaExceptionFilter` maps known Prisma codes to honest 4xx
-  (`P2002`→409, `P2025`→404, `P2003`/`P2014`→409, value errors→400) and
-  deliberately leaves anything unmapped as a 500, so a real fault cannot hide
-  behind a friendly message. Where a call site can say something specific — which
-  field collided, and what to do about it — it should still catch its own error;
-  the filter is the floor, not the ceiling.
-- **`npm run validate:cross-user`** asks whether user B can see user A's data,
-  including the cache scenario: A warms a shared surface, then B loads it. There
-  is one cache today (the public feed slice) and it is viewer-neutral by
-  construction — this exists for the day someone adds a second one. **Any new
-  cache key must contain the owner**, or the database's row-level security is
-  bypassed entirely: the cache answers before the query runs, holding the output
-  of somebody else's permission check.
+**This repository moves real money.** Coins are bought, gifts convert to creator
+earnings, earnings pay out in fiat. Only `MoneyService` may post to the ledger,
+every idempotency key is minted in one file, and a spend balance must never go
+negative. `AGENT_CONTEXT.md` tabulates the boundaries and where each lives.
 
-- **`npm run validate:error-paths`** does every ordinary action twice and asserts
-  nothing answers 5xx. Run it against a deployed environment, not just locally:
-  the duplicate-signup 500 lived on the funnel's first screen because every other
-  suite here drives the happy path with fresh, unique data.
-
-## Repository facts an agent needs
-
-- **Staging's seeded passwords are rotated randoms, not `Admin123!`.** A 401 on
-  the deployed environment is almost always this, not a bug. Read them from
-  `railway variables --service api --kv | grep STAGING_` — see
-  `docs/phase-3-6-beta-launch-operations.md`. Local compose uses the plain ones.
-
-- Monorepo: NestJS + Prisma API (`apps/api`), Next.js admin (`apps/admin-web`),
-  Next.js web client (`apps/web`), Flutter mobile (`apps/mobile`), landing
-  (`apps/landing`).
-- `npx jest` in `apps/api` runs the API suite. `npx vitest run` in `apps/admin-web`.
-- CI (`API CI`) runs unit tests, then a build, then `prisma migrate deploy`, then
-  the seed, then the `scripts/validate-*.mjs` end-to-end suites against a live API.
-  A failure in an early suite halts the rest — check which suite actually failed
-  before concluding the pipeline is broken.
-- The green checks that appear on `main` are often the scheduled `synthetic-check`
-  probe, a **different** workflow. Confirm you are reading `API CI` before
-  claiming CI is healthy.
-- Coin pricing is server-owned: clients pick a `packageId`. Gift `quantity` is
-  bounded at 10000. The E2E suites buy and gift through the `buyCoins` /
-  `giftCoins` helpers in `scripts/_lib.mjs` — use those rather than posting
-  purchase bodies directly.
-- Money moves go through the `MoneyService` catalog, which owns idempotency keys
-  and the non-negative guard. Do not call `LedgerService.postTransaction` from a
-  feature service.
+**A green check is not CI.** The checks that appear on `main` are often the
+scheduled `synthetic-check` probe, a different workflow. GitHub Actions is
+billing-blocked, so `API CI` evidence is currently unavailable and merges rest on
+local green. Never report CI as healthy without naming which workflow you read.
