@@ -46,7 +46,19 @@ export class AdminService {
   async dashboard() {
     const since = new Date();
     since.setHours(0, 0, 0, 0); // start of today (server local)
-    const [activeRooms, pendingReports, criticalReports, pendingPayouts, successfulPayments, failedPayments, giftsToday, newUsersToday, newCreatorsToday] = await Promise.all([
+    const [
+      activeRooms,
+      pendingReports,
+      criticalReports,
+      pendingPayouts,
+      successfulPayments,
+      failedPayments,
+      giftsToday,
+      newUsersToday,
+      newCreatorsToday,
+      pendingCreatorApprovals,
+      openSupportTickets
+    ] = await Promise.all([
       this.prisma.liveRoom.count({ where: { status: RoomStatus.LIVE } }),
       this.prisma.report.count({ where: { status: ReportStatus.OPEN } }),
       this.prisma.report.count({ where: { status: ReportStatus.OPEN, priority: ReportPriority.CRITICAL } }),
@@ -55,7 +67,14 @@ export class AdminService {
       this.prisma.paymentIntent.count({ where: { status: PaymentStatus.FAILED } }),
       this.prisma.giftTransaction.aggregate({ _sum: { totalCoinAmount: true } }),
       this.prisma.user.count({ where: { createdAt: { gte: since } } }),
-      this.prisma.creatorProfile.count({ where: { createdAt: { gte: since } } })
+      this.prisma.creatorProfile.count({ where: { createdAt: { gte: since } } }),
+      // Both of these are RENDERED by the dashboard and were never returned by it:
+      // the UI's `data.x ?? 0` turned the missing field into a confident zero, so
+      // "0 awaiting approval" was displayed while a creator sat PENDING, and an
+      // operator reading that card would never open the queue. A number nobody
+      // computed is worse than a blank.
+      this.prisma.creatorProfile.count({ where: { approvalStatus: CreatorApprovalStatus.PENDING } }),
+      this.prisma.supportTicket.count({ where: { status: { in: ['OPEN', 'IN_REVIEW'] } } })
     ]);
     return {
       activeRooms,
@@ -66,7 +85,9 @@ export class AdminService {
       failedPayments,
       grossGiftVolumeCoins: (giftsToday._sum.totalCoinAmount || 0).toString(),
       newUsersToday,
-      newCreatorsToday
+      newCreatorsToday,
+      pendingCreatorApprovals,
+      openSupportTickets
     };
   }
 

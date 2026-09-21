@@ -395,3 +395,58 @@ describe('AdminService.userActivity', () => {
     expect(cutoff).toBeLessThan(now - 89 * 86_400_000);
   });
 });
+
+// The shared `count` mock above returns 0 for every model, so a test written on it
+// cannot tell "counted and got 0" from "never counted" — exactly the confusion that
+// shipped. This harness gives each model a DISTINCT non-zero count, which makes an
+// omitted field show up as undefined instead of a plausible zero.
+function buildDistinct() {
+  const prisma: any = {
+    liveRoom: { count: jest.fn().mockResolvedValue(11), findMany: jest.fn().mockResolvedValue([]) },
+    creatorProfile: {
+      // called twice: newCreatorsToday (createdAt filter) then pendingCreatorApprovals
+      count: jest.fn().mockImplementation(async ({ where }: any) => (where?.approvalStatus ? 7 : 22)),
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    report: { count: jest.fn().mockResolvedValue(33) },
+    payoutRequest: { count: jest.fn().mockResolvedValue(44) },
+    supportTicket: { count: jest.fn().mockResolvedValue(9) },
+    paymentIntent: { count: jest.fn().mockResolvedValue(55), findMany: jest.fn().mockResolvedValue([]) },
+    user: { count: jest.fn().mockResolvedValue(66), findMany: jest.fn().mockResolvedValue([]) },
+    giftTransaction: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { totalCoinAmount: 860 } }),
+      groupBy: jest.fn().mockResolvedValue([])
+    },
+    ledgerTransaction: { findMany: jest.fn().mockResolvedValue([]) },
+    adminAuditLog: { findMany: jest.fn().mockResolvedValue([]) }
+  };
+  return { service: new AdminService(prisma, new AggregationService(prisma)), prisma };
+}
+
+describe('AdminService.dashboard returns every field the console renders', () => {
+  it('includes pendingCreatorApprovals, counted from PENDING creator profiles', async () => {
+    const { service } = buildDistinct();
+    const res: any = await service.dashboard();
+    expect(res.pendingCreatorApprovals).toBe(7); // the PENDING-filtered count, not the created-today one
+  });
+
+  it('includes openSupportTickets', async () => {
+    const { service } = buildDistinct();
+    const res: any = await service.dashboard();
+    expect(res.openSupportTickets).toBe(9);
+  });
+
+  it('keeps newCreatorsToday distinct from the pending-approval count', async () => {
+    const { service } = buildDistinct();
+    const res: any = await service.dashboard();
+    expect(res.newCreatorsToday).toBe(22);
+    expect(res.pendingCreatorApprovals).not.toBe(res.newCreatorsToday);
+  });
+
+  it('counts pending approvals with no date filter — a creator waiting since last week still counts', async () => {
+    const { service, prisma } = buildDistinct();
+    await service.dashboard();
+    const pendingCall = prisma.creatorProfile.count.mock.calls.find((c: any) => c[0]?.where?.approvalStatus);
+    expect(pendingCall[0].where.createdAt).toBeUndefined();
+  });
+});
