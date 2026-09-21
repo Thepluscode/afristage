@@ -346,12 +346,26 @@ export class AuthService {
       await this.prisma.adminAuditLog.create({
         data: { actorId: user.id, action: 'user.password_reset_requested', target: user.id, metadata: {} }
       });
-      await this.email.send(
+      const sent = await this.email.send(
         // The stored address, not the one typed — they differ only in case.
         user.email ?? emailAddr,
         'Reset your AfriStage password',
         `Use this one-time code within 15 minutes to set a new password:\n\n${token}\n\nIf you didn't ask for this, ignore this email — your password is unchanged.`
       );
+      // `send` swallows every provider failure and returns false, so ignoring
+      // the result meant a Resend 403 — an unverified sending domain — reached
+      // the user as {ok:true}. The code exists, nothing carries it, and the only
+      // evidence is a WARN nobody reads.
+      //
+      // The trade: this answers 503 for a known address while the provider is
+      // down, and 201 for an unknown one, which is an enumeration oracle for as
+      // long as sending is broken. Accepted deliberately — that window is one
+      // where recovery does not work for anyone anyway, and a person who cannot
+      // tell a dead provider from a wrong address will keep retrying instead of
+      // contacting support.
+      if (!sent) {
+        throw new ServiceUnavailableException('Could not send the reset email — please try again or contact support');
+      }
     }
     return { ok: true };
   }

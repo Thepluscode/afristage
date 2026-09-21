@@ -848,3 +848,30 @@ describe('AuthService.requestPasswordReset (no mail provider)', () => {
     expect(email.send.mock.calls[0][0]).toBe('Ogievat@yahoo.com');
   });
 });
+
+describe('AuthService.requestPasswordReset (the provider rejects the send)', () => {
+  // EmailService.send returns false on ANY non-2xx — a 403 from an unverified
+  // sending domain looks exactly like success to a caller that ignores it.
+  // Production did exactly this: Resend 403 on every send, {ok:true} on the wire.
+  it('refuses instead of claiming ok when the provider rejects the send', async () => {
+    const { service, prisma, email } = buildAuth();
+    email.send.mockResolvedValue(false);
+    prisma.user.findFirst.mockResolvedValue({ id: 'u1', email: 'a@b.c', status: 'ACTIVE' });
+    await expect(service.requestPasswordReset('a@b.c')).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('still answers ok when the provider accepts it', async () => {
+    const { service, prisma, email } = buildAuth();
+    email.send.mockResolvedValue(true);
+    prisma.user.findFirst.mockResolvedValue({ id: 'u1', email: 'a@b.c', status: 'ACTIVE' });
+    await expect(service.requestPasswordReset('a@b.c')).resolves.toEqual({ ok: true });
+  });
+
+  it('an unknown address is unaffected — no send attempted, no failure to report', async () => {
+    const { service, prisma, email } = buildAuth();
+    email.send.mockResolvedValue(false);
+    prisma.user.findFirst.mockResolvedValue(null);
+    await expect(service.requestPasswordReset('ghost@a.c')).resolves.toEqual({ ok: true });
+    expect(email.send).not.toHaveBeenCalled();
+  });
+});
