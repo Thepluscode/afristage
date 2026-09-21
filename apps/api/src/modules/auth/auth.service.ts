@@ -10,6 +10,7 @@ import { MetricsService } from '../metrics/metrics.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { resetPasswordEmail } from './reset-email.template';
 
 // Accept the adjacent 30s steps (±1) when verifying TOTP. Tolerates real-world
 // clock skew between the user's device and the server, and removes a window-
@@ -47,6 +48,14 @@ export class AuthService {
     const value = raw.trim();
     if (value === 'UTC') return value;
     return /^[A-Za-z][A-Za-z_+-]*(\/[A-Za-z0-9_+-]+){1,2}$/.test(value) ? value : undefined;
+  }
+
+  // Where the reset link points. The email is useless without a page to land
+  // on, so this must be the PUBLIC web client, not the API's own origin.
+  // Trailing slashes are stripped: "https://x/" + "/reset-password" is a 404.
+  static webBaseUrl(): string {
+    const raw = process.env.WEB_BASE_URL || 'https://web-production-4ee7e.up.railway.app';
+    return raw.trim().replace(/\/+$/, '');
   }
 
   // Addresses are case-insensitive in practice (RFC 5321 only guarantees it for
@@ -346,12 +355,28 @@ export class AuthService {
       await this.prisma.adminAuditLog.create({
         data: { actorId: user.id, action: 'user.password_reset_requested', target: user.id, metadata: {} }
       });
-      await this.email.send(
+      const mail = resetPasswordEmail(token, `${AuthService.webBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`);
+      const sent = await this.email.send(
         // The stored address, not the one typed — they differ only in case.
         user.email ?? emailAddr,
-        'Reset your AfriStage password',
-        `Use this one-time code within 15 minutes to set a new password:\n\n${token}\n\nIf you didn't ask for this, ignore this email — your password is unchanged.`
+        mail.subject,
+        mail.text,
+        mail.html
       );
+      // `send` swallows every provider failure and returns false, so ignoring
+      // the result meant a Resend 403 — an unverified sending domain — reached
+      // the user as {ok:true}. The code exists, nothing carries it, and the only
+      // evidence is a WARN nobody reads.
+      //
+      // The trade: this answers 503 for a known address while the provider is
+      // down, and 201 for an unknown one, which is an enumeration oracle for as
+      // long as sending is broken. Accepted deliberately — that window is one
+      // where recovery does not work for anyone anyway, and a person who cannot
+      // tell a dead provider from a wrong address will keep retrying instead of
+      // contacting support.
+      if (!sent) {
+        throw new ServiceUnavailableException('Could not send the reset email — please try again or contact support');
+      }
     }
     return { ok: true };
   }
