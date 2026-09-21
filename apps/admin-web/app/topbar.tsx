@@ -75,8 +75,13 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
 
   // Identity + unread badge — both optional, never block the header on failure.
   useEffect(() => {
-    adminGet<Me>('/auth/me').then(setMe).catch(() => {});
-    adminGet<{ count: number }>('/notifications/unread-count').then((r) => setUnread(r.count)).catch(() => {});
+    // Optional, so neither blocks the header — but a swallowed failure showed a
+    // signed-in admin no identity and a zero badge, which is what "nothing to
+    // read" looks like. Log the reason; the header still renders.
+    adminGet<Me>('/auth/me').then(setMe).catch((e) => console.warn('Admin identity unavailable in header', e));
+    adminGet<{ count: number }>('/notifications/unread-count')
+      .then((r) => setUnread(r.count))
+      .catch((e) => console.warn('Unread count unavailable — badge hidden, not zero', e));
   }, []);
 
   // Close any open panel on outside click or Escape.
