@@ -32,6 +32,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
         {error ? <p className="err">{error}</p> : null}
         <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
+      <p className="alt"><a href="/forgot-password">Forgot password?</a></p>
       <p className="alt">New here? <a href={`/register?next=${encodeURIComponent(next)}`}>Create an account</a></p>
     </main>
   );

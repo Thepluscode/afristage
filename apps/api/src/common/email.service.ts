@@ -18,7 +18,7 @@ export class EmailService {
   }
 
   // Best-effort send; returns whether the provider accepted it.
-  async send(to: string, subject: string, text: string): Promise<boolean> {
+  async send(to: string, subject: string, text: string, html?: string): Promise<boolean> {
     if (!this.isConfigured()) {
       this.logger.log(`email skipped (no provider configured): "${subject}" -> ${to}`);
       return false;
@@ -30,7 +30,9 @@ export class EmailService {
       const res = await fetch(`${RESEND_BASE}/emails`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: this.from, to, subject, text }),
+        // `text` always travels, even with html: clients that refuse HTML still
+        // need the code, and a text part measurably helps spam scoring.
+        body: JSON.stringify({ from: this.from, to, subject, text, ...(html ? { html } : {}) }),
         signal: ctrl.signal
       });
       if (!res.ok) {
