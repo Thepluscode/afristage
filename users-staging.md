@@ -1,0 +1,528 @@
+- main [ref=f318e154]:
+  - generic [ref=f318e155]:
+    - strong [ref=f318e156]: Mission control
+    - generic [ref=f318e158]:
+      - generic [ref=f318e159]: Search
+      - textbox "Search" [ref=f318e160]:
+        - /placeholder: Search users, rooms, payments…
+    - button "Toggle theme" [ref=f318e161] [cursor=pointer]
+    - button "Notifications" [ref=f318e169] [cursor=pointer]
+    - button "AO SUPER ADMIN stgadmin+1784483736@afristage.live" [ref=f318e207] [cursor=pointer]:
+      - generic [ref=f318e175]: AO
+      - generic [ref=f318e176]:
+        - strong [ref=f318e177]: SUPER ADMIN
+        - generic [ref=f318e178]: stgadmin+1784483736@afristage.live
+  - generic [ref=f318e182]:
+    - heading "Users" [level=2] [ref=f318e183]
+    - paragraph [ref=f318e184]: Search accounts, inspect role/status, and take bounded access actions.
+  - generic [ref=f318e185]:
+    - textbox "Search email / username / phone" [ref=f318e186]
+    - combobox [ref=f318e187]:
+      - option "All roles" [selected]
+      - option "VIEWER"
+      - option "CREATOR"
+      - option "ADMIN"
+      - option "SUPER_ADMIN"
+    - combobox [ref=f318e188]:
+      - option "All statuses" [selected]
+      - option "ACTIVE"
+      - option "SUSPENDED"
+      - option "BANNED"
+      - option "DELETED"
+    - button "Search" [ref=f318e189] [cursor=pointer]
+  - table [ref=f318e191]:
+    - rowgroup [ref=f318e192]:
+      - row [ref=f318e193]:
+        - columnheader "User" [ref=f318e194]
+        - columnheader "Role" [ref=f318e195]
+        - columnheader "Status" [ref=f318e196]
+        - columnheader "Country" [ref=f318e197]
+        - columnheader "Wallet" [ref=f318e198]
+        - columnheader "Creator" [ref=f318e199]
+        - columnheader "Last activity" [ref=f318e200]
+        - columnheader "Actions" [ref=f318e201]
+    - rowgroup [ref=f318e202]:
+      - row [ref=f318e208]:
+        - cell "D Deleted user 09f21ab4" [ref=f318e209]:
+          - generic [ref=f318e210]:
+            - generic [ref=f318e211]: D
+            - generic [ref=f318e212]:
+              - strong [ref=f318e213]: Deleted user
+              - generic [ref=f318e214]: 09f21ab4
+        - cell "VIEWER" [ref=f318e215]
+        - cell "DELETED" [ref=f318e217]
+        - cell "—" [ref=f318e219]
+        - cell "Wallet" [ref=f318e220]
+        - cell "—" [ref=f318e222]
+        - cell "—" [ref=f318e223]
+        - cell [ref=f318e224]:
+          - generic [ref=f318e225]:
+            - button "Sessions" [ref=f318e226] [cursor=pointer]
+            - button "Suspend" [disabled] [ref=f318e227]
+            - button "Ban" [ref=f318e228] [cursor=pointer]
+            - button "Reactivate User" [ref=f318e229] [cursor=pointer]
+            - button "Export data (GDPR)" [ref=f318e230] [cursor=pointer]
+            - button "Delete" [disabled] [ref=f318e231]
+            - button "Purge" [ref=f318e232] [cursor=pointer]
+      - row [ref=f318e233]:
+        - cell "S Staging Operator d8a0791f" [ref=f318e234]:
+          - generic [ref=f318e235]:
+            - generic [ref=f318e236]: S
+            - generic [ref=f318e237]:
+              - strong [ref=f318e238]: Staging Operator
+              - generic [ref=f318e239]: d8a0791f
+        - cell "SUPER_ADMIN" [ref=f318e240]
+        - cell "ACTIVE" [ref=f318e242]
+        - cell "—" [ref=f318e244]
+        - cell "Wallet" [ref=f318e245]
+        - cell "—" [ref=f318e247]
+        - cell "—" [ref=f318e248]
+        - cell [ref=f318e249]:
+          - generic [ref=f318e250]:
+            - button "Sessions" [ref=f318e251] [cursor=pointer]
+            - button "Suspend" [ref=f318e252] [cursor=pointer]
+            - button "Ban" [ref=f318e253] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e254]
+            - button "Export data (GDPR)" [ref=f318e255] [cursor=pointer]
+            - button "Delete" [ref=f318e256] [cursor=pointer]
+            - button "Purge" [ref=f318e257] [cursor=pointer]
+      - row [ref=f318e258]:
+        - cell "S Staging Del ab2922fe" [ref=f318e259]:
+          - generic [ref=f318e260]:
+            - generic [ref=f318e261]: S
+            - generic [ref=f318e262]:
+              - strong [ref=f318e263]: Staging Del
+              - generic [ref=f318e264]: ab2922fe
+        - cell "VIEWER" [ref=f318e265]
+        - cell "DELETED" [ref=f318e267]
+        - cell "—" [ref=f318e269]
+        - cell "Wallet" [ref=f318e270]
+        - cell "—" [ref=f318e272]
+        - cell "—" [ref=f318e273]
+        - cell [ref=f318e274]:
+          - generic [ref=f318e275]:
+            - button "Sessions" [ref=f318e276] [cursor=pointer]
+            - button "Suspend" [disabled] [ref=f318e277]
+            - button "Ban" [ref=f318e278] [cursor=pointer]
+            - button "Reactivate User" [ref=f318e279] [cursor=pointer]
+            - button "Export data (GDPR)" [ref=f318e280] [cursor=pointer]
+            - button "Delete" [disabled] [ref=f318e281]
+            - button "Purge" [ref=f318e282] [cursor=pointer]
+      - row [ref=f318e283]:
+        - cell "I invitee 7783da54" [ref=f318e284]:
+          - generic [ref=f318e285]:
+            - generic [ref=f318e286]: I
+            - generic [ref=f318e287]:
+              - strong [ref=f318e288]: invitee
+              - generic [ref=f318e289]: 7783da54
+        - cell "VIEWER" [ref=f318e290]
+        - cell "ACTIVE" [ref=f318e292]
+        - cell "—" [ref=f318e294]
+        - cell "Wallet" [ref=f318e295]
+        - cell "—" [ref=f318e297]
+        - cell "—" [ref=f318e298]
+        - cell [ref=f318e299]:
+          - generic [ref=f318e300]:
+            - button "Sessions" [ref=f318e301] [cursor=pointer]
+            - button "Suspend" [ref=f318e302] [cursor=pointer]
+            - button "Ban" [ref=f318e303] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e304]
+            - button "Export data (GDPR)" [ref=f318e305] [cursor=pointer]
+            - button "Delete" [ref=f318e306] [cursor=pointer]
+            - button "Purge" [ref=f318e307] [cursor=pointer]
+      - row [ref=f318e308]:
+        - cell "O other 931e0085" [ref=f318e309]:
+          - generic [ref=f318e310]:
+            - generic [ref=f318e311]: O
+            - generic [ref=f318e312]:
+              - strong [ref=f318e313]: other
+              - generic [ref=f318e314]: "931e0085"
+        - cell "VIEWER" [ref=f318e315]
+        - cell "ACTIVE" [ref=f318e317]
+        - cell "—" [ref=f318e319]
+        - cell "Wallet" [ref=f318e320]
+        - cell "—" [ref=f318e322]
+        - cell "—" [ref=f318e323]
+        - cell [ref=f318e324]:
+          - generic [ref=f318e325]:
+            - button "Sessions" [ref=f318e326] [cursor=pointer]
+            - button "Suspend" [ref=f318e327] [cursor=pointer]
+            - button "Ban" [ref=f318e328] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e329]
+            - button "Export data (GDPR)" [ref=f318e330] [cursor=pointer]
+            - button "Delete" [ref=f318e331] [cursor=pointer]
+            - button "Purge" [ref=f318e332] [cursor=pointer]
+      - row [ref=f318e333]:
+        - cell "C cand 4c910cad" [ref=f318e334]:
+          - generic [ref=f318e335]:
+            - generic [ref=f318e336]: C
+            - generic [ref=f318e337]:
+              - strong [ref=f318e338]: cand
+              - generic [ref=f318e339]: 4c910cad
+        - cell "CREATOR" [ref=f318e340]
+        - cell "ACTIVE" [ref=f318e342]
+        - cell "—" [ref=f318e344]
+        - cell "Wallet" [ref=f318e345]
+        - cell "APPROVED" [ref=f318e347]
+        - cell "—" [ref=f318e349]
+        - cell [ref=f318e350]:
+          - generic [ref=f318e351]:
+            - button "Sessions" [ref=f318e352] [cursor=pointer]
+            - button "Suspend" [ref=f318e353] [cursor=pointer]
+            - button "Ban" [ref=f318e354] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e355]
+            - button "Export data (GDPR)" [ref=f318e356] [cursor=pointer]
+            - button "Delete" [ref=f318e357] [cursor=pointer]
+            - button "Purge" [ref=f318e358] [cursor=pointer]
+      - row [ref=f318e359]:
+        - cell "I invitee 931683e7" [ref=f318e360]:
+          - generic [ref=f318e361]:
+            - generic [ref=f318e362]: I
+            - generic [ref=f318e363]:
+              - strong [ref=f318e364]: invitee
+              - generic [ref=f318e365]: "931683e7"
+        - cell "VIEWER" [ref=f318e366]
+        - cell "ACTIVE" [ref=f318e368]
+        - cell "—" [ref=f318e370]
+        - cell "Wallet" [ref=f318e371]
+        - cell "—" [ref=f318e373]
+        - cell "—" [ref=f318e374]
+        - cell [ref=f318e375]:
+          - generic [ref=f318e376]:
+            - button "Sessions" [ref=f318e377] [cursor=pointer]
+            - button "Suspend" [ref=f318e378] [cursor=pointer]
+            - button "Ban" [ref=f318e379] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e380]
+            - button "Export data (GDPR)" [ref=f318e381] [cursor=pointer]
+            - button "Delete" [ref=f318e382] [cursor=pointer]
+            - button "Purge" [ref=f318e383] [cursor=pointer]
+      - row [ref=f318e384]:
+        - cell "I invitee 702288fb" [ref=f318e385]:
+          - generic [ref=f318e386]:
+            - generic [ref=f318e387]: I
+            - generic [ref=f318e388]:
+              - strong [ref=f318e389]: invitee
+              - generic [ref=f318e390]: 702288fb
+        - cell "VIEWER" [ref=f318e391]
+        - cell "ACTIVE" [ref=f318e393]
+        - cell "—" [ref=f318e395]
+        - cell "Wallet" [ref=f318e396]
+        - cell "—" [ref=f318e398]
+        - cell "—" [ref=f318e399]
+        - cell [ref=f318e400]:
+          - generic [ref=f318e401]:
+            - button "Sessions" [ref=f318e402] [cursor=pointer]
+            - button "Suspend" [ref=f318e403] [cursor=pointer]
+            - button "Ban" [ref=f318e404] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e405]
+            - button "Export data (GDPR)" [ref=f318e406] [cursor=pointer]
+            - button "Delete" [ref=f318e407] [cursor=pointer]
+            - button "Purge" [ref=f318e408] [cursor=pointer]
+      - row [ref=f318e409]:
+        - cell "O other 881ed94f" [ref=f318e410]:
+          - generic [ref=f318e411]:
+            - generic [ref=f318e412]: O
+            - generic [ref=f318e413]:
+              - strong [ref=f318e414]: other
+              - generic [ref=f318e415]: 881ed94f
+        - cell "VIEWER" [ref=f318e416]
+        - cell "ACTIVE" [ref=f318e418]
+        - cell "—" [ref=f318e420]
+        - cell "Wallet" [ref=f318e421]
+        - cell "—" [ref=f318e423]
+        - cell "—" [ref=f318e424]
+        - cell [ref=f318e425]:
+          - generic [ref=f318e426]:
+            - button "Sessions" [ref=f318e427] [cursor=pointer]
+            - button "Suspend" [ref=f318e428] [cursor=pointer]
+            - button "Ban" [ref=f318e429] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e430]
+            - button "Export data (GDPR)" [ref=f318e431] [cursor=pointer]
+            - button "Delete" [ref=f318e432] [cursor=pointer]
+            - button "Purge" [ref=f318e433] [cursor=pointer]
+      - row [ref=f318e434]:
+        - cell "C cand ccbc7e9a" [ref=f318e435]:
+          - generic [ref=f318e436]:
+            - generic [ref=f318e437]: C
+            - generic [ref=f318e438]:
+              - strong [ref=f318e439]: cand
+              - generic [ref=f318e440]: ccbc7e9a
+        - cell "CREATOR" [ref=f318e441]
+        - cell "ACTIVE" [ref=f318e443]
+        - cell "—" [ref=f318e445]
+        - cell "Wallet" [ref=f318e446]
+        - cell "APPROVED" [ref=f318e448]
+        - cell "—" [ref=f318e450]
+        - cell [ref=f318e451]:
+          - generic [ref=f318e452]:
+            - button "Sessions" [ref=f318e453] [cursor=pointer]
+            - button "Suspend" [ref=f318e454] [cursor=pointer]
+            - button "Ban" [ref=f318e455] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e456]
+            - button "Export data (GDPR)" [ref=f318e457] [cursor=pointer]
+            - button "Delete" [ref=f318e458] [cursor=pointer]
+            - button "Purge" [ref=f318e459] [cursor=pointer]
+      - row [ref=f318e460]:
+        - cell "I invitee b95d67b3" [ref=f318e461]:
+          - generic [ref=f318e462]:
+            - generic [ref=f318e463]: I
+            - generic [ref=f318e464]:
+              - strong [ref=f318e465]: invitee
+              - generic [ref=f318e466]: b95d67b3
+        - cell "VIEWER" [ref=f318e467]
+        - cell "ACTIVE" [ref=f318e469]
+        - cell "—" [ref=f318e471]
+        - cell "Wallet" [ref=f318e472]
+        - cell "—" [ref=f318e474]
+        - cell "—" [ref=f318e475]
+        - cell [ref=f318e476]:
+          - generic [ref=f318e477]:
+            - button "Sessions" [ref=f318e478] [cursor=pointer]
+            - button "Suspend" [ref=f318e479] [cursor=pointer]
+            - button "Ban" [ref=f318e480] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e481]
+            - button "Export data (GDPR)" [ref=f318e482] [cursor=pointer]
+            - button "Delete" [ref=f318e483] [cursor=pointer]
+            - button "Purge" [ref=f318e484] [cursor=pointer]
+      - row [ref=f318e485]:
+        - cell "I invitee 4e25dd29" [ref=f318e486]:
+          - generic [ref=f318e487]:
+            - generic [ref=f318e488]: I
+            - generic [ref=f318e489]:
+              - strong [ref=f318e490]: invitee
+              - generic [ref=f318e491]: 4e25dd29
+        - cell "VIEWER" [ref=f318e492]
+        - cell "ACTIVE" [ref=f318e494]
+        - cell "—" [ref=f318e496]
+        - cell "Wallet" [ref=f318e497]
+        - cell "—" [ref=f318e499]
+        - cell "—" [ref=f318e500]
+        - cell [ref=f318e501]:
+          - generic [ref=f318e502]:
+            - button "Sessions" [ref=f318e503] [cursor=pointer]
+            - button "Suspend" [ref=f318e504] [cursor=pointer]
+            - button "Ban" [ref=f318e505] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e506]
+            - button "Export data (GDPR)" [ref=f318e507] [cursor=pointer]
+            - button "Delete" [ref=f318e508] [cursor=pointer]
+            - button "Purge" [ref=f318e509] [cursor=pointer]
+      - row [ref=f318e510]:
+        - cell "O other cbeeacd0" [ref=f318e511]:
+          - generic [ref=f318e512]:
+            - generic [ref=f318e513]: O
+            - generic [ref=f318e514]:
+              - strong [ref=f318e515]: other
+              - generic [ref=f318e516]: cbeeacd0
+        - cell "VIEWER" [ref=f318e517]
+        - cell "ACTIVE" [ref=f318e519]
+        - cell "—" [ref=f318e521]
+        - cell "Wallet" [ref=f318e522]
+        - cell "—" [ref=f318e524]
+        - cell "—" [ref=f318e525]
+        - cell [ref=f318e526]:
+          - generic [ref=f318e527]:
+            - button "Sessions" [ref=f318e528] [cursor=pointer]
+            - button "Suspend" [ref=f318e529] [cursor=pointer]
+            - button "Ban" [ref=f318e530] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e531]
+            - button "Export data (GDPR)" [ref=f318e532] [cursor=pointer]
+            - button "Delete" [ref=f318e533] [cursor=pointer]
+            - button "Purge" [ref=f318e534] [cursor=pointer]
+      - row [ref=f318e535]:
+        - cell "C cand d96eeea8" [ref=f318e536]:
+          - generic [ref=f318e537]:
+            - generic [ref=f318e538]: C
+            - generic [ref=f318e539]:
+              - strong [ref=f318e540]: cand
+              - generic [ref=f318e541]: d96eeea8
+        - cell "CREATOR" [ref=f318e542]
+        - cell "ACTIVE" [ref=f318e544]
+        - cell "—" [ref=f318e546]
+        - cell "Wallet" [ref=f318e547]
+        - cell "APPROVED" [ref=f318e549]
+        - cell "—" [ref=f318e551]
+        - cell [ref=f318e552]:
+          - generic [ref=f318e553]:
+            - button "Sessions" [ref=f318e554] [cursor=pointer]
+            - button "Suspend" [ref=f318e555] [cursor=pointer]
+            - button "Ban" [ref=f318e556] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e557]
+            - button "Export data (GDPR)" [ref=f318e558] [cursor=pointer]
+            - button "Delete" [ref=f318e559] [cursor=pointer]
+            - button "Purge" [ref=f318e560] [cursor=pointer]
+      - row [ref=f318e561]:
+        - cell "I invitee f8cc211f" [ref=f318e562]:
+          - generic [ref=f318e563]:
+            - generic [ref=f318e564]: I
+            - generic [ref=f318e565]:
+              - strong [ref=f318e566]: invitee
+              - generic [ref=f318e567]: f8cc211f
+        - cell "VIEWER" [ref=f318e568]
+        - cell "ACTIVE" [ref=f318e570]
+        - cell "—" [ref=f318e572]
+        - cell "Wallet" [ref=f318e573]
+        - cell "—" [ref=f318e575]
+        - cell "—" [ref=f318e576]
+        - cell [ref=f318e577]:
+          - generic [ref=f318e578]:
+            - button "Sessions" [ref=f318e579] [cursor=pointer]
+            - button "Suspend" [ref=f318e580] [cursor=pointer]
+            - button "Ban" [ref=f318e581] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e582]
+            - button "Export data (GDPR)" [ref=f318e583] [cursor=pointer]
+            - button "Delete" [ref=f318e584] [cursor=pointer]
+            - button "Purge" [ref=f318e585] [cursor=pointer]
+      - row [ref=f318e586]:
+        - cell "Z Zola Kim 1ecc625d" [ref=f318e587]:
+          - generic [ref=f318e588]:
+            - generic [ref=f318e589]: Z
+            - generic [ref=f318e590]:
+              - strong [ref=f318e591]: Zola Kim
+              - generic [ref=f318e592]: 1ecc625d
+        - cell "CREATOR" [ref=f318e593]
+        - cell "ACTIVE" [ref=f318e595]
+        - cell "—" [ref=f318e597]
+        - cell "Wallet" [ref=f318e598]
+        - cell "APPROVED" [ref=f318e600]
+        - cell "—" [ref=f318e602]
+        - cell [ref=f318e603]:
+          - generic [ref=f318e604]:
+            - button "Sessions" [ref=f318e605] [cursor=pointer]
+            - button "Suspend" [ref=f318e606] [cursor=pointer]
+            - button "Ban" [ref=f318e607] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e608]
+            - button "Export data (GDPR)" [ref=f318e609] [cursor=pointer]
+            - button "Delete" [ref=f318e610] [cursor=pointer]
+            - button "Purge" [ref=f318e611] [cursor=pointer]
+      - row [ref=f318e612]:
+        - cell "K Kwame Live 090a9c19" [ref=f318e613]:
+          - generic [ref=f318e614]:
+            - generic [ref=f318e615]: K
+            - generic [ref=f318e616]:
+              - strong [ref=f318e617]: Kwame Live
+              - generic [ref=f318e618]: 090a9c19
+        - cell "CREATOR" [ref=f318e619]
+        - cell "ACTIVE" [ref=f318e621]
+        - cell "—" [ref=f318e623]
+        - cell "Wallet" [ref=f318e624]
+        - cell "APPROVED" [ref=f318e626]
+        - cell "—" [ref=f318e628]
+        - cell [ref=f318e629]:
+          - generic [ref=f318e630]:
+            - button "Sessions" [ref=f318e631] [cursor=pointer]
+            - button "Suspend" [ref=f318e632] [cursor=pointer]
+            - button "Ban" [ref=f318e633] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e634]
+            - button "Export data (GDPR)" [ref=f318e635] [cursor=pointer]
+            - button "Delete" [ref=f318e636] [cursor=pointer]
+            - button "Purge" [ref=f318e637] [cursor=pointer]
+      - row [ref=f318e638]:
+        - cell "D DJ Tunde a6ff71d1" [ref=f318e639]:
+          - generic [ref=f318e640]:
+            - generic [ref=f318e641]: D
+            - generic [ref=f318e642]:
+              - strong [ref=f318e643]: DJ Tunde
+              - generic [ref=f318e644]: a6ff71d1
+        - cell "CREATOR" [ref=f318e645]
+        - cell "ACTIVE" [ref=f318e647]
+        - cell "—" [ref=f318e649]
+        - cell "Wallet" [ref=f318e650]
+        - cell "APPROVED" [ref=f318e652]
+        - cell "—" [ref=f318e654]
+        - cell [ref=f318e655]:
+          - generic [ref=f318e656]:
+            - button "Sessions" [ref=f318e657] [cursor=pointer]
+            - button "Suspend" [ref=f318e658] [cursor=pointer]
+            - button "Ban" [ref=f318e659] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e660]
+            - button "Export data (GDPR)" [ref=f318e661] [cursor=pointer]
+            - button "Delete" [ref=f318e662] [cursor=pointer]
+            - button "Purge" [ref=f318e663] [cursor=pointer]
+      - row [ref=f318e664]:
+        - cell "A Amaka Gold 1a6e7762" [ref=f318e665]:
+          - generic [ref=f318e666]:
+            - generic [ref=f318e667]: A
+            - generic [ref=f318e668]:
+              - strong [ref=f318e669]: Amaka Gold
+              - generic [ref=f318e670]: 1a6e7762
+        - cell "CREATOR" [ref=f318e671]
+        - cell "ACTIVE" [ref=f318e673]
+        - cell "—" [ref=f318e675]
+        - cell "Wallet" [ref=f318e676]
+        - cell "APPROVED" [ref=f318e678]
+        - cell "—" [ref=f318e680]
+        - cell [ref=f318e681]:
+          - generic [ref=f318e682]:
+            - button "Sessions" [ref=f318e683] [cursor=pointer]
+            - button "Suspend" [ref=f318e684] [cursor=pointer]
+            - button "Ban" [ref=f318e685] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e686]
+            - button "Export data (GDPR)" [ref=f318e687] [cursor=pointer]
+            - button "Delete" [ref=f318e688] [cursor=pointer]
+            - button "Purge" [ref=f318e689] [cursor=pointer]
+      - row [ref=f318e690]:
+        - cell "D Demo Creator c01d7e73" [ref=f318e691]:
+          - generic [ref=f318e692]:
+            - generic [ref=f318e693]: D
+            - generic [ref=f318e694]:
+              - strong [ref=f318e695]: Demo Creator
+              - generic [ref=f318e696]: c01d7e73
+        - cell "CREATOR" [ref=f318e697]
+        - cell "ACTIVE" [ref=f318e699]
+        - cell "—" [ref=f318e701]
+        - cell "Wallet" [ref=f318e702]
+        - cell "APPROVED" [ref=f318e704]
+        - cell "—" [ref=f318e706]
+        - cell [ref=f318e707]:
+          - generic [ref=f318e708]:
+            - button "Sessions" [ref=f318e709] [cursor=pointer]
+            - button "Suspend" [ref=f318e710] [cursor=pointer]
+            - button "Ban" [ref=f318e711] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e712]
+            - button "Export data (GDPR)" [ref=f318e713] [cursor=pointer]
+            - button "Delete" [ref=f318e714] [cursor=pointer]
+            - button "Purge" [ref=f318e715] [cursor=pointer]
+      - row [ref=f318e716]:
+        - cell "D Demo Viewer 9529ec2a" [ref=f318e717]:
+          - generic [ref=f318e718]:
+            - generic [ref=f318e719]: D
+            - generic [ref=f318e720]:
+              - strong [ref=f318e721]: Demo Viewer
+              - generic [ref=f318e722]: 9529ec2a
+        - cell "VIEWER" [ref=f318e723]
+        - cell "ACTIVE" [ref=f318e725]
+        - cell "—" [ref=f318e727]
+        - cell "Wallet" [ref=f318e728]
+        - cell "—" [ref=f318e730]
+        - cell "—" [ref=f318e731]
+        - cell [ref=f318e732]:
+          - generic [ref=f318e733]:
+            - button "Sessions" [ref=f318e734] [cursor=pointer]
+            - button "Suspend" [ref=f318e735] [cursor=pointer]
+            - button "Ban" [ref=f318e736] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e737]
+            - button "Export data (GDPR)" [ref=f318e738] [cursor=pointer]
+            - button "Delete" [ref=f318e739] [cursor=pointer]
+            - button "Purge" [ref=f318e740] [cursor=pointer]
+      - row [ref=f318e741]:
+        - cell "A AfriStage Admin af29310e" [ref=f318e742]:
+          - generic [ref=f318e743]:
+            - generic [ref=f318e744]: A
+            - generic [ref=f318e745]:
+              - strong [ref=f318e746]: AfriStage Admin
+              - generic [ref=f318e747]: af29310e
+        - cell "SUPER_ADMIN" [ref=f318e748]
+        - cell "ACTIVE" [ref=f318e750]
+        - cell "—" [ref=f318e752]
+        - cell "Wallet" [ref=f318e753]
+        - cell "—" [ref=f318e755]
+        - cell "—" [ref=f318e756]
+        - cell [ref=f318e757]:
+          - generic [ref=f318e758]:
+            - button "Sessions" [ref=f318e759] [cursor=pointer]
+            - button "Suspend" [ref=f318e760] [cursor=pointer]
+            - button "Ban" [ref=f318e761] [cursor=pointer]
+            - button "Reactivate User" [disabled] [ref=f318e762]
+            - button "Export data (GDPR)" [ref=f318e763] [cursor=pointer]
+            - button "Delete" [ref=f318e764] [cursor=pointer]
+            - button "Purge" [ref=f318e765] [cursor=pointer]
