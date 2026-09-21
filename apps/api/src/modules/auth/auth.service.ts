@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -49,6 +49,32 @@ export class AuthService {
     return /^[A-Za-z][A-Za-z_+-]*(\/[A-Za-z0-9_+-]+){1,2}$/.test(value) ? value : undefined;
   }
 
+  // Addresses are case-insensitive in practice (RFC 5321 only guarantees it for
+  // the domain, but no mail provider anyone uses treats the local part as
+  // case-sensitive). Stored as typed, an exact-match login locked out anyone
+  // whose keyboard autocapitalised the first letter — "Ogievat@yahoo.com" and
+  // "ogievat@yahoo.com" became two accounts, and the second signup succeeded
+  // instead of colliding. Normalise on the way in; match case-insensitively on
+  // the way back, so rows written before this still log in.
+  private static normalizeEmail(raw?: string): string | undefined {
+    return raw?.trim().toLowerCase() || undefined;
+  }
+
+  // Login / reset lookup. DELETED rows are skipped so a soft-deleted duplicate
+  // cannot shadow the live account that shares its address; oldest-first makes
+  // the pick deterministic where legacy duplicates still exist.
+  private findByIdentifier(identifier: string, omit?: Prisma.UserOmit) {
+    const value = identifier.trim();
+    return this.prisma.user.findFirst({
+      where: {
+        status: { not: 'DELETED' },
+        OR: [{ email: { equals: value, mode: 'insensitive' } }, { phone: value }]
+      },
+      orderBy: { createdAt: 'asc' },
+      ...(omit ? { omit } : {})
+    });
+  }
+
   // Which unique field collided, phrased as what the person should do next.
   // This does confirm that an account exists, which is a user-enumeration
   // trade — accepted deliberately: registration reveals it either way (the
@@ -72,7 +98,7 @@ export class AuthService {
     try {
       user = await this.prisma.user.create({
         data: {
-          email: dto.email,
+          email: AuthService.normalizeEmail(dto.email),
           phone: dto.phone,
           passwordHash,
           ageConfirmed: dto.ageConfirmed,
@@ -115,10 +141,11 @@ export class AuthService {
       throw new UnauthorizedException('Seeded test accounts are disabled in production');
     }
 
-    const user = await this.prisma.user.findFirst({
-      where: { OR: [{ email: dto.identifier }, { phone: dto.identifier }] },
+    const user = await this.findByIdentifier(dto.identifier, {
       // password + MFA secrets are globally omitted (see PrismaService); opt back in to verify.
-      omit: { passwordHash: false, mfaSecret: false, mfaRecoveryCodes: false }
+      passwordHash: false,
+      mfaSecret: false,
+      mfaRecoveryCodes: false
     });
     if (!user?.passwordHash) throw new UnauthorizedException('Invalid credentials');
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
@@ -306,14 +333,22 @@ export class AuthService {
   // delivery is best-effort via the optional email provider, so the endpoint
   // ships dark until RESEND_API_KEY exists — the flow simply sends nothing.
   async requestPasswordReset(emailAddr: string) {
-    const user = await this.prisma.user.findFirst({ where: { email: emailAddr } });
+    // With no provider, `send` logs and returns false while this still answered
+    // {ok:true} — the reset screen reported success and no mail ever left the
+    // building, which is account recovery that only LOOKS like it exists. This
+    // leaks nothing about the account: the answer is the same for every address.
+    if (!this.email.isConfigured()) {
+      throw new ServiceUnavailableException('Password reset email is not configured — contact support');
+    }
+    const user = await this.findByIdentifier(emailAddr);
     if (user) {
       const { token } = await this.issueResetToken(user.id);
       await this.prisma.adminAuditLog.create({
         data: { actorId: user.id, action: 'user.password_reset_requested', target: user.id, metadata: {} }
       });
       await this.email.send(
-        emailAddr,
+        // The stored address, not the one typed — they differ only in case.
+        user.email ?? emailAddr,
         'Reset your AfriStage password',
         `Use this one-time code within 15 minutes to set a new password:\n\n${token}\n\nIf you didn't ask for this, ignore this email — your password is unchanged.`
       );
