@@ -7,6 +7,12 @@
     "apps/web"
   ],
   "scripts": {
+    "scroll-world:prepare": "node scripts/scroll-world.mjs prepare",
+    "scroll-world:preflight": "node scripts/scroll-world.mjs preflight",
+    "scroll-world:verify": "node scripts/scroll-world.mjs verify",
+    "scroll-world:sync": "node scripts/scroll-world.mjs sync",
+    "test:scroll-world": "node --test scripts/scroll-world.test.mjs",
+    "test:scroll-world:browser": "node --test scripts/scroll-world.browser.test.mjs",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "dev:api": "npm run start:dev -w apps/api",
     "dev:admin": "npm run dev -w apps/admin-web",
@@ -45,6 +51,7 @@
     "drill:restore": "bash scripts/restore-drill.sh"
   },
   "devDependencies": {
+    "playwright": "1.62.1",
     "prettier": "^3.3.3",
     "socket.io-client": "^4.7.5"
   }

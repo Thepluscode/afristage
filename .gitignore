@@ -13,6 +13,8 @@ apps/mobile/build
 .dart_tool
 .pub-cache
 .playwright-mcp
+.scroll-world/
+apps/admin-web/public/site/scroll-world/
 *.tsbuildinfo
 tmp/
 phase30-dashboard.png

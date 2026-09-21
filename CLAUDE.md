@@ -15,7 +15,7 @@ text into other files, or the copies will drift.
 ## How it relates to the existing doctrine
 
 The company doctrine at `~/projects/theplus-tech-knowledge/doctrine/AGENTS.md`
-(Premise Gate, the Build Standard, the 12 engineering rules) still applies. The
+(Premise Gate, the Build Standard, the 13 engineering rules) still applies. The
 product standard is compatible with it and mostly more specific. Where both speak
 to the same thing, the stricter requirement wins — neither relaxes the other.
 
