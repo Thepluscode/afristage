@@ -16,6 +16,11 @@ const DEV_ORIGINS = [
   'http://127.0.0.1:3000'
 ];
 
+// The Flutter web client is deployed separately from the API. Keep this
+// first-party origin in the API allow-list so a missing/stale Railway
+// CORS_ORIGINS value cannot break the shipped client at the browser boundary.
+const DEPLOYED_FIRST_PARTY_ORIGINS = ['https://flutter-web-production-b292.up.railway.app'];
+
 export function parseOrigins(raw?: string): string[] {
   return (raw ?? '')
     .split(',')
@@ -27,7 +32,13 @@ export type OriginCheck = (origin: string | undefined, cb: (err: Error | null, a
 
 export function corsOrigin(env: NodeJS.ProcessEnv = process.env): OriginCheck {
   const configured = parseOrigins(env.CORS_ORIGINS);
-  const allowed = configured.length ? configured : env.NODE_ENV === 'production' ? [] : DEV_ORIGINS;
+  const allowed = [
+    ...new Set([
+      ...configured,
+      ...DEPLOYED_FIRST_PARTY_ORIGINS,
+      ...(configured.length || env.NODE_ENV === 'production' ? [] : DEV_ORIGINS),
+    ]),
+  ];
 
   return (origin, cb) => {
     // No Origin header: not a browser cross-origin request. Native apps and
