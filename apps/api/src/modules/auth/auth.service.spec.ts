@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
 import { AuthService } from './auth.service';
@@ -744,5 +744,107 @@ describe('AuthService.requestPasswordReset (self-service, non-enumerating)', () 
     expect(subject).toContain('Reset');
     expect(body).toMatch(/[0-9a-f]{64}/); // the plaintext token goes to the OWNER only
     expect(body).not.toContain(stored); // never the stored hash
+  });
+});
+
+// A deliberately independent stand-in for Prisma's matching rules, written from
+// the documented semantics rather than from the service's query: it is what
+// makes the case-insensitivity tests below able to FAIL. Asserting the shape of
+// the `where` object the service passes would only prove the service agrees
+// with itself.
+function fakeUserTable(rows: any[]) {
+  return async ({ where, orderBy }: any) => {
+    const matches = rows.filter((r) => {
+      if (where.status?.not && r.status === where.status.not) return false;
+      return where.OR.some((clause: any) => {
+        if (clause.email) {
+          if (r.email == null) return false;
+          const want = clause.email.equals ?? clause.email;
+          return clause.email.mode === 'insensitive'
+            ? r.email.toLowerCase() === String(want).toLowerCase()
+            : r.email === want;
+        }
+        return r.phone != null && r.phone === clause.phone;
+      });
+    });
+    if (orderBy?.createdAt === 'asc') matches.sort((a, b) => a.createdAt - b.createdAt);
+    return matches[0] ?? null;
+  };
+}
+
+describe('AuthService email casing (the lockout)', () => {
+  it('logs in when the stored address is capitalised and the caller types lowercase', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockImplementation(
+      fakeUserTable([
+        { id: 'u1', email: 'Ogievat@yahoo.com', role: 'VIEWER', status: 'ACTIVE', createdAt: 1, passwordHash: await bcrypt.hash('right', 4) }
+      ])
+    );
+    await expect(service.login({ identifier: 'ogievat@yahoo.com', password: 'right' } as any)).resolves.toMatchObject({ userId: 'u1' });
+  }, 20_000);
+
+  it('still rejects a wrong password for a case-insensitive match', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockImplementation(
+      fakeUserTable([
+        { id: 'u1', email: 'Ogievat@yahoo.com', role: 'VIEWER', status: 'ACTIVE', createdAt: 1, passwordHash: await bcrypt.hash('right', 4) }
+      ])
+    );
+    await expect(service.login({ identifier: 'OGIEVAT@YAHOO.COM', password: 'wrong' } as any)).rejects.toBeInstanceOf(UnauthorizedException);
+  }, 20_000);
+
+  it('ignores a soft-deleted duplicate and logs into the live account', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockImplementation(
+      fakeUserTable([
+        { id: 'dead', email: 'Ogievat@yahoo.com', role: 'VIEWER', status: 'DELETED', createdAt: 2, passwordHash: await bcrypt.hash('probe', 4) },
+        { id: 'live', email: 'ogievat@yahoo.com', role: 'VIEWER', status: 'ACTIVE', createdAt: 1, passwordHash: await bcrypt.hash('right', 4) }
+      ])
+    );
+    await expect(service.login({ identifier: 'Ogievat@yahoo.com', password: 'right' } as any)).resolves.toMatchObject({ userId: 'live' });
+  }, 20_000);
+
+  it('matches by phone unchanged, and an unknown identifier still fails', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.findFirst.mockImplementation(
+      fakeUserTable([
+        { id: 'u1', email: null, phone: '+2348012345678', role: 'VIEWER', status: 'ACTIVE', createdAt: 1, passwordHash: await bcrypt.hash('right', 4) }
+      ])
+    );
+    await expect(service.login({ identifier: '+2348012345678', password: 'right' } as any)).resolves.toMatchObject({ userId: 'u1' });
+    await expect(service.login({ identifier: 'nobody@a.c', password: 'right' } as any)).rejects.toBeInstanceOf(UnauthorizedException);
+  }, 20_000);
+
+  it('stores a registered address lowercased and trimmed', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.create.mockResolvedValue({ id: 'u1', role: 'VIEWER', profile: {} });
+    await service.register({ email: '  Ogievat@Yahoo.com ', password: 'pw', username: 'u', displayName: 'd', ageConfirmed: true } as any);
+    expect(prisma.user.create.mock.calls[0][0].data.email).toBe('ogievat@yahoo.com');
+  }, 20_000);
+
+  it('leaves a phone-only registration without an email', async () => {
+    const { service, prisma } = buildAuth();
+    prisma.user.create.mockResolvedValue({ id: 'u1', role: 'VIEWER', profile: {} });
+    await service.register({ phone: '+2348012345678', password: 'pw', username: 'u', displayName: 'd', ageConfirmed: true } as any);
+    expect(prisma.user.create.mock.calls[0][0].data.email).toBeUndefined();
+  }, 20_000);
+});
+
+describe('AuthService.requestPasswordReset (no mail provider)', () => {
+  it('refuses instead of reporting ok when email is not configured', async () => {
+    const { service, prisma, email } = buildAuth();
+    email.isConfigured.mockReturnValue(false);
+    await expect(service.requestPasswordReset('a@b.c')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('finds the account case-insensitively and mails the STORED address', async () => {
+    const { service, prisma, email } = buildAuth();
+    prisma.user.findFirst.mockImplementation(
+      fakeUserTable([{ id: 'u1', email: 'Ogievat@yahoo.com', status: 'ACTIVE', createdAt: 1 }])
+    );
+    await expect(service.requestPasswordReset('ogievat@yahoo.com')).resolves.toEqual({ ok: true });
+    expect(email.send.mock.calls[0][0]).toBe('Ogievat@yahoo.com');
   });
 });
