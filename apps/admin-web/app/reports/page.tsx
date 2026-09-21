@@ -58,7 +58,7 @@ function ReportsPageInner() {
           <option>MEDIUM</option>
           <option>LOW</option>
         </select>
-        <input placeholder="Reason / target / country" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <input aria-label="Search reports" placeholder="Reason / target / country" value={reason} onChange={(e) => setReason(e.target.value)} />
       </FilterBar>
       <RowHighlightNotice missing={missing} />
       <DataTable columns={['Priority', 'Reason', 'Target', 'Reporter', 'Room', 'Status', 'Created', 'Actions']} empty={<EmptyState>No reports in the moderation queue.</EmptyState>}>

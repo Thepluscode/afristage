@@ -120,10 +120,10 @@ function AgenciesPageInner() {
         kicker="Vetted creator managers. Commission is an explicit ledger split on managed creators' gifts — on-book, integrity-checked."
       />
       <FilterBar onSubmit={create}>
-        <input placeholder="Agency name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input placeholder="Owner user id" value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)} />
-        <input placeholder="Country" value={country} onChange={(e) => setCountry(e.target.value)} />
-        <input placeholder="Commission bps (default 1000)" type="number" value={bps} onChange={(e) => setBps(e.target.value)} />
+        <input aria-label="Agency name" placeholder="Agency name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input aria-label="Owner user ID" placeholder="Owner user id" value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)} />
+        <input aria-label="Country" placeholder="Country" value={country} onChange={(e) => setCountry(e.target.value)} />
+        <input aria-label="Commission basis points" placeholder="Commission bps (default 1000)" type="number" value={bps} onChange={(e) => setBps(e.target.value)} />
         <button className="button">Create Agency</button>
       </FilterBar>
       <RowHighlightNotice missing={missing} />

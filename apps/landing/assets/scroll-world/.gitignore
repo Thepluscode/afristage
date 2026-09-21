@@ -1,0 +1,5 @@
+# The 4x Real-ESRGAN output (91 MB) is a deterministic derivation of the 1x
+# masters in generated/ — reproducible from the command in STATUS.md, so it is
+# not worth carrying in git. The 1x masters ARE committed: they cost generation
+# credits and cannot be recreated.
+generated/upscaled/

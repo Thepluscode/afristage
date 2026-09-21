@@ -112,7 +112,7 @@ describe('AdminChrome', () => {
     const { container } = render(<AdminChrome><div /></AdminChrome>);
 
     await waitFor(() => expect(container.querySelector('.system-status.ok')).not.toBeNull());
-    expect(await screen.findByText('All systems operational · Production')).toBeInTheDocument();
+    expect(await screen.findByText('Connected — dashboard reachable · Environment not configured')).toBeInTheDocument();
     // reports 7, support 4, creators 12, payments 2 badge; payouts 0 does not
     const badges = [...container.querySelectorAll('.nav-badge')].map((b) => b.textContent);
     expect(badges.sort()).toEqual(['12', '2', '4', '7']);
@@ -128,7 +128,7 @@ describe('AdminChrome', () => {
     const { container } = render(<AdminChrome><div>body</div></AdminChrome>);
 
     await waitFor(() => expect(container.querySelector('.system-status.bad')).not.toBeNull());
-    expect(screen.getByText(/Degraded — needs review/)).toBeInTheDocument();
+    expect(screen.getByText(/Unavailable — needs review/)).toBeInTheDocument();
     expect(container.querySelectorAll('.nav-badge')).toHaveLength(0);
     // navigation still works — the badges are decoration, not a dependency
     expect(screen.getByText('body')).toBeInTheDocument();

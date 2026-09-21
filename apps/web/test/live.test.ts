@@ -56,6 +56,11 @@ describe('resolveLiveRoomId', () => {
     const doFetch = vi.fn().mockResolvedValue(notOk(503));
     expect(await resolveLiveRoomId('http://b', undefined, doFetch as never)).toBeNull();
   });
+
+  it('returns null when discovery fetch rejects', async () => {
+    const doFetch = vi.fn().mockRejectedValue(new Error('network down'));
+    await expect(resolveLiveRoomId('http://b', undefined, doFetch as never)).resolves.toBeNull();
+  });
 });
 
 describe('fetchRoom', () => {

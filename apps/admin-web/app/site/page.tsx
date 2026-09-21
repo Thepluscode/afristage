@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import styles from "./site.module.css";
+import ScrollWorld from "./ScrollWorld";
 
 // The public web viewer (apps/web) — where "watch live, free, no card" actually
 // happens. Overridable per environment; defaults to the deployed staging service.
@@ -91,6 +92,14 @@ const steps = [
   },
 ];
 
+const productScreens = [
+  { label: "01", name: "Discover live", position: "0%" },
+  { label: "02", name: "Join the room", position: "25%" },
+  { label: "03", name: "Open your stage", position: "50%" },
+  { label: "04", name: "Run the show", position: "75%" },
+  { label: "05", name: "Move the money", position: "100%" },
+];
+
 const offers = [
   {
     title: "Closed beta launch",
@@ -117,6 +126,43 @@ const offers = [
       "Two live-platform operators coordinating a broadcast from mission control.",
   },
 ];
+
+function ProductFlipRail() {
+  const [active, setActive] = useState(0);
+
+  return (
+    <div className={styles.productFlipRail} aria-label="Five sides of the AfriStage product">
+      <div className={styles.productFlipStage}>
+        {productScreens.map((screen, index) => {
+          const distance = (index - active + productScreens.length) % productScreens.length;
+          const offset = distance > 2 ? distance - productScreens.length : distance;
+          return (
+            <button
+              className={`${styles.productPhone} ${index === active ? styles.productPhoneActive : ""}`}
+              key={screen.label}
+              type="button"
+              aria-label={`${screen.label} ${screen.name}`}
+              aria-pressed={index === active}
+              onClick={() => setActive(index)}
+              style={{ transform: `translateX(${offset * 82}%) rotate(${offset * 3.5}deg) scale(${index === active ? 1 : 0.92})`, zIndex: productScreens.length - Math.abs(offset) }}
+            >
+              <span className={styles.productPhoneArt} style={{ backgroundPosition: screen.position }} aria-hidden="true" />
+              <span className={styles.productPhoneIndex}>{screen.label}</span>
+              <span className={styles.productPhoneName}>{screen.name}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className={styles.productFlipControls} role="group" aria-label="Product screens">
+        {productScreens.map((screen, index) => (
+          <button key={screen.label} type="button" aria-pressed={index === active} onClick={() => setActive(index)}>
+            <span>{screen.label}</span>{screen.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function AfriStageSitePage() {
   const [activeStep, setActiveStep] = useState(0);
@@ -163,6 +209,9 @@ export default function AfriStageSitePage() {
             <a href="#platform">The stage</a>
             <a href="#offer">Creator economy</a>
           </div>
+          <a className={styles.mobileNavLink} href="#platform" aria-label="Explore the AfriStage platform">
+            Explore
+          </a>
           <a className={styles.navCta} href="#offer">
             Join beta
           </a>
@@ -306,6 +355,8 @@ export default function AfriStageSitePage() {
         </div>
       </section>
 
+      <ScrollWorld />
+
       <section
         className={styles.featureSection}
         id="platform"
@@ -324,21 +375,8 @@ export default function AfriStageSitePage() {
               workflow.
             </p>
           </div>
-          <Image
-            className={styles.productShowcaseImage}
-            src="/site/afristage-mobile-suite.jpg"
-            width={1693}
-            height={929}
-            sizes="(max-width: 760px) 980px, 100vw"
-            alt="AfriStage mobile experiences for discovery, live gifting, Go Live setup, creator analytics, and wallet management."
-          />
-          <figcaption className={styles.productShowcaseLegend}>
-            <span>Live discovery</span>
-            <span>Room energy</span>
-            <span>Stage setup</span>
-            <span>Creator control</span>
-            <span>Wallet confidence</span>
-          </figcaption>
+          <ProductFlipRail />
+          <figcaption className={styles.srOnly}>Five AfriStage mobile experiences: live discovery, room energy, stage setup, creator control, and wallet confidence.</figcaption>
         </figure>
         <div className={styles.featureMosaic}>
           {features.map((feature, index) => {

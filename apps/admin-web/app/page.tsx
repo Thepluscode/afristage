@@ -88,6 +88,12 @@ type Payout = {
   creator?: { profile?: { displayName?: string }; creatorProfile?: { stageName?: string } };
 };
 
+type AuditLog = {
+  action: string;
+  actorId?: string;
+  createdAt: string;
+};
+
 type TabKey = 'rooms' | 'reports' | 'payouts';
 
 type Dashboard = {
@@ -100,8 +106,11 @@ type Dashboard = {
   grossGiftVolumeCoins: number | string;
   newUsersToday: number;
   newCreatorsToday: number;
-  pendingCreatorApprovals?: number;
-  openSupportTickets?: number;
+  // NOT optional: the API returns both. Marked optional, a missing field became
+  // `?? 0` — a zero nobody computed, displayed as fact. Required means the
+  // compiler catches it instead of the operator not catching it.
+  pendingCreatorApprovals: number;
+  openSupportTickets: number;
 };
 
 /** Day-over-day change as a signed percentage, or null when it cannot be stated
@@ -131,6 +140,8 @@ function relativeTime(iso?: string | null): string {
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
+  const [integrityError, setIntegrityError] = useState(false);
+  const [seriesError, setSeriesError] = useState(false);
   const [series, setSeries] = useState<SeriesPoint[] | null>(null);
   // null = still loading, 'error' = the optional fetch failed. Both must be
   // distinguishable from an empty list, or the table claims "no rooms" (or
@@ -138,6 +149,7 @@ export default function DashboardPage() {
   const [rooms, setRooms] = useState<Room[] | 'error' | null>(null);
   const [reports, setReports] = useState<Report[] | 'error' | null>(null);
   const [payouts, setPayouts] = useState<Payout[] | 'error' | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[] | 'error' | null>(null);
   const [tab, setTab] = useState<TabKey>('rooms');
   const [category, setCategory] = useState('');
   const [rowStatus, setRowStatus] = useState('');
@@ -183,15 +195,21 @@ export default function DashboardPage() {
     adminGet<Dashboard>('/admin/dashboard').then(setData).catch((e) => setError(e.message));
     adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch((e) => {
       console.warn('Optional ledger integrity widget failed to load', e);
+      setIntegrityError(true);
     });
     adminGet<SeriesPoint[]>('/admin/analytics/series?days=30').then(setSeries).catch((e) => {
       console.warn('Optional analytics series widget failed to load', e);
+      setSeriesError(true);
     });
     loadRooms();
     loadReports();
     adminGet<Payout[]>('/admin/payouts').then(setPayouts).catch((e) => {
       console.warn('Optional payouts tab failed to load', e);
       setPayouts('error');
+    });
+    adminGet<AuditLog[]>('/admin/audit-logs').then(setAuditLogs).catch((e) => {
+      console.warn('Optional audit timeline failed to load', e);
+      setAuditLogs('error');
     });
   }, [loadRooms, loadReports]);
 
@@ -220,7 +238,7 @@ export default function DashboardPage() {
     // they deliberately carry no delta; one would read as a rate and mislead.
     {
       label: 'Rooms opened today',
-      value: last(roomSeries),
+      value: series ? last(roomSeries) : '—',
       tone: last(roomSeries) > 0 ? 'good' : 'neutral',
       delta: `${data.activeRooms} live now`,
       icon: <MonitorPlay />,
@@ -230,9 +248,9 @@ export default function DashboardPage() {
     },
     {
       label: 'Creators joined today',
-      value: last(creatorSeries),
+      value: series ? last(creatorSeries) : '—',
       tone: 'neutral',
-      delta: `${data.pendingCreatorApprovals ?? 0} awaiting approval`,
+      delta: `${data.pendingCreatorApprovals} awaiting approval`,
       icon: <UserPlus />,
       accent: 'purple',
       trend: creatorSeries,
@@ -240,13 +258,13 @@ export default function DashboardPage() {
     },
     { label: 'Critical reports', value: data.criticalReports, tone: data.criticalReports > 0 ? 'danger' : 'good', delta: 'Moderation priority', icon: <ShieldAlert />, accent: 'danger' },
     { label: 'Pending payouts', value: data.pendingPayouts, tone: data.pendingPayouts > 0 ? 'warn' : 'good', delta: 'Money movement', icon: <Landmark />, accent: 'gold' },
-    { label: 'Open support', value: data.openSupportTickets ?? 0, tone: (data.openSupportTickets ?? 0) > 0 ? 'warn' : 'good', delta: 'User backlog', icon: <LifeBuoy />, accent: 'teal' },
+    { label: 'Open support', value: data.openSupportTickets, tone: data.openSupportTickets > 0 ? 'warn' : 'good', delta: 'User backlog', icon: <LifeBuoy />, accent: 'teal' },
     { label: 'Failed payments', value: data.failedPayments, tone: data.failedPayments > 0 ? 'danger' : 'good', delta: 'Provider risk', icon: <CreditCard />, accent: 'danger' },
     {
       // Today's flow, not the all-time gross — the value and its "vs yesterday"
       // delta must describe the same quantity. Gross lives in Live economy.
       label: 'Gift volume today',
-      value: `${last(giftSeries).toLocaleString()} COIN`,
+      value: series ? `${last(giftSeries).toLocaleString()} COIN` : '—',
       tone: 'neutral',
       delta: `${Number(data.grossGiftVolumeCoins).toLocaleString()} all time`,
       icon: <Gift />,
@@ -264,11 +282,6 @@ export default function DashboardPage() {
       trend: userSeries,
       trendLabel: dayOverDay(userSeries) ?? undefined
     }
-  ];
-  const auditSeed = [
-    { action: 'dashboard.viewed', actorId: 'system', createdAt: new Date().toISOString() },
-    { action: data.criticalReports > 0 ? 'reports.priority' : 'reports.normal', actorId: 'ops', createdAt: new Date().toISOString() },
-    { action: data.failedPayments > 0 ? 'payments.failed' : 'payments.normal', actorId: 'ops', createdAt: new Date().toISOString() }
   ];
 
   // Live first, then the noisiest — the rooms an operator would open next.
@@ -407,24 +420,28 @@ export default function DashboardPage() {
           action="Review"
         />
         <AlertCard
-          tone={integrity && !integrity.ok ? 'danger' : 'good'}
-          icon={integrity && !integrity.ok ? <AlertTriangle /> : <CheckCircle2 />}
-          title={integrity && !integrity.ok ? 'Ledger imbalance' : 'Ledger balanced'}
-          value={integrity ? (integrity.ok ? 'Balanced' : `${integrity.unbalancedTransactions} off`) : '…'}
-          note={integrity && !integrity.ok ? 'unbalanced transactions detected' : 'all transactions reconciled'}
+          tone={!integrity ? 'warn' : integrity.ok ? 'good' : 'danger'}
+          icon={integrity?.ok ? <CheckCircle2 /> : <AlertTriangle />}
+          title={!integrity ? 'Ledger not verified' : integrity.ok ? 'Ledger balanced' : 'Ledger imbalance'}
+          value={integrity ? (integrity.ok ? 'Balanced' : `${integrity.unbalancedTransactions} off`) : integrityError ? 'Unavailable' : 'Checking…'}
+          note={!integrity ? 'Do not infer a healthy ledger from missing data' : integrity.ok ? 'all transactions reconciled' : 'unbalanced transactions detected'}
           href="/ledger-integrity"
           action="View ledger"
         />
       </div>
+      {!integrity?.ok ? (
+        <WarningBanner>{integrityError ? 'Ledger check unavailable. Open ledger integrity to retry before reviewing payouts.' : integrity ? 'Ledger imbalance detected. Resolve it before approving payouts.' : 'Checking ledger integrity. Overall health is not yet verified.'}</WarningBanner>
+      ) : null}
+      {seriesError ? <WarningBanner>Analytics unavailable. Daily flow metrics are unknown, not zero. Reload to retry.</WarningBanner> : null}
       {data.criticalReports > 0 || data.failedPayments > 0 ? (
         <DangerBanner>
           {data.criticalReports} critical report(s) and {data.failedPayments} failed payment(s) need operator review.
         </DangerBanner>
       ) : data.pendingPayouts > 0 ? (
         <WarningBanner>{data.pendingPayouts} payout request(s) need audit-friendly review before money moves.</WarningBanner>
-      ) : (
+      ) : integrity?.ok ? (
         <SuccessBanner>Ledger, reports, payouts, and payment queues are inside normal operating range.</SuccessBanner>
-      )}
+      ) : null}
       <div className="metric-grid mission-metrics">
         {cards.map((card) => (
           <MetricCard key={card.label} {...card} />
@@ -746,10 +763,16 @@ export default function DashboardPage() {
           </section>
           <section className={`side-panel ${integrity && !integrity.ok ? 'risk' : ''}`}>
             <h3>Ledger status</h3>
-            <p>{integrity ? (integrity.ok ? 'Balanced across transaction entries.' : `${integrity.unbalancedTransactions} transaction(s) out of balance.`) : 'Checking ledger integrity…'}</p>
+            <p>{integrity ? (integrity.ok ? 'Balanced across transaction entries.' : `${integrity.unbalancedTransactions} transaction(s) out of balance.`) : integrityError ? 'Ledger integrity unavailable. Retry on the ledger integrity page.' : 'Checking ledger integrity…'}</p>
             <Link className="button secondary" href="/ledger-integrity">Open ledger</Link>
           </section>
-          <AuditTimeline rows={auditSeed} />
+          {auditLogs === 'error' ? (
+            <section className="side-panel"><h3>Audit evidence</h3><p>Audit timeline unavailable. Review the full audit log instead.</p><Link className="button secondary" href="/audit-logs">Open audit logs</Link></section>
+          ) : auditLogs ? (
+            <AuditTimeline rows={auditLogs} />
+          ) : (
+            <section className="side-panel"><h3>Audit evidence</h3><p role="status">Loading recent operator actions…</p></section>
+          )}
         </aside>
       </div>
     </>

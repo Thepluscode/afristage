@@ -141,12 +141,12 @@ describe('SystemStatus', () => {
 
   it('reports operational and degraded states', () => {
     const ok = render(<SystemStatus ok environment="Production" />);
-    expect(screen.getByText(/All systems operational/)).toBeInTheDocument();
+    expect(screen.getByText(/Connected — dashboard reachable/)).toBeInTheDocument();
     expect(ok.container.querySelector('.system-status.ok')).not.toBeNull();
     ok.unmount();
 
     const bad = render(<SystemStatus ok={false} environment="Production" />);
-    expect(screen.getByText(/Degraded — needs review/)).toBeInTheDocument();
+    expect(screen.getByText(/Unavailable — needs review/)).toBeInTheDocument();
     expect(bad.container.querySelector('.system-status.bad')).not.toBeNull();
   });
 });

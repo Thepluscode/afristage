@@ -34,7 +34,7 @@ function applyTheme(theme: 'light' | 'dark') {
   }
 }
 
-export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: NavItem[] }) {
+export function Topbar({ onMenu, navItems, navOpen = false }: { onMenu: () => void; navItems: NavItem[]; navOpen?: boolean }) {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -153,7 +153,7 @@ export function Topbar({ onMenu, navItems }: { onMenu: () => void; navItems: Nav
 
   return (
     <div className="topbar" ref={root}>
-      <button className="icon-button nav-toggle" type="button" aria-label="Open navigation" onClick={onMenu}>
+      <button className="icon-button nav-toggle" type="button" aria-label="Open navigation" aria-expanded={navOpen} aria-controls="admin-navigation" onClick={onMenu}>
         <Menu size={18} />
       </button>
       <strong>Mission control</strong>

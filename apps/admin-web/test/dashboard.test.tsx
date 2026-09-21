@@ -32,6 +32,7 @@ function wire(opts: {
   rooms?: unknown | 'reject';
   reports?: unknown | 'reject';
   payouts?: unknown | 'reject';
+  audit?: unknown | 'reject';
 }) {
   vi.mocked(adminGet).mockImplementation((p: string) => {
     if (p === '/admin/dashboard') {
@@ -58,6 +59,11 @@ function wire(opts: {
       return opts.payouts === 'reject'
         ? Promise.reject(new Error('payouts boom'))
         : Promise.resolve(opts.payouts ?? []);
+    }
+    if (p === '/admin/audit-logs') {
+      return opts.audit === 'reject'
+        ? Promise.reject(new Error('audit boom'))
+        : Promise.resolve(opts.audit ?? []);
     }
     // analytics series
     return opts.series === 'reject'
@@ -121,8 +127,8 @@ describe('DashboardPage', () => {
     // "Critical reports" appears in both the metric card and the queue table
     expect(screen.getAllByText('Critical reports').length).toBeGreaterThan(0);
     expect(screen.getByText('Open support')).toBeInTheDocument();
-    // series rejected -> today's flow is 0; the all-time gross is the caption
-    expect(screen.getByText('0 COIN')).toBeInTheDocument();
+    expect(screen.queryByText('0 COIN')).not.toBeInTheDocument();
+    expect(screen.getByText(/Analytics unavailable/)).toBeInTheDocument();
     expect(screen.getByText('100 all time')).toBeInTheDocument();
 
     // optional widget catch branches logged warnings
@@ -140,15 +146,30 @@ describe('DashboardPage', () => {
     // danger banner (critical + failed > 0)
     expect(screen.getByText(/critical report\(s\) and/)).toBeInTheDocument();
     // ledger alert shows the placeholder dots while integrity is null
-    expect(screen.getByText('…')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
     // ledger sidebar shows the "checking" copy while integrity is null
-    expect(screen.getByText('Checking ledger integrity…')).toBeInTheDocument();
+    expect(screen.getByText(/Ledger integrity unavailable/)).toBeInTheDocument();
   });
 
   it('renders the warning banner when only payouts are pending', async () => {
     wire({ dash: { ...baseDash, pendingPayouts: 2 } });
     render(<DashboardPage />);
     expect(await screen.findByText(/payout request\(s\) need audit-friendly review/)).toBeInTheDocument();
+  });
+
+  it('renders recent audit activity and preserves a fallback when it is unavailable', async () => {
+    wire({
+      audit: [{ action: 'REPORT_ESCALATED', actorId: 'operator-1234', createdAt: new Date().toISOString() }]
+    });
+    const { unmount } = render(<DashboardPage />);
+    expect(await screen.findByText('Audit timeline')).toBeInTheDocument();
+    expect(screen.getByText('REPORT_ESCALATED')).toBeInTheDocument();
+
+    unmount();
+    vi.clearAllMocks();
+    wire({ audit: 'reject' });
+    render(<DashboardPage />);
+    expect(await screen.findByText(/Audit timeline unavailable/)).toBeInTheDocument();
   });
 
   it('renders the success banner and "good" tones at zero across the board', async () => {

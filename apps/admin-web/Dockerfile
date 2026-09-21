@@ -8,6 +8,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/admin-web ./apps/admin-web
+COPY scripts/scroll-world.mjs ./scripts/scroll-world.mjs
+COPY apps/landing/assets/scroll-world/runtime ./apps/landing/assets/scroll-world/runtime
+COPY apps/landing/assets/scroll-world/web ./apps/landing/assets/scroll-world/web
+COPY apps/landing/assets/scroll-world/media ./apps/landing/assets/scroll-world/media
 COPY package*.json ./
 WORKDIR /app/apps/admin-web
 RUN npm run build

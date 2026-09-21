@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { adminGet, adminPost } from '../../lib/api';
-import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
+import { ActionMenu, ConfirmDialog, DataTable, EmptyState, ErrorState, LoadingState, MoneyAmount, PageHeader, PayoutActionPanel, PromptDialog, StatusBadge, UserCell, WarningBanner } from '../admin-ui';
 import { RowHighlightNotice, useRowHighlight } from '../highlight';
 import { useAdminResource } from '../../lib/use-admin-resource';
 
@@ -31,11 +31,12 @@ type Risk = { riskScore: number; recommendedAction: 'NONE' | 'SOFT_FLAG' | 'MANU
 
 function PayoutsPageInner() {
   const [integrity, setIntegrity] = useState<Integrity | null>(null);
+  const [integrityError, setIntegrityError] = useState(false);
   // One compound load: the queue plus a fraud assessment per creator with an
   // actionable payout — risk surfaces right where the money decision is made.
   // ponytail: one fetch per distinct pending creator; fine at beta volume,
   // batch server-side if it grows.
-  const { data, error, reload } = useAdminResource(
+  const { data, error, loading, reload } = useAdminResource(
     async () => {
       const rows = await adminGet<Payout[]>('/admin/payouts');
       const ids = [...new Set(rows.filter((p) => ['UNDER_REVIEW', 'HELD'].includes(p.status)).map((p) => p.creatorUserId))];
@@ -56,7 +57,7 @@ function PayoutsPageInner() {
   const { id: highlightId, missing } = useRowHighlight(rows);
 
   useEffect(() => {
-    adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => {});
+    adminGet<Integrity>('/admin/ledger/integrity').then(setIntegrity).catch(() => setIntegrityError(true));
   }, []);
 
   async function action(id: string, verb: string, body?: unknown) {
@@ -65,13 +66,14 @@ function PayoutsPageInner() {
   }
 
   if (error) return <ErrorState error={error} />;
-  const ledgerBlocked = integrity?.ok === false;
+  if (loading) return <LoadingState label="Loading payouts and risk checks…" />;
+  const ledgerBlocked = integrity?.ok !== true;
 
   return (
     <>
       <PageHeader title="Payouts" kicker="Strict payout queue for review, hold, approval, rejection, and paid confirmation." />
       {ledgerBlocked ? (
-        <WarningBanner>Ledger imbalance detected. Do not approve payouts until integrity is resolved.</WarningBanner>
+        <WarningBanner>{integrityError ? 'Ledger check unavailable. Approvals are blocked. Reload to retry.' : integrity ? 'Ledger imbalance detected. Do not approve payouts until integrity is resolved.' : 'Ledger check pending. Approvals remain blocked until verified.'}</WarningBanner>
       ) : null}
       <RowHighlightNotice missing={missing} />
       <div className="command-grid">
@@ -106,7 +108,7 @@ function PayoutsPageInner() {
                   ) : ledgerBlocked ? (
                     <span className="pill danger">LEDGER BLOCK</span>
                   ) : (
-                    <span className="pill balanced">NORMAL</span>
+                    <span className="pill warning">{['UNDER_REVIEW', 'HELD'].includes(p.status) ? 'RISK UNAVAILABLE' : 'NOT ASSESSED'}</span>
                   )}
                 </td>
                 <td>
@@ -126,9 +128,9 @@ function PayoutsPageInner() {
                   <ConfirmDialog
                     triggerLabel="Approve Payout"
                     title="Approve payout"
-                    body={`Approve payout of ${p.coinAmount} coins (${p.fiatMinor} ${p.fiatCurrency} minor)? This authorises a real money transfer and cannot be casually undone.`}
+                    body={`Approve ${(Number(p.fiatMinor) / 100).toFixed(2)} ${p.fiatCurrency} (${p.coinAmount} coins) for ${p.creator?.creatorProfile?.stageName || p.creator?.profile?.displayName || p.creatorUserId} to ${p.payoutDestinationLabel || p.payoutProvider || 'unknown destination'} ${maskRef(p.payoutDestinationReference)}? This authorises a real money transfer.`}
                     confirmLabel="Approve"
-                    disabled={ledgerBlocked || !['UNDER_REVIEW', 'HELD'].includes(p.status)}
+                    disabled={ledgerBlocked || !risk[p.creatorUserId] || risk[p.creatorUserId].recommendedAction === 'PAYOUT_HOLD' || !p.payoutProvider || !p.payoutDestinationReference || !['UNDER_REVIEW', 'HELD'].includes(p.status)}
                     onConfirm={() => action(p.id, 'approve')}
                   />
                   <PromptDialog

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -94,6 +94,8 @@ const navItems = navGroups.flatMap((g) => g.links.map(([label, href]) => ({ labe
 export function AdminChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const main = useRef<HTMLElement>(null);
   const [counts, setCounts] = useState<NavCounts | null>(null);
   // `null` = not answered yet; the footer must not claim "operational" before then.
   const [healthy, setHealthy] = useState<boolean | null>(null);
@@ -103,6 +105,30 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    main.current?.setAttribute('inert', '');
+    sidebar.current?.querySelector<HTMLButtonElement>('.nav-close')?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNavOpen(false);
+      if (event.key !== 'Tab') return;
+      const items = Array.from(sidebar.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled)') ?? []);
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+      main.current?.removeAttribute('inert');
+      previous?.focus();
+    };
+  }, [navOpen]);
 
   // Sidebar badges + status heartbeat. Optional decoration: a failure leaves the
   // badges off and the status "degraded" rather than breaking navigation.
@@ -137,7 +163,8 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminShell>
-      <aside className={navOpen ? 'sidebar open' : 'sidebar'} aria-label="Admin navigation">
+      <aside ref={sidebar} id="admin-navigation" role={navOpen ? 'dialog' : undefined} aria-modal={navOpen ? true : undefined} className={navOpen ? 'sidebar open' : 'sidebar'} aria-label="Admin navigation">
+        <button className="button secondary nav-close" onClick={() => setNavOpen(false)}>Close navigation</button>
         <Link className="brand" href="/">
           <span className="brand-mark" aria-hidden="true"><Sparkles size={24} /></span>
           <span>
@@ -154,11 +181,11 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
           <LogOut size={16} />
           Log out
         </button>
-        <SystemStatus ok={healthy} environment={process.env.NEXT_PUBLIC_ENVIRONMENT ?? 'Production'} />
+        <SystemStatus ok={healthy} environment={process.env.NEXT_PUBLIC_ENVIRONMENT ?? 'Environment not configured'} />
       </aside>
       {navOpen && <div className="sidebar-scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />}
-      <main className="main">
-        <Topbar onMenu={() => setNavOpen((v) => !v)} navItems={navItems} />
+      <main ref={main} className="main">
+        <Topbar navOpen={navOpen} onMenu={() => setNavOpen((v) => !v)} navItems={navItems} />
         {children}
       </main>
     </AdminShell>

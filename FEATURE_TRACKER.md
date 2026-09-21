@@ -40,6 +40,24 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-09-16 — ScrollWorld continuity and resilient playback
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Admin filter and provisioning controls expose programmatic labels for keyboard and screen-reader users. | IMPLEMENTED | Added explicit labels to report, event, user, audit-log, invite, gift, shop, and agency inputs; focused admin suite **120/120** and production build pass. Full VoiceOver/200% zoom validation remains outstanding. |
+| Admin dashboard exposes recent audit activity alongside health, risk, and ledger panels. | IMPLEMENTED | Dashboard now loads `/admin/audit-logs` into the shared `AuditTimeline`, with explicit loading and unavailable states; `validate:ux-readiness` **26/26**, dashboard/admin UI tests **96/96**, and admin production build pass. |
+| Local browser reflow and keyboard smoke checks for viewer and admin entry points. | IMPLEMENTED | Playwright checks at 390px and 1280px found no horizontal overflow; 200% zoom at 1280px also reflowed without overflow. Admin login tab order reached both fields, submit, Terms, and Privacy. VoiceOver and physical-device checks remain manual release gates. |
+| Native viewer/creator workflow regression and design-capture suite. | IMPLEMENTED | `flutter analyze` reports no issues; full `flutter test --reporter compact` exited 0 with **116 passed / 1 capture-only skipped**; deterministic design captures passed for home, live room, Go Live, creator dashboard, and wallet. Physical camera/mic and VoiceOver validation remain outstanding. |
+| Production environment launch gate executed against this workstation. | IN PROGRESS | Static gates **10/10** pass. `NODE_ENV=production npm run validate:production-readiness` correctly rejects missing deployment secrets, database/Redis/payment configuration, MFA, secure-cookie context, and Terms/Privacy URLs (**11 failures**); Railway environment evidence must be checked after deployment. |
+| Creator media failure recovery is actionable. | DEPLOYED | `LiveKitRoomView` now distinguishes camera/microphone permission failures, explains how to recover, and exposes a 44px “Retry camera and mic” action; `flutter analyze` clean and focused widget/room suite **120/120** passed. Flutter Railway deployment `6576b546-0e37-4a0f-a2f3-7d37a6dc6bce` succeeded; deployed app returned **200** and its accessibility tree exposes labeled login, Terms, and Privacy controls. Physical camera permission and real publication still require a device/authenticated creator. |
+| Shared four-scene landing interlude on the static page and Next.js `/site`, with no-JS content, reduced-motion/data-saver fallback, blob seeking, phone/tablet tiers and cleanup | VERIFIED | Optimized Next.js build passed; 5 pipeline/runtime unit tests and 7 existing site tests passed. All 12 browser checks passed in Chromium and WebKit using explicitly synthetic video fixtures, plus the rebuilt `/site` integration passed in both engines over local TLS with production CSP intact, no overflow, scoped sticky playback and the `#offer` CTA. Not production-deployed in this session. |
+| Sequential actual-frame video generation and delivery gate | VERIFIED | Four real 720p/no-audio legs completed for 164 KIE credits. Provider raw handoffs for legs 2–4 scored 0.870492, 0.831407 and 0.831428; bounded first-frame repairs were recorded with immutable raw hashes and delivery handoffs scored 0.993187, 0.992567 and 0.992237. Final desktop/mobile encodes passed provenance, H.264/yuv420p, faststart, GOP, poster and all six seam checks (0.986538–0.990452). `runtime/manifest.json` is verified and synced to both surfaces. Production deployment and physical-device validation remain outstanding. |
+
+See `apps/landing/assets/scroll-world/STATUS.md` for current limitations and commands.
+Built `/site` integration also passed in Chromium and WebKit over local TLS with
+production CSP intact: desktop/phone layout, section-scoped sticky position and
+the `#offer` CTA. No production, physical-iPhone or conversion-improvement claim
+is made here. Paid generation is held pending the reroll-budget decision.
 ## Session 2026-09-05 (later still) — merging to main now deploys, and proves it deployed
 
 | Feature | Status | Evidence |
@@ -846,6 +864,9 @@ Still pending for full production: real `PAYSTACK_SECRET_KEY`,
 check, `RESEND_API_KEY` to light up email delivery. Remaining wave-1 checks:
 physical-device camera publish (emulator can't capture; #172), and imagery
 provenance for the `/site` marketing photos before any marketing push (#171).
+
+| **Public viewer CORS/empty-state hardening** — deployed `/watch` remained indefinitely on “Finding a live stage…” because browser discovery called the API cross-origin while staging omitted the web origin from CORS. Added a narrow same-origin `/api/public-live/*` proxy (allow-listed room GETs, top-gifters, and guest-token POST), switched browser wiring to it, and surfaced rejected discovery/token requests as a visible failure instead of an infinite loader. | VERIFIED (staging) | Railway deployment `47c951cf-2729-4e1a-a201-91b5b3406159` succeeded. Production `GET /api/public-live/live-rooms` returned **200 []**; `/api/public-live/users` returned **404**; deployed `/watch` rendered “No stages are live right now — check back soon.” Route tests cover discovery, tunnel rejection, and guest-token POST; web tests **41/41**; production build passed. Real playback remains unverified because staging has no live room. |
+| **Flutter web registration CORS** — deployed Flutter registration preflight had no `Access-Control-Allow-Origin` and browser signup failed before reaching the API. API now has a narrow first-party allow-list fallback plus explicit preflight handling ahead of security middleware; unlisted origins receive `403`. | VERIFIED (staging) | API deployment `810305fb-aae0-4f95-93fb-da4591e5f175` succeeded. `OPTIONS /api/auth/register` from `https://flutter-web-production-b292.up.railway.app` returns **204** with matching `access-control-allow-origin`, credentials, methods and headers; `/api/health` returns **200** with the same origin header; `https://evil.example` preflight returns **403**. CORS unit suite **11/11**, API lint/build passed. |
 
 ## Verification debt
 

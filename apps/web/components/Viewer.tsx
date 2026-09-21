@@ -30,43 +30,50 @@ export default function Viewer({ room }: { room?: string }) {
     let cancelled = false;
 
     (async () => {
-      const base = apiBase();
-      const resolved = await resolveLiveRoomId(base, room);
-      if (cancelled) return;
-      if (!resolved) return setStatus('No stages are live right now — check back soon.');
-      setRoomId(resolved);
-      const roomId = resolved;
-      fetchRoom(base, roomId).then(setRoomInfo).catch(() => {});
-
-      const token = await fetchGuestToken(base, roomId);
-      if (cancelled) return;
-      if (!token) return setStatus("That stage isn't live.");
-
-      lkRoom = new Room();
-      lkRoom.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-        if (track.kind === 'video' && videoRef.current) {
-          track.attach(videoRef.current);
-          setStatus('');
-        }
-        if (track.kind === 'audio') {
-          // Browsers block autoplay-with-sound → attach muted, offer tap-to-unmute.
-          const el = track.attach();
-          el.muted = true;
-          document.body.appendChild(el);
-          setUnmute(() => () => {
-            el.muted = false;
-            if (videoRef.current) videoRef.current.muted = false;
-            setUnmute(null);
-          });
-        }
-      });
-      lkRoom.on(RoomEvent.Disconnected, () => setStatus('The stage has ended.'));
-
       try {
-        await lkRoom.connect(token.livekitUrl, token.viewerToken);
-        setStatus((s) => s || 'Waiting for the stage…');
+        // Browser calls stay same-origin so public discovery and guest-token
+        // requests work even when the API's CORS allow-list is intentionally
+        // limited to first-party domains.
+        const base = typeof window === 'undefined' ? apiBase() : '/api/public-live';
+        const resolved = await resolveLiveRoomId(base, room);
+        if (cancelled) return;
+        if (!resolved) return setStatus('No stages are live right now — check back soon.');
+        setRoomId(resolved);
+        const roomId = resolved;
+        fetchRoom(base, roomId).then(setRoomInfo).catch(() => {});
+
+        const token = await fetchGuestToken(base, roomId);
+        if (cancelled) return;
+        if (!token) return setStatus("That stage isn't live.");
+
+        lkRoom = new Room();
+        lkRoom.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+          if (track.kind === 'video' && videoRef.current) {
+            track.attach(videoRef.current);
+            setStatus('');
+          }
+          if (track.kind === 'audio') {
+            // Browsers block autoplay-with-sound → attach muted, offer tap-to-unmute.
+            const el = track.attach();
+            el.muted = true;
+            document.body.appendChild(el);
+            setUnmute(() => () => {
+              el.muted = false;
+              if (videoRef.current) videoRef.current.muted = false;
+              setUnmute(null);
+            });
+          }
+        });
+        lkRoom.on(RoomEvent.Disconnected, () => setStatus('The stage has ended.'));
+
+        try {
+          await lkRoom.connect(token.livekitUrl, token.viewerToken);
+          setStatus((s) => s || 'Waiting for the stage…');
+        } catch {
+          if (!cancelled) setStatus('Could not join the stage.');
+        }
       } catch {
-        setStatus('Could not join the stage.');
+        if (!cancelled) setStatus('Could not load the stage. Check your connection and retry.');
       }
     })();
 

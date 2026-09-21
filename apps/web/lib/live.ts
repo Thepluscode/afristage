@@ -26,14 +26,18 @@ type Fetch = typeof fetch;
  */
 export async function resolveLiveRoomId(base: string, explicit?: string | null, doFetch: Fetch = fetch): Promise<string | null> {
   if (explicit) return explicit;
-  const res = await doFetch(`${base}/live-rooms`);
-  if (!res.ok) return null;
-  const body = await res.json();
-  const list: Array<{ id?: string; status?: string; livekitRoomName?: string }> = Array.isArray(body)
-    ? body
-    : (body?.data ?? body?.rooms ?? []);
-  const live = list.find((r) => r.status === 'LIVE' && (r.livekitRoomName || r.id));
-  return live?.id ?? null;
+  try {
+    const res = await doFetch(`${base}/live-rooms`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const list: Array<{ id?: string; status?: string; livekitRoomName?: string }> = Array.isArray(body)
+      ? body
+      : (body?.data ?? body?.rooms ?? []);
+    const live = list.find((r) => r.status === 'LIVE' && (r.livekitRoomName || r.id));
+    return live?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Fetch a public view-only guest token for a room. Returns null if the room isn't live / unreachable. */

@@ -13,15 +13,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useAdminResource<T>(load: () => Promise<T>, initial: T) {
   const [data, setData] = useState<T>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const loadRef = useRef(load);
   loadRef.current = load;
 
   const reload = useCallback(async () => {
+    setLoading(true);
     try {
       setData(await loadRef.current());
       setError(null);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -29,5 +33,5 @@ export function useAdminResource<T>(load: () => Promise<T>, initial: T) {
     reload();
   }, [reload]);
 
-  return { data, error, setError, reload };
+  return { data, error, loading, setError, reload };
 }

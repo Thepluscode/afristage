@@ -92,11 +92,13 @@ function GiftsPageInner() {
       />
       <FilterBar onSubmit={create}>
         <input
+          aria-label="Gift name"
           placeholder="Gift name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
+          aria-label="Gift coin price"
           placeholder="Coins"
           type="number"
           value={coinPrice}

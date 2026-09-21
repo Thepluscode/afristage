@@ -84,11 +84,11 @@ describe('PayoutsPage', () => {
     expect(screen.getByText(/Approvals require confirmation/)).toBeInTheDocument(); // PayoutActionPanel not blocked
   });
 
-  it('integrity fetch rejection is swallowed (no banner, treated as not blocked)', async () => {
-    setup({ payouts: [], integrityReject: true });
+  it('blocks approval and explains when integrity cannot be verified', async () => {
+    setup({ payouts: [payout()], integrityReject: true, risk: { 'creator-aaaaaaaa1111': { riskScore: 0, recommendedAction: 'NONE' } } });
     render(<PayoutsPage />);
-    await screen.findByText('No payout requests yet.');
-    expect(screen.queryByText(/Ledger imbalance detected/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Ledger check unavailable/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve Payout' })).toBeDisabled();
   });
 
   it('renders UNDER_REVIEW row with risk present (NORMAL not shown), destination + masked ref', async () => {
@@ -104,24 +104,25 @@ describe('PayoutsPage', () => {
     expect(screen.getByText('MANUAL_REVIEW')).toBeInTheDocument();
   });
 
-  it('risk fetch per-creator rejects -> caught, falls to NORMAL badge', async () => {
+  it('risk fetch failure is unknown and blocks approval', async () => {
     setup({
       payouts: [payout({ status: 'HELD', creatorUserId: 'creator-aaaaaaaa1111' })],
       risk: { 'creator-aaaaaaaa1111': new Error('risk-down') }
     });
     render(<PayoutsPage />);
     await screen.findByText('Nova');
-    expect(screen.getByText('NORMAL')).toBeInTheDocument();
+    expect(screen.getByText('RISK UNAVAILABLE')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve Payout' })).toBeDisabled();
   });
 
-  it('non-reviewable status (PAID) shows NORMAL and PAID ref pill; no risk fetched', async () => {
+  it('non-reviewable status explicitly has no risk assessment', async () => {
     setup({
       payouts: [payout({ status: 'PAID', providerReference: 'TRX-999', creatorUserId: 'c-paid' })]
     });
     render(<PayoutsPage />);
     await screen.findByText('Nova');
     expect(screen.getByText('ref TRX-999')).toBeInTheDocument();
-    expect(screen.getByText('NORMAL')).toBeInTheDocument();
+    expect(screen.getByText('NOT ASSESSED')).toBeInTheDocument();
   });
 
   it('PAID without providerReference -> no ref pill', async () => {

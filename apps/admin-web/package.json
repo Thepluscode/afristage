@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node ../../scripts/scroll-world.mjs sync",
+    "prebuild": "node ../../scripts/scroll-world.mjs sync",
     "dev": "next dev -p 3001",
     "build": "NEXT_DIST_DIR=.next-prod next build",
     "start": "NEXT_DIST_DIR=.next-prod next start -p 3001",

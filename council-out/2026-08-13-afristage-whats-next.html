@@ -1,0 +1,204 @@
+<meta charset="utf-8">
+<title>Council — AfriStage: what's next (2026-08-13)</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3441;
+    --ink:#e6edf3; --dim:#9fb0c3; --faint:#6e7f92;
+    --gold:#e3b341; --green:#3fb950; --red:#f85149; --blue:#58a6ff; --violet:#bc8cff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 96px}
+  .kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 10px}
+  h1{font-size:clamp(28px,4.4vw,42px);line-height:1.15;margin:0 0 8px;letter-spacing:-.02em}
+  .sub{color:var(--dim);margin:0 0 32px;font-size:15px}
+
+  .warn{border:1px solid #5c4318;background:#241c08;border-radius:10px;padding:14px 18px;margin:0 0 32px;font-size:14px;color:#f0d8a0}
+  .warn b{color:var(--gold)}
+
+  .verdict{border:1px solid var(--line);border-left:3px solid var(--gold);
+    background:linear-gradient(180deg,#1a2130,#161b22);border-radius:12px;padding:26px 28px;margin:0 0 22px}
+  .verdict .lbl{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 12px}
+  .verdict p{margin:0;font-size:20px;line-height:1.45;font-weight:600;letter-spacing:-.01em}
+  .verdict .note{margin-top:14px;font-size:14px;font-weight:400;color:var(--dim)}
+
+  .next{border:1px solid var(--line);border-left:3px solid var(--green);background:var(--panel);
+    border-radius:12px;padding:22px 26px;margin:0 0 22px}
+  .next .lbl{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--green);margin:0 0 12px}
+  .next ol{margin:0;padding-left:20px}
+  .next li{margin:0 0 9px;font-size:15px}
+  .next li:last-child{margin-bottom:0}
+  .t{color:var(--faint);font-variant-numeric:tabular-nums}
+
+  .missed{border:1px solid #4a2230;border-left:3px solid var(--red);background:#1c1418;
+    border-radius:12px;padding:22px 26px;margin:0 0 34px}
+  .missed .lbl{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--red);margin:0 0 12px}
+  .missed p{margin:0 0 12px;font-size:15px;color:#f0dde2}
+  .missed p:last-child{margin-bottom:0}
+  .missed ul{margin:10px 0 0;padding-left:20px;font-size:14.5px;color:#e8ccd4}
+  .missed li{margin-bottom:8px}
+
+  h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);
+    margin:40px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+
+  .cards{display:grid;gap:14px}
+  .card{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:18px 20px}
+  .card .hd{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin:0 0 10px;flex-wrap:wrap}
+  .card .who{font-weight:650;font-size:15px;letter-spacing:-.01em}
+  .card .vd{font-size:12.5px;color:var(--faint);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .card p{margin:0 0 10px;font-size:14.5px;color:var(--dim)}
+  .card p:last-child{margin-bottom:0}
+  .card .rec{color:var(--ink);border-left:2px solid var(--line);padding-left:12px;font-size:14px}
+  .A{border-left:3px solid var(--blue)} .B{border-left:3px solid var(--green)}
+  .C{border-left:3px solid var(--violet)} .D{border-left:3px solid var(--red)}
+  .E{border-left:3px solid var(--gold)}
+
+  .conf{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .pill{border:1px solid var(--line);background:var(--panel2);border-radius:999px;
+    padding:7px 15px;font-size:13px;color:var(--dim)}
+  .pill b{color:var(--ink);font-weight:600}
+
+  .kill{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:18px 20px;margin-top:14px;font-size:14.5px;color:var(--dim)}
+  .kill b{color:var(--ink)}
+  footer{margin-top:44px;color:var(--faint);font-size:13px;border-top:1px solid var(--line);padding-top:18px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:var(--panel2);padding:1px 5px;border-radius:4px;color:#cfe0f0}
+</style>
+
+<div class="wrap">
+  <p class="kicker">Decision council · 2026-08-13</p>
+  <h1>AfriStage: what's next</h1>
+  <p class="sub">Five lenses on one question — where do the next 2–4 weeks go?</p>
+
+  <div class="warn">
+    <b>Incomplete council.</b> 5/5 advisors delivered; <b>0/5 blind reviewers</b> —
+    all five failed with <code>session limit · resets 9:30am</code>. The peer-review
+    round did not run, so “what they all missed” is the chairman's own analysis
+    rather than a synthesis of reviewer votes. Worth re-running after the reset.
+  </div>
+
+  <div class="verdict">
+    <p class="lbl">Verdict · corrected 2026-08-13</p>
+    <p>Revenue push — sell <em>coins</em> first, on Paystack, this month. Paperwork Monday,
+       creator recruitment in parallel, commerce test straight after.</p>
+    <p class="note">Four of five advisors independently chose (d); the fifth reframed to
+       creator recruitment whose only engineering dependency is the same payment work.
+       No dissent about direction — only about what to sell first, and the code settled that.</p>
+  </div>
+
+  <div class="missed" style="border-left-color:var(--gold);background:#1e1a10;border-color:#4a3a18">
+    <p class="lbl" style="color:var(--gold)">⛔ Verdict corrected — the kill-condition fired</p>
+    <p style="color:#f0e2c0">This council shipped recommending <b>“sell goods, not coins.”</b> The gating check it
+       set for Monday morning was then run against the code, and refuted it in 30 minutes.</p>
+    <p style="color:#f0e2c0;margin-bottom:0"><b>The marketplace is priced and settled in coins.</b> The buyer journey is
+       <code>card → coins → goods</code>, never <code>card → goods</code>. So commerce-first would mean
+       two weeks of building before the premise test — precisely the failure this council convened to prevent.</p>
+  </div>
+
+  <h2>Gating check — answered from the code</h2>
+  <div class="card" style="border-left:3px solid var(--red)">
+    <p><b>How are products priced?</b> <span style="color:var(--ink)">In coins.</span> <code>Product.priceCoins</code>,
+       <code>Order.unitPriceCoins / totalCoins / sellerNetCoins / platformFeeCoins</code>.</p>
+    <p><b>Does an order touch a payment provider?</b> <span style="color:var(--ink)">No.</span> Zero matches for
+       stripe / paystack / checkout / intent across <code>src/modules/marketplace/</code>.</p>
+    <p><b>What does a sale move?</b> An internal ledger transfer — <code>MoneyService.purchase()</code> debits the
+       buyer's COIN account, credits <code>sellerEarning</code> + <code>platformRevenue</code>.</p>
+    <p><b>Does <code>validate:marketplace</code> prove a cash-out?</b> <span style="color:var(--ink)">No.</span>
+       It asserts a creator EARNING delta and stops. No payout leg.</p>
+    <p class="rec" style="border-left-color:var(--red)">Two findings beyond the question asked —
+       <b>the coins-first architecture IS the IAP exposure</b> (every route to revenue passes through a
+       digital-goods purchase), and <b>the seller cash-out leg is unproven</b>: only <em>creator</em> payouts are
+       covered, so whether a shop owner can withdraw is untested. “Can I get my money out” is the first
+       question any merchant asks.</p>
+  </div>
+
+  <div class="next">
+    <p class="lbl">Monday morning</p>
+    <ol>
+      <li><span class="t">09:00 · 60 min · founder-only</span> — Open Paystack (CAC, BVN, settlement bank) + submit Stripe live activation. Test keys arrive immediately; the verification queue only moves if you're in it.</li>
+      <li><span class="t">09:45 · 30 min · founder-only</span> — File the Play Console account. A background clock, not the project.</li>
+      <li style="opacity:.62"><span class="t">10:15 · the gating check</span> — <s>is the marketplace order → payment → payout path E2E-verified?</s> <b style="color:var(--green)">✅ Answered — only the coin path.</b> First real transaction is a coin pack; commerce comes second. This 30 minutes is now free.</li>
+      <li><span class="t">Rest of week</span> — Paystack behind the existing provider seam, same E2E that proves card → coins → ledger. Price in NGN, Buy button on the hosted web build, creator settlement on a stated <b>T+14 hold</b>.</li>
+      <li><span class="t">Friday · non-negotiable</span> — DM 15 named creators individually, asking for a session <em>date</em>, not a beta signup.</li>
+    </ol>
+  </div>
+
+  <div class="missed">
+    <p class="lbl">What all five missed</p>
+    <p><b>Taking real money is the one experiment that creates obligations — and all five priced it as free.</b>
+       Every advisor treats “take one real payment” as the cheapest falsifiable check. Legally it is the most expensive one on the list.</p>
+    <ul>
+      <li><b>You hold a float.</b> Coin balances and creator earnings are stored value. Custody + payout is regulated activity (CBN in Nigeria), and Paystack's own terms restrict running a wallet on top of them. This question arrives on the same day as the first naira.</li>
+      <li><b>The reversibility asymmetry is the classic killer of gifting platforms.</b> Cards reverse for months; payouts don't. Stolen card → coins → gift to accomplice → withdraw before the chargeback. The double-entry ledger records that attack perfectly and stops none of it.</li>
+      <li><b>A stated payout hold (T+14) mitigates both, and costs nothing</b> — it preserves the entire premise signal while removing the float exposure and the chargeback window.</li>
+    </ul>
+    <p>Nobody asked about runway either. The Premise Gate governs when to stop spending; no advisor asked how many months of spending remain.</p>
+  </div>
+
+  <h2>The five advisors</h2>
+  <div class="cards">
+    <div class="card A">
+      <div class="hd"><span class="who">Outsider</span><span class="vd">(d) · on the rail customers actually have</span></div>
+      <p>“1020 tests and zero dollars.” Every fact offered as progress is a fact about the inside of the system — correlation IDs, constraints, integrity sweeps. Not one is a fact about a person. Thirteen ledger transactions is not a beta, it's a demo.</p>
+      <p class="rec">On the record: the money loop is not verified until money has moved on Paystack from a real African card into a real creator's balance and out again.</p>
+    </div>
+    <div class="card B">
+      <div class="hd"><span class="who">Executor</span><span class="vd">(d) · starts clocks you don't control</span></div>
+      <p>The only option whose first action starts a clock the founder doesn't own. Paystack hands over test keys on signup; live keys wait on verification. Option (c) is a 30-minute paperwork errand, not a 2–4 week investment.</p>
+      <p class="rec">On the record: background jobs is the only option with zero founder-gated latency — and that is not a point in its favour. It will feel productive while every clock that matters stays unstarted.</p>
+    </div>
+    <div class="card C">
+      <div class="hd"><span class="who">First-Principles</span><span class="vd">reframe · creator recruitment</span></div>
+      <p>The unit of value isn't a feature or a user — it's a creator who can drag an existing audience across a platform switch. The real premise is narrower than “someone pays”: <em>will a creator move her audience here, and will it pay here?</em> Testable in a week with zero code.</p>
+      <p class="rec">On the record: the verified money loop is verified in the wrong currency, on the wrong rail, for the wrong customer.</p>
+    </div>
+    <div class="card D">
+      <div class="hd"><span class="who">Contrarian</span><span class="vd">(d) · least-fatal failure mode</span></div>
+      <p>(a) fails by being correct — success indistinguishable from doing nothing, on the fourth consecutive hardening cycle. (b) spends an asset you cannot re-buy: a creator gets one first impression, and an empty room ends it.</p>
+      <p class="rec">On the record: Apple and Google require in-app purchase for digital goods, and gifting coins are digital goods — 30% off the top, and an in-app Stripe sheet is grounds for rejection. Every unit economic implied by the verified loop is wrong for the channel you're building toward.</p>
+    </div>
+    <div class="card E">
+      <div class="hd"><span class="who">Expansionist</span><span class="vd">(d) enlarged · first live sale</span></div>
+      <p>The coin economy is the small business you happened to build first. The marketplace is commerce — real goods, real margin, money already in the buyer's budget. Stripe-verified-and-Paystack-not is a map, not a blocker: it points at the diaspora, where ARPU is many times higher.</p>
+      <p class="rec">On the record: run the premise test as “will viewers buy coins” and a failure reads as “nobody pays for AfriStage” — a false negative that kills a live-commerce payments company because its weakest revenue line underperformed.</p>
+    </div>
+  </div>
+
+  <h2>The reinforcement neither advisor saw — real, but latent</h2>
+  <div class="card" style="border-left:3px solid var(--violet)">
+    <p><b>IAP and the marketplace could solve each other.</b> The Contrarian's sharpest point is that gifting coins are <em>digital goods</em> — 30% to Apple, and an in-app card sheet risks rejection. The Expansionist's sharpest point is that the marketplace sells <em>physical goods</em> — which are <b>exempt</b> from the IAP rule, as every commerce app demonstrates.</p>
+    <p style="color:#f0e2c0;border-left:2px solid var(--gold);padding-left:12px"><b>⛔ Corrected by the gating check.</b> The exemption requires the buyer to pay for <em>goods</em> with a card. AfriStage's marketplace is priced in coins and settled by internal ledger transfer, so the card still buys a digital good. The combination is real but <b>latent</b> — true only once a direct card-checkout path for physical orders exists.</p>
+    <p style="margin-bottom:0">The durable half: coins are the revenue line most likely to be taxed 30% at exactly the moment distribution is solved, and the marketplace is the lane where that tax can legally be avoided — once it takes card payments directly.</p>
+  </div>
+
+  <h2>Confidence</h2>
+  <div class="conf">
+    <span class="pill"><b>High</b> — direction (d) and Monday's sequence</span>
+    <span class="pill"><b>High</b> — coins-before-goods <span style="color:var(--faint)">(settled by the schema)</span></span>
+    <span class="pill"><b>Missing</b> — 0/5 peer reviews</span>
+  </div>
+  <div class="kill">
+    <b style="color:var(--red)">#1 — FIRED.</b> <em>“If the marketplace's order → payment → payout path is not
+    already end-to-end verified, commerce-first means two weeks of building before the premise test.”</em>
+    Checked against the code: priced in <code>priceCoins</code>, settled by internal ledger transfer, never
+    touching a provider. <b>Verdict flipped to coins-first.</b> The kill-condition working exactly as intended —
+    30 minutes, and it moved the answer.
+    <br><br>
+    <b style="color:var(--gold)">#2 — still open, now the most dangerous unknown.</b> If custody of user balances
+    requires a licence AfriStage cannot hold, the product isn't “not yet monetized” — it is mis-architected for its
+    market, and the fix is routing payments creator-direct rather than through a platform wallet. Note coins-first
+    <em>increases</em> this exposure: a coin balance is unambiguously stored value, where a card-per-order flow
+    would hold customer funds only in transit.
+    <br><br>
+    <b style="color:var(--gold)">#3 — new, from the gating check.</b> If a shop owner cannot actually withdraw
+    marketplace earnings — the cash-out leg is unproven, only <em>creator</em> payouts are covered — the marketplace
+    cannot be sold to merchants at all, and the commerce lane is further away than this council assumed.
+    Test the seller withdrawal before pitching a single merchant.
+  </div>
+
+  <footer>
+    Full transcript — briefing, all five arguments verbatim, letter map, chairman synthesis —
+    in <code>2026-08-13-afristage-whats-next.md</code> alongside this file.
+  </footer>
+</div>
