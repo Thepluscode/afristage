@@ -1,0 +1,23 @@
+# scene 03 — gifts flowing through the transparent ledger
+# v3 is the keeper. Generated with the APPROVED ANCHOR passed as a reference
+# image (medias role "image"), model nano_banana_pro, 3:2.
+#
+# What the earlier attempts got wrong, so it is not relearned:
+#   v1 (no reference) — different woman, interior function room instead of the
+#      open-air stage, and the glass ENCIRCLED her: read as "creator sealed in a
+#      box", the opposite of the product's promise.
+#   v2 (reference added) — continuity and the cage both fixed, but the strands
+#      radiated OUTWARD from her hands: read as her emitting, not the audience
+#      gifting. Kept only as proof the outward-flow look works.
+#   v3 — direction forced explicitly (every strand begins in the audience and
+#      terminates at her; nothing leaves her). This is the approved frame.
+
+Use the reference image as the definitive world and character: SAME woman (same face, same long braided updo with fine gold ornaments, same layered gold neckwear and stacked gold bangles, same dark floor-length gown with gold-thread patterning), SAME open-air circular stage with its glowing warm ivory light ring, SAME wide night skyline of distant city lights, SAME warm near-black atmosphere and single gold spotlight from above, SAME audience seated low around the stage in shadow. Do not change the venue to an interior room. Do not change her hair or wardrobe. She is NOT enclosed or surrounded; nothing encircles her.
+
+DIRECTION OF FLOW IS THE SUBJECT OF THIS FRAME, and it is INBOUND ONLY. Every luminous gold strand BEGINS at the raised hands of individual seated audience members at the outer edge of frame and ENDS at the creator. She is the destination and the terminus. Each strand is thinnest, faintest and most scattered where it leaves an audience member's hands, and grows steadily thicker and brighter along its path, arriving at its brightest where it reaches her open upturned free hand and the microphone she holds. The strands all lean and taper toward the centre of frame like iron filings pulled to a magnet. ABSOLUTELY NOTHING radiates, emits, sprays or fans OUTWARD from her body or her hands. No strand originates at the creator. No strand travels away from her. No strand exits the left or right edge of frame. No horizontal swooshes crossing the frame.
+
+She sings into the microphone in one hand while her other hand is open and upturned at her side, receiving; her gaze follows the arriving light.
+
+A single large slab of polished optical glass stands angled in the FOREGROUND at the LEFT EDGE, occupying roughly the left third, with the camera looking PAST it toward her in clear open air. Where the inbound strands cross that slab they are refracted into ordered, evenly-spaced parallel lines — countable, disciplined, conserved: exactly as much light leaves the far side as entered, nothing lost, nothing added — then recombine beyond it and continue inward to her. Teal #0FA3B1 glints along the glass edges only; the strands stay gold #E9B44C.
+
+Palette: stage black #0A0807, soot #141010, warm ivory #F2EAD9, spotlight gold #E9B44C, teal #0FA3B1. Ultra-photorealistic cinematic editorial photography, physically believable optics and caustics, shallow depth of field, high-end music documentary quality. Absolutely no text, no letters, no numbers, no logos, no watermarks, no icons, no user-interface graphics, no charts, no hearts, no emoji. No floating island, no written signage.

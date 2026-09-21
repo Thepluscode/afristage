@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "status": "verified",
+  "architecture": "A",
+  "model": "bytedance/seedance-2-mini",
+  "clips": [
+    {
+      "desktop": "media/leg-1.mp4",
+      "poster": "media/leg-1-poster.png",
+      "duration": 5.041667,
+      "fps": 24,
+      "mobile": "media/leg-1-m.mp4",
+      "posterMobile": "media/leg-1-m-poster.png"
+    },
+    {
+      "desktop": "media/leg-2.mp4",
+      "poster": "media/leg-2-poster.png",
+      "duration": 5.041667,
+      "fps": 24,
+      "mobile": "media/leg-2-m.mp4",
+      "posterMobile": "media/leg-2-m-poster.png"
+    },
+    {
+      "desktop": "media/leg-3.mp4",
+      "poster": "media/leg-3-poster.png",
+      "duration": 5.041667,
+      "fps": 24,
+      "mobile": "media/leg-3-m.mp4",
+      "posterMobile": "media/leg-3-m-poster.png"
+    },
+    {
+      "desktop": "media/leg-4.mp4",
+      "poster": "media/leg-4-poster.png",
+      "duration": 5.041667,
+      "fps": 24,
+      "mobile": "media/leg-4-m.mp4",
+      "posterMobile": "media/leg-4-m-poster.png"
+    }
+  ],
+  "seams": [
+    {
+      "from": 1,
+      "to": 2,
+      "desktop": 0.990452,
+      "mobile": 0.988867
+    },
+    {
+      "from": 2,
+      "to": 3,
+      "desktop": 0.988829,
+      "mobile": 0.986538
+    },
+    {
+      "from": 3,
+      "to": 4,
+      "desktop": 0.988951,
+      "mobile": 0.986678
+    }
+  ],
+  "sha256": {
+    "media/leg-1.mp4": "df8d4b63d91ea9c010d42d15e874944a08f1486c19b67da4f3b42a01c6a2a157",
+    "media/leg-1-poster.png": "f14a7b246bb2966593611e6b9677fa1c97544291a82e72ee143e4f1e71e9ad33",
+    "media/leg-1-m.mp4": "4898ab8f357e9839a50360259097245c5abae69fab330a439100bbbbd4b1e26d",
+    "media/leg-1-m-poster.png": "027080ef8f3127c5b2316bf42a466b81ba656a6649f353737ffe7dabfaacb0c4",
+    "media/leg-2.mp4": "1e0dc9d4f8fc38f6999b18d457ac3fff7eea123a3672b526d33b277970eba36c",
+    "media/leg-2-poster.png": "e2fc82655d481bc256274590080eb4795363bcc5c9babd8f80d61f52127ae578",
+    "media/leg-2-m.mp4": "74fa7b6fcda50584350c866d4405794c45a0f12352ce06e54dc9fa890258abbf",
+    "media/leg-2-m-poster.png": "a2c1a6aff1650f7cd9216494fe823b5a359aac96e6620a3eee548c65a809c2c8",
+    "media/leg-3.mp4": "4099d897b1a2afe5548c59f3732b4737fcef088c9c97cbe534ffac14a71bd0eb",
+    "media/leg-3-poster.png": "7a73f1fa9cab240895f3be110079b549edf406aa73d549a0303c540fd22b1848",
+    "media/leg-3-m.mp4": "67f7ce08f2b280f33a6ec28e60ced6541268d1d7e472a32003689cfc0780cbc7",
+    "media/leg-3-m-poster.png": "47ab4f3f894825ecc823bf00014be159ede460f1e0692068d4009795a6836cef",
+    "media/leg-4.mp4": "68b6ad20ab3f1ad74070f39346f0673ce81c81fb264c4fb6cd12ef990768ae2d",
+    "media/leg-4-poster.png": "13b4c98f6744a66690fbea577790da965e94c82659b83884b272005750f40a76",
+    "media/leg-4-m.mp4": "d45aa46e5d6c66d6941c83c5ecbc5144837d08d1c14de01fefe3d0bfa9974f03",
+    "media/leg-4-m-poster.png": "d12f4cae9c78401487dd730730a3336103e84c6814b449b220c4ffce577d4d30"
+  },
+  "checkedAt": "2026-09-16T22:03:51.995Z"
+}

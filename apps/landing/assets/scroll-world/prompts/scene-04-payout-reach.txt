@@ -1,0 +1,11 @@
+# Generated with the APPROVED ANCHOR as reference image
+# (medias: [{role:"image", value:"2f1d0d44-d1e2-42db-888f-6e6bb2aa2609"}])
+# model nano_banana_pro, 3:2, 1k. First attempt accepted.
+
+Ultra-photorealistic cinematic Afrofuturist editorial photography inside one cohesive live-performance world, premium and creator-first, deep warm near-black atmosphere, tempered gold spotlights, warm ivory highlights, restrained teal accents, rich natural skin tones, subtle haze, polished dark stage materials, shallow depth of field, high-end music documentary quality. Cohesive color palette of stage black #0A0807, soot #141010, warm ivory #F2EAD9, spotlight gold #E9B44C, restrained teal #0FA3B1. Absolutely no text, no letters, no numbers, no logos, no watermarks, no icons, no user-interface graphics, no currency symbols, no banknotes, no coins.
+
+CONTINUITY: the same young African woman creator — long braided updo with fine gold ornaments, layered gold neckwear, dark gold-threaded gown — same circular stage and its warm ivory light ring.
+
+Subject: The performance is over and the value travels home. She stands at the centre of the now-quiet stage, microphone lowered, chin lifted, calm and unmistakably in possession of what she has earned. From the stage ring, gold light-strands stream OUTWARD and upward, away from her across the night, fanning toward a vast horizon of scattered city lights that reads as a continent and its diaspora — clustered constellations near and far, some warm gold, the most distant tinged teal. One or two strands arc all the way to the far edge of frame, unbroken. The direction is decisively outward: earned here, arriving everywhere. Teal rim light separates her silhouette from the dark stage; a single gold spotlight holds her.
+
+COMPOSITION FOR CTA OVERLAY: keep the ENTIRE lower third of the frame visually quiet and uncluttered — dark stage floor and soft haze only, no faces, no bright detail, no light-strands crossing it — as clean negative space for a caption to be laid over later in the page itself. Do not render any text; the space must simply be left empty. The creator sits in the upper-middle of the frame with generous headroom, safe for a portrait centre crop. Cinematic wide angle, full-bleed environment, physically believable lighting. No floating island, no written signage.
