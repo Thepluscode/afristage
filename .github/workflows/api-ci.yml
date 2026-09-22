@@ -60,6 +60,11 @@ jobs:
       # that ever proves it rejects a stale deployment. Runs on every PR, not just
       # main, so the guard cannot quietly break between deploys.
       - run: npm run test:deploy-verify
+      # Every `run:` block must be valid shell. A stray quote after a `fi` shipped
+      # on 2026-09-22: YAML parsed, review passed, and it failed only in CI after
+      # the deploy had already happened — so the step meant to PROVE the deploy
+      # is what looked broken. `bash -n` catches it in under a second.
+      - run: npm run validate:workflows
       - run: npm run lint -w apps/api # typecheck
       - run: npm run test -w apps/api # unit (ledger invariants)
       - run: npm run build -w apps/api
@@ -219,4 +224,4 @@ jobs:
             bash scripts/verify-deployed-commit.sh "$FLUTTER_WEB_URL/api/health" "$GITHUB_SHA" 60 10
           else
             echo "flutter-web not deployed this run -> nothing to verify"
-          fi"
+          fi

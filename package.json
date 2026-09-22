@@ -52,7 +52,8 @@
     "verify:deployed-commit": "bash scripts/verify-deployed-commit.sh",
     "test:deploy-verify": "bash scripts/deploy-verify-selftest.sh",
     "project-state": "python3 scripts/project_state.py",
-    "check:continuity": "python3 scripts/check_continuity.py"
+    "check:continuity": "python3 scripts/check_continuity.py",
+    "validate:workflows": "node scripts/validate-workflows.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1",
