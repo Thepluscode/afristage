@@ -10,7 +10,12 @@ server {
     # Shared railway.toml sets healthcheckPath=/api/health for every service.
     location = /api/health {
         add_header Content-Type application/json;
-        return 200 '{"status":"ok","service":"flutter-web"}';
+        # `commit` matches the api and web contract so a deploy can be VERIFIED
+        # rather than inferred from a 200. nginx's entrypoint runs envsubst over
+        # this template at CONTAINER START, so the value comes from the runtime
+        # environment — the Railway service variable — not from the image. The
+        # build arg below is only a local fallback.
+        return 200 '{"status":"ok","service":"flutter-web","commit":"${GIT_SHA}"}';
     }
 
     # Flutter web uses hash routing by default, but keep an SPA fallback for safety.

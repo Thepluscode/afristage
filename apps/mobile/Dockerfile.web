@@ -16,6 +16,11 @@ COPY apps/mobile/analysis_options.yaml ./
 RUN flutter build web --release --dart-define=API_BASE=$API_BASE
 
 FROM nginx:1.27-alpine
+# Which commit this is. Railway's runtime service variable overrides this and is
+# what nginx's envsubst renders at container start; the ARG only keeps local
+# `docker build` honest ('unknown' rather than an empty string).
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 # Fallback for local runs; Railway injects the real $PORT and envsubst uses it.
 ENV PORT=8080
 COPY --from=build /app/build/web /usr/share/nginx/html

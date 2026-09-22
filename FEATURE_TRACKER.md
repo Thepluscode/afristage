@@ -40,6 +40,36 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-09-21/22 — the features existed; the paths to them did not
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| The Flutter web client can reach the API from a browser. | VERIFIED | `CORS_ORIGINS` was unset in production and the allow-list was empty under `NODE_ENV=production`, so every browser origin was refused. Live after deploy: preflight from the Flutter origin returns `204` with allow-origin/credentials; `https://evil.example` gets no allow-origin header; `GET /api/health` 200. PR #248. |
+| Email casing cannot lock a person out of their own account. | VERIFIED | `register` stored the address as typed and `login` matched it exactly, so an autocapitalising keyboard created a SECOND account and a permanent 401 — reproduced against production by accident. Now normalised on write, case-insensitive on lookup, soft-deleted rows skipped. Live: registered `Probe+…@AfriStage-Test.Invalid`, signed in lowercase AND uppercase (201 both), duplicate signup in other casing → 409, probe account deleted. PR #249. |
+| Merging to main deploys every service and proves it landed. | VERIFIED | Deploys were a human typing `railway up`; the deployed build had lagged main by weeks behind green checks. `deploy` job now stamps `GIT_SHA`, deploys api/admin-web/web (+flutter-web when `apps/mobile` changed) and fails unless each health endpoint reports that commit. Live: `origin/main` `4b85f76` = api `/api/health` = web `/api/health`. PRs #246, #255, #256. |
+| The admin console reports counts it actually computed. | VERIFIED | `dashboard()` never returned `pendingCreatorApprovals` or `openSupportTickets`; the UI rendered `?? 0`, so "0 awaiting approval" displayed while a creator sat PENDING, and the sidebar badges sat at 0 permanently. Tests use per-model distinct counts because the existing harness returns 0 for every model and cannot tell "counted zero" from "never counted". Mutation check: removing the fields fails 2 of 4. PR #251. |
+| A failed check is stated, not implied by an absent warning. | VERIFIED | The ledger page swallowed its integrity fetch with `.catch(() => {})`, so a failure removed the panel — on a money page, no warning reads as no imbalance. Now says balance is UNKNOWN and keeps it distinct from verified-balanced. Agency creator picker and live-room fetches likewise. admin-web 459 tests; mutation check: restoring the swallow turns the test red. PR #252. |
+| Avatar and gift uploads work end to end. | VERIFIED | `POST /api/uploads/presign` returned `400 Uploads are not configured` for every user — no `S3_*` variable existed. R2 bucket + token + public URL configured; runbook in `docs/object-storage-setup.md`. Live round-trip: presign `201` → `PUT` `200` → **public `GET` returned the uploaded bytes byte-identical**. Bucket CORS verified: both client origins echoed back, `evil.example` refused. |
+| Password recovery a person can actually complete. | VERIFIED | Three defects in one path. Resend refused every send with `403` because `EMAIL_FROM` named `afristage.live` — a domain with **no DNS delegation at all**. The endpoint answered `{"ok":true}` regardless, so recovery only looked like it existed. And **no client called the reset endpoints**: the emailed 64-char code had no form to enter it in. Now: sends from the verified domain (`[INFO] email sent` in production), a rejected send returns `503`, and `/forgot-password` + `/reset-password` exist with a "Forgot password?" link on sign-in. Founder confirmed the branded email arrives and renders. PR #254. |
+| Config that is a placeholder cannot boot. | VERIFIED | `S3_ENDPOINT` held the literal `<account-id>` while `isConfigured()` reported uploads ready, moving the failure from the API to the browser. `validateEnv` now refuses `<…>`, `PASTE_*`, `YOUR_*` and non-URL URL vars, in every environment. Its own test caught the first version refusing to boot on the REAL `EMAIL_FROM` (which legitimately contains angle brackets); then run against all 41 live production variables — zero flagged. |
+| The web client's test suite runs in CI. | IMPLEMENTED | `apps/web/**` matched **no workflow's path filter**: its 56 tests had never run in CI, and every web change this session merged on a local run alone. Added a `web` job and the path. Not yet VERIFIED — that needs a PR touching `apps/web` to show the job running. |
+
+**What this session was actually about.** Almost nothing here was a missing
+feature. The API worked; the paths users walk did not — no reset page, no CORS
+header, no S3 credential, no deploy of the client the change was about. The
+lesson is recorded as `PRODUCT_BUILDING_STANDARD.md` §2a: name the entry point,
+every artifact the person touches, what they see on success and on each
+failure, and verify each EXISTS at review. Section 2 already demanded complete
+workflows and did not bind, which is why 2a is a checklist rather than a
+principle.
+
+**Two mistakes worth keeping.** A registration POST described as a read created
+an account on the founder's own address in production. A reset token copied
+from a screenshot into a test fixture was caught by the pre-commit secret
+scanner, not by me.
+
+---
+
 ## Session 2026-09-16 — ScrollWorld continuity and resilient playback
 
 | Feature | Status | Evidence |
