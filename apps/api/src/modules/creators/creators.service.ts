@@ -98,12 +98,27 @@ export class CreatorsService {
     return process.env.BETA_AUTO_APPROVE_CREATORS === 'true';
   }
 
+  // Approval grants the CREATOR role — but `role` is a single field, so writing
+  // it unconditionally DEMOTES anyone who already holds a higher one. On
+  // 2026-09-22 the founder promoted themselves to ADMIN, approved their own
+  // creator application, and that write took the admin console away from them:
+  // the action they needed admin rights to perform is what removed those rights.
+  //
+  // Promote a VIEWER. Leave anyone already privileged exactly as they are —
+  // their CreatorProfile is APPROVED either way, which is what gates going live.
+  private async grantCreatorRole(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (!user) return;
+    if (user.role !== UserRole.VIEWER) return; // never step on ADMIN/MODERATOR/SUPER_ADMIN/PAYOUT_REVIEWER
+    await this.prisma.user.update({ where: { id: userId }, data: { role: UserRole.CREATOR } });
+  }
+
   private async autoApprove(userId: string) {
     const approved = await this.prisma.creatorProfile.update({
       where: { userId },
       data: { approvalStatus: CreatorApprovalStatus.APPROVED, reviewedAt: new Date(), rejectionReason: null }
     });
-    await this.prisma.user.update({ where: { id: userId }, data: { role: UserRole.CREATOR } });
+    await this.grantCreatorRole(userId);
     await this.prisma.adminAuditLog.create({
       data: {
         // Not a person. Attributing this to the applicant, or to any admin,
@@ -159,7 +174,7 @@ export class CreatorsService {
       { approvalStatus: CreatorApprovalStatus.APPROVED, reviewedById: actorId, reviewedAt: new Date(), rejectionReason: null },
       expectedStatus
     );
-    await this.prisma.user.update({ where: { id: creatorUserId }, data: { role: UserRole.CREATOR } });
+    await this.grantCreatorRole(creatorUserId);
     await this.prisma.adminAuditLog.create({
       data: { actorId, action: 'CREATOR_APPROVED', target: `creator:${creatorUserId}`, metadata: { creatorProfileId: creator.id } }
     });
