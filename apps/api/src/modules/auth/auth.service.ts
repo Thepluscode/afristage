@@ -11,6 +11,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { resetPasswordEmail } from './reset-email.template';
+import { isSeededIdentifier } from '../../config/seeded-accounts';
 
 // Accept the adjacent 30s steps (±1) when verifying TOTP. Tolerates real-world
 // clock skew between the user's device and the server, and removes a window-
@@ -23,11 +24,8 @@ export interface SessionMeta {
   ip?: string;
   userAgent?: string;
 }
-const SEEDED_PRODUCTION_IDENTIFIERS = new Set([
-  'admin@afristage.local',
-  'viewer@afristage.local',
-  'creator@afristage.local'
-]);
+// Single source: config/seeded-accounts.ts. Duplicating the list here is how
+// the copy guarding production drifts from the copy everything else reads.
 
 @Injectable()
 export class AuthService {
@@ -145,7 +143,7 @@ export class AuthService {
     if (
       process.env.NODE_ENV === 'production' &&
       process.env.ALLOW_SEEDED_PROD_LOGIN !== 'true' &&
-      SEEDED_PRODUCTION_IDENTIFIERS.has(dto.identifier.toLowerCase())
+      isSeededIdentifier(dto.identifier)
     ) {
       throw new UnauthorizedException('Seeded test accounts are disabled in production');
     }
