@@ -13,58 +13,70 @@
 //   DATABASE_URL="$(railway variables --service Postgres --kv | sed -n 's/^DATABASE_PUBLIC_URL=//p')" \
 //     node scripts/audit-seeded-accounts.mjs
 //
-// Exit 0 = nothing privileged found. Exit 1 = something is there. Exit 2 = the
-// check could not run, which is NOT the same as "clean" and must not read as it.
+// Exit 0 = nothing privileged found. 1 = something is there. 2 = the check
+// could not run, which is NOT the same as "clean" and must not read as it.
+//
+// The code is returned from main() and applied after disconnect. Calling
+// process.exit() inside a try whose finally awaits $disconnect() races the
+// cleanup: on 2026-09-22 this printed "Nothing privileged and live" and exited
+// 1 — a verification contradicting itself, which is exactly the failure these
+// scripts exist to catch.
 import { PrismaClient } from '@prisma/client';
 
 const SEEDED = ['admin@afristage.local', 'viewer@afristage.local', 'creator@afristage.local'];
 const PRIVILEGED = ['MODERATOR', 'ADMIN', 'SUPER_ADMIN', 'PAYOUT_REVIEWER'];
 
-if (!process.env.DATABASE_URL) {
-  console.error('DATABASE_URL is not set — refusing to guess which database to audit.');
-  process.exit(2);
-}
+async function main() {
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL is not set — refusing to guess which database to audit.');
+    return 2;
+  }
 
-const prisma = new PrismaClient();
-try {
-  const rows = await prisma.user.findMany({
-    where: { email: { in: SEEDED, mode: 'insensitive' } },
-    select: { id: true, email: true, role: true, status: true, createdAt: true }
-  });
+  const prisma = new PrismaClient();
+  try {
+    const rows = await prisma.user.findMany({
+      where: { email: { in: SEEDED, mode: 'insensitive' } },
+      select: { id: true, email: true, role: true, status: true, createdAt: true }
+    });
 
-  const host = (() => {
-    try {
-      return new URL(process.env.DATABASE_URL).hostname;
-    } catch {
-      return 'unparseable';
+    const host = (() => {
+      try {
+        return new URL(process.env.DATABASE_URL).hostname;
+      } catch {
+        return 'unparseable';
+      }
+    })();
+    console.log(`database host: ${host}`);
+    console.log(`seeded accounts present: ${rows.length}`);
+    for (const r of rows) {
+      const isLive = PRIVILEGED.includes(r.role) && r.status !== 'DELETED';
+      console.log(
+        `  ${r.email}  ${r.role}  ${r.status}  created ${r.createdAt.toISOString().slice(0, 10)}${isLive ? '  <-- PRIVILEGED AND LIVE' : ''}`
+      );
     }
-  })();
-  console.log(`database host: ${host}`);
-  console.log(`seeded accounts present: ${rows.length}`);
-  for (const r of rows) {
-    const flag = PRIVILEGED.includes(r.role) && r.status !== 'DELETED' ? '  <-- PRIVILEGED AND LIVE' : '';
-    console.log(`  ${r.email}  ${r.role}  ${r.status}  created ${r.createdAt.toISOString().slice(0, 10)}${flag}`);
-  }
 
-  const live = rows.filter((r) => PRIVILEGED.includes(r.role) && r.status !== 'DELETED');
-  if (!live.length) {
-    console.log('\nNothing privileged and live. Nothing to do.');
-    process.exit(0);
-  }
+    const live = rows.filter((r) => PRIVILEGED.includes(r.role) && r.status !== 'DELETED');
+    if (!live.length) {
+      console.log('\nNothing privileged and live. Nothing to do.');
+      return 0;
+    }
 
-  console.log('\nThese hold privileges with a password published in prisma/seed.ts.');
-  console.log('Login refuses them while ALLOW_SEEDED_PROD_LOGIN is not "true" — that flag is the only thing');
-  console.log('standing between this row and a production SUPER_ADMIN session. Remove the row, do not trust the flag.\n');
-  console.log('To demote and neutralise (keeps the row, so any FKs survive):');
-  for (const r of live) {
-    console.log(`  UPDATE users SET role='VIEWER', status='SUSPENDED', password_hash=NULL WHERE id='${r.id}';`);
+    console.log('\nThese hold privileges with a password published in prisma/seed.ts.');
+    console.log('Login refuses them while ALLOW_SEEDED_PROD_LOGIN is not "true" — that flag is the only thing');
+    console.log('standing between this row and a production SUPER_ADMIN session. Remove the row, do not trust the flag.\n');
+    console.log('To demote and neutralise (keeps the row, so any FKs survive):');
+    for (const r of live) {
+      console.log(`  UPDATE users SET role='VIEWER', status='SUSPENDED', password_hash=NULL WHERE id='${r.id}';`);
+    }
+    console.log('\nRe-run this script afterwards — it should report nothing privileged and live.');
+    return 1;
+  } catch (error) {
+    console.error(`AUDIT COULD NOT RUN: ${error.message}`);
+    console.error('This is not a clean result. Fix the connection and run it again.');
+    return 2;
+  } finally {
+    await prisma.$disconnect();
   }
-  console.log('\nRe-run this script afterwards — it should report nothing privileged and live.');
-  process.exit(1);
-} catch (error) {
-  console.error(`AUDIT COULD NOT RUN: ${error.message}`);
-  console.error('This is not a clean result. Fix the connection and run it again.');
-  process.exit(2);
-} finally {
-  await prisma.$disconnect();
 }
+
+process.exit(await main());
