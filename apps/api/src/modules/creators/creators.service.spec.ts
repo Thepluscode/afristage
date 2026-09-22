@@ -11,7 +11,7 @@ function build(existing: any = null) {
       upsert: jest.fn().mockResolvedValue({ id: 'cp1' }),
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'cp1', ...data }))
     },
-    user: { update: jest.fn() },
+    user: { update: jest.fn(), findUnique: jest.fn().mockResolvedValue({ role: 'VIEWER' }) },
     adminAuditLog: { create: jest.fn().mockResolvedValue({}) },
     liveRoom: { findMany: jest.fn().mockResolvedValue([]) },
     giftTransaction: { groupBy: jest.fn().mockResolvedValue([]) }
@@ -376,5 +376,41 @@ describe('CreatorsService remaining branches', () => {
     expect(res).toMatchObject({ isFollowing: false });
     expect((res as any).upcomingRoom.reminded).toBeUndefined();
     expect(prisma.roomReminder.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe('approval must not demote an existing privileged user', () => {
+  // On 2026-09-22 the founder promoted themselves to ADMIN, approved their own
+  // creator application, and the unconditional `role: CREATOR` write removed
+  // their admin access — the action they needed admin rights for is what took
+  // those rights away. `role` is one field; approval must only ever PROMOTE.
+  const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR', 'PAYOUT_REVIEWER'];
+
+  it.each(privileged)('leaves a %s exactly as they were', async (role) => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue({ role });
+    await service.approveCreator('admin1', 'u1');
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('still promotes a VIEWER, which is the point of approval', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue({ role: 'VIEWER' });
+    await service.approveCreator('admin1', 'u1');
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: { role: 'CREATOR' } }));
+  });
+
+  it('is idempotent for someone already CREATOR', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue({ role: 'CREATOR' });
+    await service.approveCreator('admin1', 'u1');
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('approves the PROFILE regardless — that is what gates going live', async () => {
+    const { service, prisma } = build();
+    prisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+    await service.approveCreator('admin1', 'u1');
+    expect(prisma.creatorProfile.update).toHaveBeenCalled();
   });
 });
