@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { GET } from '../app/api/health/route';
+import { GET, dynamic } from '../app/api/health/route';
 
 const saved = { git: process.env.GIT_SHA, railway: process.env.RAILWAY_GIT_COMMIT_SHA };
 afterEach(() => {
@@ -11,6 +11,14 @@ afterEach(() => {
 // 200 proves only that SOMETHING is serving — which is how a stale web client
 // sat behind a green pipeline while the API moved on.
 describe('web /api/health', () => {
+  // Without force-dynamic Next prerenders this route, reads GIT_SHA at BUILD
+  // time while it is unset, and bakes commit:"unknown" into a static file that
+  // no runtime variable can change. That is not hypothetical: it failed the
+  // first deploy that relied on the stamp.
+  it('is dynamic, so the commit is read at request time and not baked in', () => {
+    expect(dynamic).toBe('force-dynamic');
+  });
+
   it('reports the stamped commit', async () => {
     process.env.GIT_SHA = 'abc1234';
     expect(await (await GET()).json()).toMatchObject({ status: 'ok', service: 'web', commit: 'abc1234' });
