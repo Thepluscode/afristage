@@ -166,3 +166,48 @@ describe('validateEnv — season additions', () => {
   });
 });
 
+
+describe('placeholder config detection (the <account-id> that shipped)', () => {
+  const { placeholderConfigKeys, malformedUrlConfigKeys } = require('./validate-env');
+
+  it('catches the exact values that reached production on 2026-09-21', () => {
+    expect(
+      placeholderConfigKeys({
+        S3_ENDPOINT: 'https://<account-id>.r2.cloudflarestorage.com',
+        S3_ACCESS_KEY_ID: '<key id>',
+        CDN_BASE_URL: 'PASTE_THE_PUB_URL'
+      })
+    ).toEqual(['CDN_BASE_URL', 'S3_ACCESS_KEY_ID', 'S3_ENDPOINT']);
+  });
+
+  it('accepts the real values that replaced them', () => {
+    expect(
+      placeholderConfigKeys({
+        S3_ENDPOINT: 'https://e65a385395379226508ad0f48bbccf19.r2.cloudflarestorage.com',
+        S3_ACCESS_KEY_ID: '0'.repeat(32),
+        CDN_BASE_URL: 'https://pub-abc123.r2.dev',
+        S3_BUCKET: 'afristage-media'
+      })
+    ).toEqual([]);
+  });
+
+  it('ignores variables outside our own config prefixes', () => {
+    // Railway and CI inject plenty of their own; tripping on those would make
+    // the guard something people disable.
+    expect(placeholderConfigKeys({ RAILWAY_SOMETHING: '<whatever>', GITHUB_REF: '<ref>' })).toEqual([]);
+  });
+
+  it('does not fire on legitimate values containing angle brackets in a name', () => {
+    expect(placeholderConfigKeys({ EMAIL_FROM: 'AfriStage <no-reply@theplusfollowup.com>' })).toEqual([]);
+  });
+
+  it('flags a URL-valued var that is not a URL', () => {
+    expect(malformedUrlConfigKeys({ CDN_BASE_URL: 'pub-abc123.r2.dev' })).toEqual(['CDN_BASE_URL']);
+    expect(malformedUrlConfigKeys({ S3_ENDPOINT: 'ftp://x.test' })).toEqual(['S3_ENDPOINT']);
+  });
+
+  it('is silent about absent ones — that is a different complaint', () => {
+    expect(malformedUrlConfigKeys({})).toEqual([]);
+    expect(malformedUrlConfigKeys({ CDN_BASE_URL: 'https://pub-abc123.r2.dev' })).toEqual([]);
+  });
+});

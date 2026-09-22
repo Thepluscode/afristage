@@ -181,3 +181,32 @@ describe('BetaService invite email delivery (best-effort)', () => {
     expect(email.send).not.toHaveBeenCalled();
   }, 20_000);
 });
+
+describe('BetaService.create — delivery is reported, not assumed', () => {
+  const invite = { id: 'i1', email: 'invitee@a.c', codeHash: 'h', type: 'VIEWER', status: 'PENDING', expiresAt: new Date() };
+
+  it('says emailed:false when the provider rejects, so the admin hands the code over', async () => {
+    const { service, prisma, email } = build();
+    prisma.betaInvite.create.mockResolvedValue(invite);
+    email.send.mockResolvedValue(false);
+    const res: any = await service.create('admin1', { email: 'invitee@a.c', type: 'VIEWER' } as any);
+    expect(res.emailed).toBe(false);
+    expect(res.code).toMatch(/^[0-9a-f]{32}$/); // the code still comes back — that is the fallback
+  }, 20_000);
+
+  it('says emailed:true when it went', async () => {
+    const { service, prisma, email } = build();
+    prisma.betaInvite.create.mockResolvedValue(invite);
+    email.send.mockResolvedValue(true);
+    const res: any = await service.create('admin1', { email: 'invitee@a.c', type: 'VIEWER' } as any);
+    expect(res.emailed).toBe(true);
+  }, 20_000);
+
+  it('says emailed:false when no address was given at all', async () => {
+    const { service, prisma, email } = build();
+    prisma.betaInvite.create.mockResolvedValue({ ...invite, email: null });
+    const res: any = await service.create('admin1', { phone: '+2348000', type: 'VIEWER' } as any);
+    expect(res.emailed).toBe(false);
+    expect(email.send).not.toHaveBeenCalled();
+  }, 20_000);
+});

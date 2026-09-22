@@ -119,8 +119,15 @@ jobs:
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       API_HEALTH_URL: https://api-production-e12f.up.railway.app/api/health
+      WEB_BASE_URL: https://web-production-4ee7e.up.railway.app
+      FLUTTER_WEB_URL: https://flutter-web-production-b292.up.railway.app
     steps:
+      # depth 2, not the default 1: the flutter-web gate diffs HEAD against its
+      # first parent, and with a shallow clone that parent does not exist —
+      # `git diff` would error and take a working deploy down with it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       # Fail with a sentence someone can act on, rather than letting the CLI emit
       # "Unauthorized" and exit 0 — which is exactly how a deploy silently does
@@ -142,14 +149,74 @@ jobs:
       - name: Stamp the commit onto the API service
         run: railway variable set "GIT_SHA=$GITHUB_SHA" --service api --skip-deploys
 
+      # Same stamp on the web client, so its deploy is verifiable too rather than
+      # "something answered 200". Runtime variable, not a build arg: the health
+      # route reads process.env at request time, exactly as the API does.
+      - name: Stamp the commit onto the web service
+        run: railway variable set "GIT_SHA=$GITHUB_SHA" --service web --skip-deploys
+
       - name: Deploy api
         run: railway up --service api --ci
 
       - name: Deploy admin-web
         run: railway up --service admin-web --ci
 
+      # The public web client. Left out until 2026-09-22, and it bit exactly as
+      # you would expect: #254 shipped a password-reset EMAIL whose link pointed
+      # at /reset-password on this service, the API deployed, the page did not,
+      # and the link 404'd. The deploy job reported success throughout, because
+      # it had never been asked to deploy the service the change was about.
+      - name: Deploy web
+        run: railway up --service web --ci
+
+      # flutter-web is the expensive one — a full Flutter toolchain build, minutes
+      # per run — and the vast majority of merges do not touch it. Deploy it only
+      # when apps/mobile actually changed, and say so either way rather than
+      # skipping silently.
+      - name: Deploy flutter-web (only when the mobile app changed)
+        run: |
+          set -euo pipefail
+          # HEAD^ is the previous main tip (first parent of the merge commit).
+          # If it is missing for any reason, deploy rather than skip: a needless
+          # build costs minutes, a skipped one ships a client that isn't there.
+          if ! git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            echo "no parent commit available -> deploying flutter-web to be safe"
+            railway up --service flutter-web --ci
+          elif git diff --name-only HEAD^ HEAD -- apps/mobile | grep -q .; then
+            echo "apps/mobile changed -> deploying flutter-web"
+            railway up --service flutter-web --ci
+          else
+            echo "apps/mobile unchanged -> skipping flutter-web (previous build stays live)"
+          fi
+
       # The step that makes this a deploy rather than an upload. The logic lives
       # in the script so scripts/deploy-verify-selftest.sh can prove it rejects a
       # stale deployment — a check never observed failing is decoration.
       - name: Verify the deployed commit is this commit
         run: bash scripts/verify-deployed-commit.sh "$API_HEALTH_URL" "$GITHUB_SHA" 60 10
+
+      # Same check, same script, same strength as the API's: the web client now
+      # reports its commit too, so this proves THIS commit is live rather than
+      # "something answered 200" — the weaker check that let a stale client sit
+      # behind a green pipeline.
+      - name: Verify the deployed web client is this commit
+        run: bash scripts/verify-deployed-commit.sh "$WEB_BASE_URL/api/health" "$GITHUB_SHA" 60 10
+
+      # flutter-web has no commit stamp (a static nginx image), so this is
+      # deliberately the weaker check: it proves the container boots and serves.
+      # Skipped when the service was not deployed, because re-probing an
+      # untouched service proves nothing about this run.
+      - name: Verify flutter-web is serving (only when it was deployed)
+        run: |
+          set -euo pipefail
+          if ! git rev-parse --verify HEAD^ >/dev/null 2>&1 || git diff --name-only HEAD^ HEAD -- apps/mobile | grep -q .; then
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$FLUTTER_WEB_URL/api/health" || true)
+              [ "$code" = "200" ] && echo "flutter-web serving" && exit 0
+              echo "attempt $i: /api/health -> $code"
+              sleep 10
+            done
+            echo "::error::flutter-web never returned 200 after its deploy."
+            exit 1
+          fi
+          echo "flutter-web not deployed this run -> nothing to verify"
