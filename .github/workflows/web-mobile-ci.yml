@@ -6,6 +6,10 @@ on:
   pull_request:
     paths:
       - "apps/admin-web/**"
+      # apps/web matched NO workflow's filter until 2026-09-22. Its suite had
+      # never run in CI — every web change merged on a local run alone, and the
+      # public client is the one users actually touch.
+      - "apps/web/**"
       - "apps/mobile/**"
       - ".github/workflows/web-mobile-ci.yml"
   workflow_dispatch:
@@ -23,6 +27,19 @@ jobs:
         run: npm run test -w apps/admin-web
       - name: Build admin web (Next.js production build = typecheck + compile)
         run: npm run build -w apps/admin-web
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Test web client (vitest)
+        run: npm run test -w apps/web
+      - name: Build web client (Next.js production build = typecheck + compile)
+        run: npm run build -w apps/web
 
   mobile:
     runs-on: ubuntu-latest

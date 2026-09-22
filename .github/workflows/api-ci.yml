@@ -155,6 +155,13 @@ jobs:
       - name: Stamp the commit onto the web service
         run: railway variable set "GIT_SHA=$GITHUB_SHA" --service web --skip-deploys
 
+      # flutter-web is a static nginx image with no server to read env per
+      # request — but its entrypoint runs envsubst over the config template at
+      # container start, so this runtime variable reaches the health response
+      # without depending on build args being propagated.
+      - name: Stamp the commit onto the flutter-web service
+        run: railway variable set "GIT_SHA=$GITHUB_SHA" --service flutter-web --skip-deploys
+
       - name: Deploy api
         run: railway up --service api --ci
 
@@ -202,21 +209,14 @@ jobs:
       - name: Verify the deployed web client is this commit
         run: bash scripts/verify-deployed-commit.sh "$WEB_BASE_URL/api/health" "$GITHUB_SHA" 60 10
 
-      # flutter-web has no commit stamp (a static nginx image), so this is
-      # deliberately the weaker check: it proves the container boots and serves.
+      # Same standard as the other two now that the image carries its commit.
       # Skipped when the service was not deployed, because re-probing an
       # untouched service proves nothing about this run.
-      - name: Verify flutter-web is serving (only when it was deployed)
+      - name: Verify the deployed flutter-web is this commit (only when it was deployed)
         run: |
           set -euo pipefail
           if ! git rev-parse --verify HEAD^ >/dev/null 2>&1 || git diff --name-only HEAD^ HEAD -- apps/mobile | grep -q .; then
-            for i in $(seq 1 30); do
-              code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$FLUTTER_WEB_URL/api/health" || true)
-              [ "$code" = "200" ] && echo "flutter-web serving" && exit 0
-              echo "attempt $i: /api/health -> $code"
-              sleep 10
-            done
-            echo "::error::flutter-web never returned 200 after its deploy."
-            exit 1
-          fi
-          echo "flutter-web not deployed this run -> nothing to verify"
+            bash scripts/verify-deployed-commit.sh "$FLUTTER_WEB_URL/api/health" "$GITHUB_SHA" 60 10
+          else
+            echo "flutter-web not deployed this run -> nothing to verify"
+          fi"
