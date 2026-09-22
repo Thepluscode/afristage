@@ -54,7 +54,8 @@
     "project-state": "python3 scripts/project_state.py",
     "check:continuity": "python3 scripts/check_continuity.py",
     "validate:workflows": "node scripts/validate-workflows.mjs",
-    "audit:seeded-accounts": "node scripts/audit-seeded-accounts.mjs"
+    "audit:seeded-accounts": "node scripts/audit-seeded-accounts.mjs",
+    "audit:mock-payments": "node scripts/audit-mock-payments.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1",
