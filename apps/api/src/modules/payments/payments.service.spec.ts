@@ -308,6 +308,38 @@ describe('PaymentsService.completeMock (guards)', () => {
     }
   });
 
+  // The test above sets NODE_ENV='production' — a condition PRODUCTION DID NOT
+  // HAVE. NODE_ENV was unset there, so the guard was off and mock completion
+  // minted free coins, while this suite stayed green. A guard test must assert
+  // the environment as it is, not as the test arranges it.
+  it('is forbidden when NODE_ENV is UNSET — the state production was actually in', async () => {
+    const { service } = build({ intent: mockIntent() });
+    const prevEnv = process.env.NODE_ENV;
+    const prevFlag = process.env.ENABLE_MOCK_PAYMENTS;
+    delete process.env.NODE_ENV;
+    delete process.env.ENABLE_MOCK_PAYMENTS;
+    try {
+      await expect(service.completeMock('u1', 'pi1')).rejects.toBeInstanceOf(ForbiddenException);
+    } finally {
+      if (prevEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevEnv;
+      if (prevFlag === undefined) delete process.env.ENABLE_MOCK_PAYMENTS;
+      else process.env.ENABLE_MOCK_PAYMENTS = prevFlag;
+    }
+  });
+
+  it('still allows mock completion when the environment says development', async () => {
+    const { service } = build({ intent: mockIntent() });
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      await expect(service.completeMock('u1', 'pi1')).resolves.toBeDefined();
+    } finally {
+      if (prevEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevEnv;
+    }
+  });
+
   it('throws NotFound for a missing intent', async () => {
     const { service } = build({ intent: undefined });
     await expect(service.completeMock('u1', 'gone')).rejects.toBeInstanceOf(NotFoundException);

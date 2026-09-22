@@ -9,6 +9,7 @@ import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PaymentProvider } from './providers/payment-provider';
 import { PaystackProvider } from './providers/paystack.provider';
 import { StripeProvider } from './providers/stripe.provider';
+import { isProductionLike } from '../../config/environment';
 
 // Currency → processor. African local corridors settle through Paystack; every
 // other currency (USD today, more later) routes to Stripe. Adding a market is a
@@ -168,7 +169,10 @@ export class PaymentsService {
   async completeMock(userId: string, intentId: string) {
     // Free-coin exploit guard: mock completion is impossible in production unless
     // explicitly enabled (e.g. a staging environment that still wants it).
-    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_MOCK_PAYMENTS !== 'true') {
+    // isProductionLike, not NODE_ENV === 'production': NODE_ENV was unset on the
+    // production API, so this guard was OFF and mock completion — free coins —
+    // was reachable by any authenticated user.
+    if (isProductionLike() && process.env.ENABLE_MOCK_PAYMENTS !== 'true') {
       throw new ForbiddenException('Mock payments are disabled');
     }
     const intent = await this.prisma.paymentIntent.findUnique({ where: { id: intentId } });

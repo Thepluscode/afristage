@@ -73,6 +73,17 @@ export function malformedUrlConfigKeys(env: NodeJS.ProcessEnv = process.env): st
 }
 
 export function validateEnv(): void {
+  // NODE_ENV was unset on the production API for months, and nothing said so.
+  // The security gates now fail CLOSED when it is absent (config/environment.ts),
+  // but silence is what let it run that long — so say it on every boot.
+  if (!process.env.NODE_ENV) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[env] NODE_ENV is not set. Security gates (mock payments, seeded-account login, CORS dev origins) ' +
+        'treat this as PRODUCTION. Set NODE_ENV=development locally, or NODE_ENV=production to be explicit.'
+    );
+  }
+
   // Say it out loud on every boot. A weakened review gate that nobody remembers
   // enabling is how a beta shortcut becomes the permanent default.
   if (process.env.BETA_AUTO_APPROVE_CREATORS === 'true') {
