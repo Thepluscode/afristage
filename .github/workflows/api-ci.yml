@@ -119,8 +119,14 @@ jobs:
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       API_HEALTH_URL: https://api-production-e12f.up.railway.app/api/health
+      WEB_BASE_URL: https://web-production-4ee7e.up.railway.app
     steps:
+      # depth 2, not the default 1: the flutter-web gate diffs HEAD against its
+      # first parent, and with a shallow clone that parent does not exist —
+      # `git diff` would error and take a working deploy down with it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       # Fail with a sentence someone can act on, rather than letting the CLI emit
       # "Unauthorized" and exit 0 — which is exactly how a deploy silently does
@@ -148,8 +154,52 @@ jobs:
       - name: Deploy admin-web
         run: railway up --service admin-web --ci
 
+      # The public web client. Left out until 2026-09-22, and it bit exactly as
+      # you would expect: #254 shipped a password-reset EMAIL whose link pointed
+      # at /reset-password on this service, the API deployed, the page did not,
+      # and the link 404'd. The deploy job reported success throughout, because
+      # it had never been asked to deploy the service the change was about.
+      - name: Deploy web
+        run: railway up --service web --ci
+
+      # flutter-web is the expensive one — a full Flutter toolchain build, minutes
+      # per run — and the vast majority of merges do not touch it. Deploy it only
+      # when apps/mobile actually changed, and say so either way rather than
+      # skipping silently.
+      - name: Deploy flutter-web (only when the mobile app changed)
+        run: |
+          set -euo pipefail
+          # HEAD^ is the previous main tip (first parent of the merge commit).
+          # If it is missing for any reason, deploy rather than skip: a needless
+          # build costs minutes, a skipped one ships a client that isn't there.
+          if ! git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            echo "no parent commit available -> deploying flutter-web to be safe"
+            railway up --service flutter-web --ci
+          elif git diff --name-only HEAD^ HEAD -- apps/mobile | grep -q .; then
+            echo "apps/mobile changed -> deploying flutter-web"
+            railway up --service flutter-web --ci
+          else
+            echo "apps/mobile unchanged -> skipping flutter-web (previous build stays live)"
+          fi
+
       # The step that makes this a deploy rather than an upload. The logic lives
       # in the script so scripts/deploy-verify-selftest.sh can prove it rejects a
       # stale deployment — a check never observed failing is decoration.
       - name: Verify the deployed commit is this commit
         run: bash scripts/verify-deployed-commit.sh "$API_HEALTH_URL" "$GITHUB_SHA" 60 10
+
+      # The web client carries no commit stamp, so this is weaker than the check
+      # above by design: it proves the service SERVES, not that it serves THIS
+      # commit. Worth having anyway — a container that fails to boot answers
+      # nothing, which is the failure that shipped a 404'd reset link.
+      - name: Verify the web client is serving
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$WEB_BASE_URL/login" || true)
+            [ "$code" = "200" ] && echo "web serving (200 at /login)" && exit 0
+            echo "attempt $i: /login -> $code"
+            sleep 10
+          done
+          echo "::error::web client never returned 200 at $WEB_BASE_URL/login after the deploy."
+          exit 1
