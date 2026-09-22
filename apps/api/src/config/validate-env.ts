@@ -33,6 +33,45 @@ const UNSAFE_VALUES: Record<string, string[]> = {
   LIVEKIT_API_SECRET: ['secret']
 };
 
+// A copy-pasted setup command leaves values like "<account-id>" or
+// "PASTE_KEY_ID" behind, and every truthiness check in the codebase accepts
+// them: on 2026-09-21 S3_ENDPOINT held the literal "<account-id>" while
+// isConfigured() reported uploads as ready, so presign returned a signed URL
+// pointing at a hostname that does not resolve. The failure moved from the API,
+// where it was legible, to the browser, where it was not.
+//
+// Prefix-scoped so Railway's own injected variables cannot trip it.
+const CONFIG_PREFIXES = ['S3_', 'CDN_', 'EMAIL_', 'RESEND_', 'STRIPE_', 'PAYSTACK_', 'LIVEKIT_', 'CORS_', 'WEB_', 'DATABASE_', 'REDIS_', 'JWT_'];
+// `<...>` only counts when the brackets do NOT wrap an email address:
+// EMAIL_FROM legitimately reads `AfriStage <no-reply@example.com>`, and a guard
+// that refuses to boot on correct production config gets deleted, not fixed.
+// (Caught by its own test before shipping — the first version did exactly that.)
+const TEMPLATE_PLACEHOLDER = /<[^>@]+>|\bPASTE[_A-Z]*\b|\bYOUR_[A-Z_]+\b/;
+
+// Values that must parse as an http(s) URL if present at all. A bare hostname
+// or a stray quote here produces a signed URL nobody can reach.
+const URL_VALUED = ['S3_ENDPOINT', 'CDN_BASE_URL', 'S3_PUBLIC_URL', 'WEB_BASE_URL'];
+
+export function placeholderConfigKeys(env: NodeJS.ProcessEnv = process.env): string[] {
+  return Object.entries(env)
+    .filter(([key, value]) => CONFIG_PREFIXES.some((p) => key.startsWith(p)) && TEMPLATE_PLACEHOLDER.test(value ?? ''))
+    .map(([key]) => key)
+    .sort();
+}
+
+export function malformedUrlConfigKeys(env: NodeJS.ProcessEnv = process.env): string[] {
+  return URL_VALUED.filter((key) => {
+    const value = env[key];
+    if (!value) return false; // absent is a different problem, reported elsewhere
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol !== 'http:' && parsed.protocol !== 'https:';
+    } catch {
+      return true;
+    }
+  }).sort();
+}
+
 export function validateEnv(): void {
   // Say it out loud on every boot. A weakened review gate that nobody remembers
   // enabling is how a beta shortcut becomes the permanent default.
@@ -41,6 +80,20 @@ export function validateEnv(): void {
     console.warn(
       '[env] BETA_AUTO_APPROVE_CREATORS=true — creator applications are approved WITHOUT human review. Beta only.'
     );
+  }
+
+  // Runs in EVERY environment, not just production: a placeholder in dev wastes
+  // the same afternoon, and the value never names itself in the error it causes.
+  // Key names only in the message — the values can be secrets.
+  const placeholders = placeholderConfigKeys();
+  if (placeholders.length) {
+    throw new Error(
+      `Refusing to start: these config vars still hold template placeholders, not real values: ${placeholders.join(', ')}`
+    );
+  }
+  const malformed = malformedUrlConfigKeys();
+  if (malformed.length) {
+    throw new Error(`Refusing to start: these config vars must be http(s) URLs: ${malformed.join(', ')}`);
   }
 
   if (process.env.NODE_ENV !== 'production') return;

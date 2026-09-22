@@ -11,7 +11,12 @@ const SEND_TIMEOUT_MS = 10_000;
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly apiKey = process.env.RESEND_API_KEY || '';
-  private readonly from = process.env.EMAIL_FROM || 'AfriStage <no-reply@afristage.live>';
+  // The default named afristage.live, which has NO DNS delegation at all — no
+  // NS, no A record, nothing. Resend cannot verify a domain that does not
+  // resolve, so the default guaranteed a 403 on every send, and did so for
+  // months. It now names the domain that is actually verified in Resend.
+  // Change this the day afristage.live exists and is verified.
+  private readonly from = process.env.EMAIL_FROM || 'AfriStage <no-reply@theplusfollowup.com>';
 
   isConfigured(): boolean {
     return !!this.apiKey && this.apiKey !== 'replace_me';

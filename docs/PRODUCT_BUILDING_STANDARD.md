@@ -65,6 +65,36 @@ User intent
 → User feedback
 → Recovery from failure
 
+### 2a. Name the path a real person walks — and check every step exists
+
+Section 2 was already the rule on 2026-09-21, and it did not bind. Password
+reset shipped with a working API, a sent email, passing tests, and **no page to
+land on**: the mail carried a bare 64-character code, no link, and no client
+called the reset endpoints at all. The gap had even been noticed and written
+down as a footnote. The founder found it by opening their inbox.
+
+A rule that can be satisfied on paper by an endpoint that works is not a rule.
+So before implementation, a user-facing change states this table, and at review
+every row is checked to EXIST, not merely to be planned:
+
+| | |
+|---|---|
+| **Entry point** | Where the person starts. A route nobody links to is not an entry point. |
+| **Each screen or artifact they touch** | Including anything sent to them — email, SMS, push, receipt, export. |
+| **What they see on success** | The literal words, not "a confirmation". |
+| **What they see on each failure** | Including the failure that is silent today. |
+| **Where they end up** | Signed in, back at the start, holding a file — say which. |
+
+Two rules follow from it:
+
+- **A missing step is a blocker, not a note.** If any row does not exist yet,
+  say so before writing code and either build it or agree it is out of scope.
+  Appending it to a status list is how the reset email shipped.
+- **An artifact nobody has looked at is not done.** Tests assert structure;
+  they cannot tell you an email looks like phishing or a page is unreadable on
+  a phone. Where the output cannot be seen from the terminal, say so plainly
+  and ask someone to look before calling it complete.
+
 ## 3. Build verified vertical slices
 
 Prefer one end-to-end workflow that genuinely works over ten partially connected modules.

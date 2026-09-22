@@ -65,14 +65,18 @@ export class BetaService {
     });
     // Best-effort delivery (optional provider): the admin still sees the code
     // in the response either way, so hand delivery keeps working when dark.
+    // `emailed` travels back so the admin knows whether to hand the code over
+    // themselves. Without it a rejected send was indistinguishable from a
+    // delivered one, and the operator learned nothing until the invitee asked.
+    let emailed = false;
     if (dto.email) {
-      await this.email.send(
+      emailed = await this.email.send(
         dto.email,
         'Your AfriStage beta invite',
         `You're in. Sign up and enter this invite code within ${ttlDays} days:\n\n${code}\n\nAfriStage — Africa, centre stage.`
       );
     }
-    return { invite: this.redact(invite), code }; // code shown once
+    return { invite: this.redact(invite), code, emailed }; // code shown once
   }
 
   list() {

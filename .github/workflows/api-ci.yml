@@ -120,6 +120,7 @@ jobs:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       API_HEALTH_URL: https://api-production-e12f.up.railway.app/api/health
       WEB_BASE_URL: https://web-production-4ee7e.up.railway.app
+      FLUTTER_WEB_URL: https://flutter-web-production-b292.up.railway.app
     steps:
       # depth 2, not the default 1: the flutter-web gate diffs HEAD against its
       # first parent, and with a shallow clone that parent does not exist —
@@ -147,6 +148,12 @@ jobs:
       # would race the `railway up` below and could leave the older image live.
       - name: Stamp the commit onto the API service
         run: railway variable set "GIT_SHA=$GITHUB_SHA" --service api --skip-deploys
+
+      # Same stamp on the web client, so its deploy is verifiable too rather than
+      # "something answered 200". Runtime variable, not a build arg: the health
+      # route reads process.env at request time, exactly as the API does.
+      - name: Stamp the commit onto the web service
+        run: railway variable set "GIT_SHA=$GITHUB_SHA" --service web --skip-deploys
 
       - name: Deploy api
         run: railway up --service api --ci
@@ -188,18 +195,28 @@ jobs:
       - name: Verify the deployed commit is this commit
         run: bash scripts/verify-deployed-commit.sh "$API_HEALTH_URL" "$GITHUB_SHA" 60 10
 
-      # The web client carries no commit stamp, so this is weaker than the check
-      # above by design: it proves the service SERVES, not that it serves THIS
-      # commit. Worth having anyway — a container that fails to boot answers
-      # nothing, which is the failure that shipped a 404'd reset link.
-      - name: Verify the web client is serving
+      # Same check, same script, same strength as the API's: the web client now
+      # reports its commit too, so this proves THIS commit is live rather than
+      # "something answered 200" — the weaker check that let a stale client sit
+      # behind a green pipeline.
+      - name: Verify the deployed web client is this commit
+        run: bash scripts/verify-deployed-commit.sh "$WEB_BASE_URL/api/health" "$GITHUB_SHA" 60 10
+
+      # flutter-web has no commit stamp (a static nginx image), so this is
+      # deliberately the weaker check: it proves the container boots and serves.
+      # Skipped when the service was not deployed, because re-probing an
+      # untouched service proves nothing about this run.
+      - name: Verify flutter-web is serving (only when it was deployed)
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$WEB_BASE_URL/login" || true)
-            [ "$code" = "200" ] && echo "web serving (200 at /login)" && exit 0
-            echo "attempt $i: /login -> $code"
-            sleep 10
-          done
-          echo "::error::web client never returned 200 at $WEB_BASE_URL/login after the deploy."
-          exit 1
+          if ! git rev-parse --verify HEAD^ >/dev/null 2>&1 || git diff --name-only HEAD^ HEAD -- apps/mobile | grep -q .; then
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$FLUTTER_WEB_URL/api/health" || true)
+              [ "$code" = "200" ] && echo "flutter-web serving" && exit 0
+              echo "attempt $i: /api/health -> $code"
+              sleep 10
+            done
+            echo "::error::flutter-web never returned 200 after its deploy."
+            exit 1
+          fi
+          echo "flutter-web not deployed this run -> nothing to verify"
