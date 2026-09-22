@@ -1,3 +1,4 @@
+import { isProductionLike } from './environment';
 // Who is allowed to call this API from a browser.
 //
 // `origin: true` reflects whatever Origin the caller sent, and combined with
@@ -36,7 +37,9 @@ export function corsOrigin(env: NodeJS.ProcessEnv = process.env): OriginCheck {
     ...new Set([
       ...configured,
       ...DEPLOYED_FIRST_PARTY_ORIGINS,
-      ...(configured.length || env.NODE_ENV === 'production' ? [] : DEV_ORIGINS),
+      // Dev origins only when the environment SAYS it is dev or test. Unset used
+      // to fall through to here, so production accepted localhost.
+      ...(configured.length || isProductionLike(env) ? [] : DEV_ORIGINS),
     ]),
   ];
 

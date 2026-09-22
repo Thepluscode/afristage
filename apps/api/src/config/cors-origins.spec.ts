@@ -59,3 +59,20 @@ describe('corsOrigin', () => {
     expect(allow({ NODE_ENV: 'development' }, 'https://evil.example')).toBe(false);
   });
 });
+
+describe('cors with NODE_ENV unset (the production reality on 2026-09-22)', () => {
+  it('does NOT fall back to localhost origins when NODE_ENV is absent', () => {
+    // Unset used to take the dev branch, so production accepted http://localhost:3000.
+    const check = corsOrigin({});
+    let allowed: boolean | undefined;
+    check('http://localhost:3000', (_e, ok) => { allowed = ok; });
+    expect(allowed).toBe(false);
+  });
+
+  it('still allows localhost when the environment says development', () => {
+    const check = corsOrigin({ NODE_ENV: 'development' });
+    let allowed: boolean | undefined;
+    check('http://localhost:3000', (_e, ok) => { allowed = ok; });
+    expect(allowed).toBe(true);
+  });
+});

@@ -12,6 +12,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { resetPasswordEmail } from './reset-email.template';
 import { isSeededIdentifier } from '../../config/seeded-accounts';
+import { isProductionLike } from '../../config/environment';
 
 // Accept the adjacent 30s steps (±1) when verifying TOTP. Tolerates real-world
 // clock skew between the user's device and the server, and removes a window-
@@ -141,7 +142,7 @@ export class AuthService {
 
   async login(dto: LoginDto, meta: SessionMeta = {}) {
     if (
-      process.env.NODE_ENV === 'production' &&
+      isProductionLike() &&
       process.env.ALLOW_SEEDED_PROD_LOGIN !== 'true' &&
       isSeededIdentifier(dto.identifier)
     ) {

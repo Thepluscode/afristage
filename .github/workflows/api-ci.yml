@@ -73,7 +73,12 @@ jobs:
 
       - name: E2E — functional suites (rate limiting off)
         run: |
-          THROTTLE_DISABLED=true node apps/api/dist/src/main.js & echo $! > /tmp/api.pid
+          # NODE_ENV=test is load-bearing since security gates fail closed on an
+          # UNSET value: these suites sign in as the seeded accounts, which are
+          # refused anywhere that is not explicitly development or test. CI used
+          # to pass only because unset read as "not production" — the same
+          # permissiveness that left mock payments open in production.
+          NODE_ENV=test THROTTLE_DISABLED=true node apps/api/dist/src/main.js & echo $! > /tmp/api.pid
           for i in $(seq 1 30); do curl -fsS "$API_BASE/health" >/dev/null 2>&1 && break; sleep 2; done
           set -e
           npm run validate:money
@@ -96,7 +101,7 @@ jobs:
 
       - name: E2E — hardening suite (rate limiting on)
         run: |
-          node apps/api/dist/src/main.js & echo $! > /tmp/api.pid
+          NODE_ENV=test node apps/api/dist/src/main.js & echo $! > /tmp/api.pid
           for i in $(seq 1 30); do curl -fsS "$API_BASE/health" >/dev/null 2>&1 && break; sleep 2; done
           set -e
           npm run validate:hardening
