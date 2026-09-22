@@ -95,3 +95,36 @@ describe('LoginPage', () => {
     expect(password.value).toBe('secret');
   });
 });
+
+describe('MFA on the admin login form', () => {
+  // The founder enrolled MFA and was locked out of the console: the API throws
+  // "MFA token required" when mfaEnabled, and this form had no field for it.
+  // Doing the recommended security thing removed their own access.
+  it('sends mfaToken when a code is entered', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, role: 'ADMIN' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<LoginPage />);
+    fireEvent.change(screen.getByLabelText(/email or phone/i), { target: { value: 'a@b.c' } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'pw' } });
+    fireEvent.change(screen.getByLabelText(/authentication code/i), { target: { value: ' 123456 ' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ identifier: 'a@b.c', password: 'pw', mfaToken: '123456' });
+  });
+
+  it('omits mfaToken entirely when left blank — an empty string reads as a WRONG code', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, role: 'ADMIN' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<LoginPage />);
+    fireEvent.change(screen.getByLabelText(/email or phone/i), { target: { value: 'a@b.c' } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ identifier: 'a@b.c', password: 'pw' });
+  });
+
+  it('shows the field without being asked, so it never confirms a correct password', () => {
+    render(<LoginPage />);
+    expect(screen.getByLabelText(/authentication code/i)).toBeInTheDocument();
+  });
+});

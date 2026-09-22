@@ -29,7 +29,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (res.status === 401) return NextResponse.json({ message: 'Login failed' }, { status: 401 });
+  // Mentions the code without saying whether THIS account needs one: naming
+  // "MFA required" would confirm the password was correct. Still deliberately
+  // vague about which of the three was wrong.
+  if (res.status === 401) {
+    return NextResponse.json(
+      { message: 'Login failed. Check your email, password, and authentication code if two-factor is enabled.' },
+      { status: 401 }
+    );
+  }
   if (res.status === 429) {
     return NextResponse.json({ message: 'Too many sign-in attempts. Wait a moment and try again.' }, { status: 429 });
   }
