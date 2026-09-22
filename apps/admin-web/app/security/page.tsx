@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { adminPost } from "../../lib/api";
 import { ErrorState, PageHeader, SuccessBanner } from "../admin-ui";
 
@@ -13,6 +14,19 @@ export default function SecurityPage() {
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rendered IN THE BROWSER from the otpauth URL. Never send this to an
+  // external QR service: the URL contains the TOTP secret, and handing it to a
+  // third party gives them a permanent second factor for this account.
+  const [qr, setQr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!setup) return setQr(null);
+    let cancelled = false;
+    QRCode.toDataURL(setup.otpauthUrl, { margin: 1, width: 200 })
+      .then((url) => { if (!cancelled) setQr(url); })
+      .catch(() => { if (!cancelled) setQr(null); }); // the secret below still works
+    return () => { cancelled = true; };
+  }, [setup]);
 
   async function startSetup() {
     setBusy(true);
@@ -66,13 +80,21 @@ export default function SecurityPage() {
 
       {setup ? (
         <div className="card">
-          <h3>1. Add this secret to your authenticator</h3>
-          <p>Scan the otpauth URL with your app, or enter the secret key manually:</p>
+          <h3>1. Add this to your authenticator</h3>
+          {/* The page used to say "scan the otpauth URL" and then print it as
+              text. You cannot scan text — every operator had to type a 32-char
+              secret by hand, and a typo reads as "wrong code" at step 2. */}
+          {qr ? (
+            <>
+              <p>Scan this with Google Authenticator, 1Password or Authy:</p>
+              <img src={qr} alt="QR code for your authenticator app" width={200} height={200} style={{ background: "#fff", padding: 8, borderRadius: 8 }} />
+              <p style={{ marginTop: 12 }}>Can&apos;t scan? Enter this key manually:</p>
+            </>
+          ) : (
+            <p>Enter this key in your authenticator app:</p>
+          )}
           <p>
             Secret: <code>{setup.secret}</code>
-          </p>
-          <p style={{ wordBreak: "break-all" }}>
-            otpauth: <code>{setup.otpauthUrl}</code>
           </p>
           <h3 style={{ marginTop: 16 }}>2. Enter the 6-digit code to confirm</h3>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>

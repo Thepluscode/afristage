@@ -6,6 +6,10 @@ import { safeNext } from '../../lib/safe-next';
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  // Always visible, never conditional. Revealing "now enter your code" would
+  // confirm the password was right, and a second round-trip cannot help someone
+  // whose authenticator is already open. Empty is simply omitted below.
+  const [mfaToken, setMfaToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const termsUrl = process.env.NEXT_PUBLIC_TERMS_URL || 'https://www.afristage.live/terms';
@@ -19,7 +23,9 @@ export default function LoginPage() {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ identifier, password })
+      // mfaToken only when supplied: the API treats an empty string as a wrong
+      // code, so sending '' would break every account that has no MFA.
+      body: JSON.stringify({ identifier, password, ...(mfaToken.trim() ? { mfaToken: mfaToken.trim() } : {}) })
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -48,6 +54,16 @@ export default function LoginPage() {
         <label>
           Password
           <input required autoComplete="current-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+        <label>
+          Authentication code <span className="hint">(only if you have two-factor enabled)</span>
+          <input
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            placeholder="123456"
+            value={mfaToken}
+            onChange={(e) => setMfaToken(e.target.value)}
+          />
         </label>
         {error ? <p className="error" role="alert">{error}</p> : null}
         <button className="button" disabled={loading}>

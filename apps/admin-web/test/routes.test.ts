@@ -89,8 +89,12 @@ describe('auth/login route', () => {
   it('keeps a genuine 401 free of any hint about the account', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     const body = await (await login(loginReq({ identifier: 'x', password: 'y' }))).json();
-    expect(body.message).toBe('Login failed');
-    expect(JSON.stringify(body)).not.toMatch(/exist|unknown|found|password is/i);
+    // Names all three factors symmetrically. Saying "MFA required" would confirm
+    // the password was correct; saying only "Login failed" left an operator with
+    // MFA enabled — as the founder was on 2026-09-22 — with no idea a code was
+    // even a possibility.
+    expect(body.message).toMatch(/authentication code/i);
+    expect(JSON.stringify(body)).not.toMatch(/exist|unknown|not found|password is|mfa required|code required/i);
   });
 
   it('500s when the backend omits an access token', async () => {
