@@ -31,6 +31,7 @@ describe('fetchEarnings', () => {
     const doFetch = vi.fn(async (url: string) => {
       if (url.endsWith('/creators/me/dashboard')) {
         return ok({
+          creator: { id: 'c1' },
           earnings: '620',
           totalGiftTransactions: 3,
           totalRooms: 2,
@@ -54,5 +55,14 @@ describe('fetchEarnings', () => {
     expect(v.dashboard.topSupporters[0].coins).toBe(50);
     expect(v.payouts[0].status).toBe('PENDING');
     expect(doFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('treats a 200 with no creator profile as "not a creator"', async () => {
+    const doFetch = vi.fn(async (url: string) => {
+      if (url.endsWith('/creators/me/dashboard')) return ok({ creator: null, earnings: '0', topSupporters: [] });
+      if (url.endsWith('/wallet/me')) return ok({ earningBalance: '0', payoutHoldBalance: '0' });
+      return ok([]);
+    });
+    await expect(fetchEarnings(doFetch as never)).rejects.toMatchObject({ name: 'ApiError', status: 404 });
   });
 });
