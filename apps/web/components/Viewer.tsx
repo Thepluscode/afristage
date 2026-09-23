@@ -87,6 +87,25 @@ export default function Viewer({ room }: { room?: string }) {
     <div className="stage">
       <video ref={videoRef} playsInline autoPlay muted />
       {status ? <div className="status">{status}</div> : null}
+      {/* "Watch live now" is the home page's only call to action, and with
+          nothing live it landed the visitor on a black screen holding one
+          sentence: no header, no way back, nothing to do next. Give the dead
+          end a way out — but only once the outcome is known, so it does not
+          flash under "Finding a live stage…". */}
+      {!roomId && !status.endsWith('…') ? (
+        <div className="dead-end">
+          <a className="wordmark" href="/">
+            AFRISTAGE
+          </a>
+          <p>Create an account and we can tell you when a stage opens.</p>
+          <a className="cta" href="/register">
+            Create an account
+          </a>
+          <a className="link" href="/">
+            Back to home
+          </a>
+        </div>
+      ) : null}
       {roomId ? <StreamerHeader room={roomInfo} liveCount={viewerCount} /> : null}
       {roomId ? <TopSupporters gifters={topGifters} /> : null}
       <HeartsOverlay hearts={hearts} />
