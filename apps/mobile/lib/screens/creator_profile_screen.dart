@@ -261,7 +261,10 @@ class _CreatorProfileScreenState extends State<CreatorProfileScreen> {
           Text(bio, style: Theme.of(context).textTheme.bodyMedium),
         ],
         const SizedBox(height: 20),
-        if (creatorUserId != null)
+        // Your own creator profile is reachable from search and from the feed,
+        // and it offered a Follow button that could only ever answer 400.
+        if (creatorUserId != null &&
+            creatorUserId != context.watch<AppState>().userId)
           _following
               ? OutlinedButton.icon(
                   onPressed:

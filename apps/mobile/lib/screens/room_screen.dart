@@ -453,7 +453,12 @@ class _RoomScreenState extends State<RoomScreen> {
           .where((p) => p['status'] == 'ACTIVE')
           .toList();
     } on ApiException catch (e) {
-      _toast(e.message);
+      // "You do not have a shop" is true but a dead end, and it is the most
+      // likely answer here — say where to open one, as the empty-products
+      // branch below already does.
+      _toast(e.statusCode == 404
+          ? 'You have no shop yet. Open one in Creator → My shop.'
+          : e.message);
       return;
     }
     await _loadPinnedProducts();
@@ -837,7 +842,11 @@ class _RoomScreenState extends State<RoomScreen> {
           following: _following,
           viewerCount: _viewerCount,
           onClose: () => Navigator.pop(context),
-          onFollow: blocked ? null : _toggleFollow,
+          // The host is not a follower of themselves. Without this the API
+          // answers 400 "Cannot follow yourself" and the button just flickers
+          // back — the isHost check two lines below was already here for the
+          // profile tap and simply never reached Follow.
+          onFollow: blocked || widget.isHost ? null : _toggleFollow,
           // Viewers can open the creator's profile; a host wouldn't tap into
           // their own profile from their own room.
           onCreatorTap: widget.isHost || widget.room.hostId == null

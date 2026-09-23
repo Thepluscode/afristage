@@ -14,6 +14,27 @@ http.Response _json(Object body, [int status = 200]) =>
         headers: {'content-type': 'application/json'});
 
 void main() {
+  // A 401 with no refresh token is a DEAD session. This used to fall straight
+  // through the refresh branch — no refresh attempted, onAuthCleared never
+  // fired — so AppState kept isAuthenticated == true and rendered a full
+  // signed-in UI in which every request 401'd, across reloads.
+  test('401 with no refresh token clears the session instead of doing nothing',
+      () async {
+    var cleared = false;
+    var refreshCalls = 0;
+    final api = _client((req) async {
+      if (req.url.path.endsWith('/auth/refresh')) refreshCalls++;
+      return _json({'message': 'Unauthorized'}, 401);
+    })
+      ..token = 'expired-at'
+      ..refreshToken = null
+      ..onAuthCleared = () => cleared = true;
+
+    await expectLater(api.get('/wallet/me'), throwsA(isA<ApiException>()));
+    expect(cleared, isTrue, reason: 'a dead session must log the user out');
+    expect(refreshCalls, 0, reason: 'nothing to refresh with');
+  });
+
   test('get decodes a 2xx JSON object', () async {
     final api = _client((req) async {
       expect(req.url.toString(), 'https://api.test/api/users/me');
