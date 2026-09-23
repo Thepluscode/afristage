@@ -7,3 +7,9 @@
 apps/mobile/build
 apps/mobile/.dart_tool
 apps/mobile/coverage
+
+# Local env files hold real keys. `railway up` from a workstation uploads the
+# working tree, and COPY . . then baked apps/api/.env into the image.
+**/.env
+**/.env.*
+!**/.env.example

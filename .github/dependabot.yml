@@ -1,0 +1,26 @@
+# Every image, runtime and service version is pinned exactly (Dockerfiles,
+# docker-compose.yml, CI service containers, setup-node). Pins do not patch
+# themselves: this proposes the updates once a month, grouped, so upgrading is a
+# reviewed PR on a schedule rather than whatever `latest` resolved to on deploy.
+# Security advisories are not held for the schedule — GitHub raises those as
+# they are published.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories: ["/apps/api", "/apps/web", "/apps/admin-web", "/apps/mobile"]
+    schedule: { interval: monthly }
+    groups: { base-images: { patterns: ["*"] } }
+  - package-ecosystem: docker-compose
+    directory: "/"
+    schedule: { interval: monthly }
+    groups: { local-stack: { patterns: ["*"] } }
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: monthly }
+    groups: { actions: { patterns: ["*"] } }
+  - package-ecosystem: npm
+    directory: "/"
+    schedule: { interval: monthly }
+    groups:
+      npm-minor-patch: { update-types: ["minor", "patch"] }
+    open-pull-requests-limit: 5

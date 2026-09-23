@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.23.2
       - run: npm install
       - name: Test admin web (vitest + RTL, 100% coverage)
         run: npm run test -w apps/admin-web
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.23.2
       - run: npm install
       - name: Test web client (vitest)
         run: npm run test -w apps/web
