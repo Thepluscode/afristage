@@ -1,6 +1,7 @@
 import 'package:afristage_mobile/core/afri_theme.dart';
 import 'package:afristage_mobile/core/app_state.dart';
 import 'package:afristage_mobile/core/api_client.dart';
+import 'package:afristage_mobile/main.dart';
 import 'package:afristage_mobile/models/models.dart';
 import 'package:afristage_mobile/screens/beta_accept_screen.dart';
 import 'package:afristage_mobile/screens/feed_screen.dart';
@@ -537,5 +538,32 @@ void main() {
     final buy = tester.getTopRight(find.text('Buy coins'));
     expect(buy.dx - heading.dx, lessThan(560),
         reason: 'sheet content should be capped near phone width');
+  });
+
+  // The gift sheet was one screen of 31. Every other screen stretched the same
+  // way and nobody had looked at them, so the cap is applied once at
+  // MaterialApp.builder instead. This pumps the REAL app — not a bare
+  // MaterialApp(home:) wrapper, which bypasses the builder entirely and would
+  // pass whether or not the cap exists.
+  testWidgets('no screen stretches across a desktop browser', (tester) async {
+    tester.view.physicalSize = const Size(2000, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const AfriStageApp());
+    // Not pumpAndSettle: the splash animates forever, so settling never
+    // happens. A few discrete frames are enough to get past restore().
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    // 560 is deliberately not kPhoneMaxWidth: an expectation derived from the
+    // constant under test passes however wrong that constant becomes.
+    final scaffold = tester.getSize(find.byType(Scaffold).first);
+    expect(scaffold.width, lessThan(560),
+        reason: 'the app shell must not scale with the viewport');
+    expect(scaffold.width, greaterThan(300),
+        reason: 'and must not collapse to nothing either');
   });
 }

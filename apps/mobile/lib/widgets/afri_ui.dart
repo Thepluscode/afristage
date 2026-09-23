@@ -829,6 +829,14 @@ IconData afriGiftIcon(String name) {
 }
 
 // Distinct gift tints so the gift panel reads colorful (matches the room mockup).
+/// This app is laid out for a phone, and the web build is the same code on
+/// whatever width the browser gives it. Unbounded, a screen becomes a ribbon:
+/// the heading in one corner and its action two feet away in the other. The
+/// cap is applied once at `MaterialApp.builder` so it covers every route,
+/// including ones pushed on top and modal sheets, rather than 31 screens each
+/// remembering to do it.
+const double kPhoneMaxWidth = 520;
+
 const List<Color> kGiftTints = [
   Color(0xFFEC4899),
   Color(0xFFEF4444),
@@ -1059,14 +1067,12 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
-        // This app is laid out for a phone, and the web build is the same code
-        // on whatever width the browser gives it. Unbounded, the heading sits
-        // in one corner and "Buy coins" in the other, two feet apart. Centre
-        // the sheet in a phone-ish column and the desktop view matches what a
-        // viewer actually sees on a device.
+        // Also capped here, not only at the shell: this sheet is opened
+        // directly by its widget test, and a cap that only exists one layer up
+        // is one the test cannot see.
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: kPhoneMaxWidth),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

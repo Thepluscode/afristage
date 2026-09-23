@@ -30,6 +30,19 @@ class AfriStageApp extends StatelessWidget {
         title: 'AfriStage Live',
         debugShowCheckedModeBanner: false,
         theme: AfriTheme.dark(),
+        // Every route, including ones pushed on top, is centred in a phone-
+        // shaped column. See kPhoneMaxWidth. The ColoredBox fills the gutters
+        // either side — without it a wide browser paints them from index.html,
+        // which is white, and the dark app sits in a white frame.
+        builder: (context, child) => ColoredBox(
+          color: AfriColors.stage,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: kPhoneMaxWidth),
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+        ),
         home: const _AuthGate(),
       ),
     );
