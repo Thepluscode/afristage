@@ -50,8 +50,10 @@ describe('BetaInvitesPage', () => {
   it('renders the fallback dash when email is missing', async () => {
     vi.mocked(adminGet).mockResolvedValue([invite({ id: 'inv-noemail', email: null })]);
     render(<BetaInvitesPage />);
-    await screen.findByText('VIEWER');
-    expect(screen.getByText('—')).toBeInTheDocument();
+    // Not findByText('VIEWER'): that is also a <select> option, present before
+    // the rows load, so the wait resolved at once and raced the row (red on
+    // main at c6f5ec5, green on rerun).
+    expect(await screen.findByText('—')).toBeInTheDocument();
   });
 
   it('creates an invite with an email and shows the code', async () => {
