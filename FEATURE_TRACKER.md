@@ -40,6 +40,19 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-09-23 — a script-running redirect, unbounded identities, and an end-of-life runtime
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| Web sign-in/sign-up cannot be pointed at a script or another site (#269). | VERIFIED | Before: `/register?next=javascript:…` set the page title to `PWNED-web-production-4ee7e.up.railway.app` on staging. After deploy (`ee27a60`): signing in with `next=javascript:…`, `https://evil.example/` and `//evil.example/` all land on `/wallet`, title unchanged. Page tests mutation-verified. |
+| The web sign-in form asks for what the API accepts (#270). | VERIFIED | Staging placeholder now reads "Email or phone"; the API matches email or phone only. |
+| `/earnings` tells a non-creator they are not a creator (#271). | VERIFIED | Staging, VIEWER account: "Earnings are for approved creators…" instead of a zeroed dashboard. |
+| `/watch` with nothing live does not tell a signed-in viewer to create an account (#272). | VERIFIED | Staging, signed in: "Top up now… Buy coins". |
+| Usernames, display names and profile fields are bounded (#273). | VERIFIED | Staging: `has space!` → 400 "Username must be 3–32…"; blank display name → 400. Existing rows untouched. |
+| Room titles, stage names, reports and tickets are bounded (#274). | VERIFIED | Staging: blank stage name → 400; 201-char ticket subject → 400. |
+| Every runtime and service version is pinned; Node 20 (EOL April 2026) retired (#275). | VERIFIED | `node -v` over `railway ssh` on api, web, admin-web: `v22.23.2`. Deployed api image holds no `.env`. CI migrations now run on Postgres 18.6, matching the deployed database. Dependabot proposes grouped updates monthly. |
+| Staging Redis is reachable only on the private network. | IMPLEMENTED | NOT DONE — `shortline.proxy.rlwy.net:17701` (TCP proxy on the Redis service) is still public; no service or script uses it. Removal was refused by the agent permission policy and needs the owner. Deployed Redis is `8.2.9`; `8.2.10` (security release, 2026-09-17) is pinned everywhere else. |
+
 ## Session 2026-09-21/22 — the features existed; the paths to them did not
 
 | Feature | Status | Evidence |

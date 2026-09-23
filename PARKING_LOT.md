@@ -57,3 +57,20 @@ session recognises it as the constraint rather than rediscovering it as a bug.
 
 **Becomes the task when:** the owner creates the accounts and drops in the keys.
 `docs/mobile-release.md` is the runbook from that point.
+
+---
+
+## P2 — dated, observed 2026-09-23
+
+### Railway stops honouring `railway.toml` on 2026-12-01
+
+Every Railway CLI call now warns that Config as Code is deprecated and
+"existing files keep working until 2026-12-01". `railway.toml` carries the
+pre-deploy `prisma migrate deploy`, the `/api/health` healthcheck and the
+restart policy for every service — after that date a deploy could ship without
+running migrations. `railway config migrate` (dry-run by default) generates
+`.railway/railway.ts`; the agent permission policy refused even the dry run as
+an IaC apply, so it needs the owner or an explicit permission rule.
+
+**Becomes the task when:** the owner runs or authorises
+`railway config migrate`, or 2026-11-15 arrives — whichever is first.
