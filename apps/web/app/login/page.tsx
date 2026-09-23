@@ -2,8 +2,23 @@
 
 import { useState } from 'react';
 
+// A gated page bounces here with ?next=… and the form then said only "Welcome
+// back". Someone who just clicked "Buy coins" is looking at a sign-in screen
+// with no stated connection to what they asked for.
+const REDIRECT_REASON: Record<string, string> = {
+  '/buy': 'Sign in to buy coins.',
+  '/wallet': 'Sign in to open your wallet.',
+  '/earnings': 'Sign in to see your earnings.'
+};
+
 export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
   const next = searchParams.next || '/wallet';
+  // Keyed on the SUPPLIED next, not the defaulted one — someone who typed
+  // /login directly was not sent here by anything, and telling them to "sign
+  // in to open your wallet" invents a journey they did not take. Only paths we
+  // recognise: `next` is attacker-controlled, and echoing it back would put
+  // their text on our sign-in page.
+  const reason = searchParams.next ? REDIRECT_REASON[searchParams.next] : undefined;
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,6 +41,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
   return (
     <main className="auth">
       <h1>Welcome back</h1>
+      {reason ? <p className="alt">{reason}</p> : null}
       <form onSubmit={submit}>
         <input aria-label="Email or username" placeholder="Email or username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
         <input aria-label="Password" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />

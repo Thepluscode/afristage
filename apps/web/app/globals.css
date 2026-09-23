@@ -444,3 +444,34 @@ html, body {
 }
 .crash-actions button:hover,
 .crash-actions a:hover { background: rgba(233, 180, 76, 0.24); }
+
+/* The escape hatch on /watch when nothing is live. Sits below the status line,
+   which is absolutely positioned and centred. */
+.stage .dead-end {
+  position: absolute;
+  top: 50%;
+  margin-top: 2.5rem;
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 0 1rem;
+}
+.stage .dead-end .wordmark {
+  color: var(--stage-gold);
+  opacity: 0.6;
+  letter-spacing: 0.24em;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+.stage .dead-end p { margin: 0; opacity: 0.8; font-size: 0.98rem; }
+.stage .dead-end .cta {
+  padding: 0.8rem 1.6rem;
+  border: 1px solid var(--stage-gold);
+  border-radius: 999px;
+  color: var(--stage-gold);
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease;
+}
+.stage .dead-end .cta:hover { background: var(--stage-gold); color: var(--stage-bg); }
+.stage .dead-end .link { color: var(--stage-gold); opacity: 0.7; font-size: 0.9rem; }
