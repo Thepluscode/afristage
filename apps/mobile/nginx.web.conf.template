@@ -18,6 +18,25 @@ server {
         return 200 '{"status":"ok","service":"flutter-web","commit":"${GIT_SHA}"}';
     }
 
+    # A deployed fix that a browser never fetches is not deployed.
+    #
+    # Nothing here sent Cache-Control at all, so browsers fell back to HEURISTIC
+    # freshness — roughly a tenth of the file's age — and served main.dart.js
+    # from disk without asking. Flutter compounds it: index.html registers a
+    # service worker that caches the bundle against its own version manifest, so
+    # a stale index.html means the app never learns a newer build exists. On
+    # 2026-09-23 the deployed bundle demonstrably contained a fix the browser
+    # was still not running.
+    #
+    # `no-cache` does NOT mean "do not store" — it means "revalidate before
+    # use". With the ETag already being sent, an unchanged file costs a 304 and
+    # no body. These are the entry points only; Flutter does not content-hash
+    # main.dart.js, so it cannot be treated as immutable.
+    location ~ ^/(index\.html|flutter_service_worker\.js|version\.json|main\.dart\.js|flutter\.js|flutter_bootstrap\.js)$ {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
     # Flutter web uses hash routing by default, but keep an SPA fallback for safety.
     location / {
         try_files $uri $uri/ /index.html;

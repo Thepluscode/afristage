@@ -227,6 +227,19 @@ jobs:
           set -euo pipefail
           if ! git rev-parse --verify HEAD^ >/dev/null 2>&1 || git diff --name-only HEAD^ HEAD -- apps/mobile | grep -q .; then
             bash scripts/verify-deployed-commit.sh "$FLUTTER_WEB_URL/api/health" "$GITHUB_SHA" 60 10
+
+            # A deployed fix a browser never fetches is not deployed. Without
+            # Cache-Control these were served from disk with no revalidation,
+            # and Flutter's service worker kept the stale bundle alive on top of
+            # that. Asserting the header here because the symptom — a user on an
+            # old build — looks exactly like a fix that did not work.
+            for f in index.html main.dart.js flutter_service_worker.js; do
+              cc="$(curl -fsSI --max-time 20 "$FLUTTER_WEB_URL/$f" | tr -d '\r' | grep -i '^cache-control:' || true)"
+              case "$cc" in
+                *no-cache*) echo "ok: $f -> $cc" ;;
+                *) echo "FAIL: $f must send Cache-Control: no-cache, got '${cc:-<none>}'" >&2; exit 1 ;;
+              esac
+            done
           else
             echo "flutter-web not deployed this run -> nothing to verify"
           fi
