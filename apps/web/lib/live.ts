@@ -2,7 +2,11 @@
 // is fully unit-testable without a browser or the LiveKit SDK. The Viewer
 // component is a thin wiring shell over these functions.
 
-const API_DEFAULT = 'https://api-production-e12f.up.railway.app/api';
+// Imported, not restated. These two files each kept their own default and
+// disagreed: this one fell back to the staging API and called it, while
+// security-headers.mjs fell back to '' and emitted a CSP that forbade the call.
+// The app lost, silently, in production. One constant means they cannot differ.
+import { API_DEFAULT } from '../security-headers.mjs';
 
 /** Resolve the API base: explicit override → NEXT_PUBLIC_API_BASE → staging default, trailing slash stripped. */
 export function apiBase(override?: string | null): string {
