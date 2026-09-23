@@ -1,9 +1,9 @@
 import { CreatorCategory } from '@prisma/client';
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsString, Matches, MaxLength } from 'class-validator';
 
 export class ApplyCreatorDto {
-  @IsString() stageName!: string;
+  @IsString() @MaxLength(50) @Matches(/\S/, { message: 'stageName must not be blank' }) stageName!: string;
   @IsEnum(CreatorCategory) category!: CreatorCategory;
-  @IsString() country!: string;
-  @IsString() language!: string;
+  @IsString() @MaxLength(80) country!: string;
+  @IsString() @MaxLength(80) language!: string;
 }
