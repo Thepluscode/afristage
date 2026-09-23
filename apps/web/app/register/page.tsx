@@ -37,7 +37,9 @@ export default function RegisterPage({ searchParams }: { searchParams: { next?: 
     if (res.ok) window.location.assign(next);
     else {
       const body = await res.json().catch(() => null);
-      setError(body?.message || 'Could not create your account.');
+      // Validation failures arrive as a list; rendered raw they ran together.
+      const m = body?.message;
+      setError((Array.isArray(m) ? m.join(' ') : m) || 'Could not create your account.');
     }
   }
 
@@ -46,8 +48,8 @@ export default function RegisterPage({ searchParams }: { searchParams: { next?: 
       <h1>Join the audience</h1>
       <form onSubmit={submit}>
         <input aria-label="Email" type="email" placeholder="Email" value={form.email} onChange={set('email')} autoComplete="email" required />
-        <input aria-label="Username" placeholder="Username" value={form.username} onChange={set('username')} autoComplete="username" required />
-        <input aria-label="Display name" placeholder="Display name" value={form.displayName} onChange={set('displayName')} required />
+        <input aria-label="Username" placeholder="Username" value={form.username} onChange={set('username')} autoComplete="username" pattern="[A-Za-z0-9_.]{3,32}" title="3–32 letters, numbers, dots or underscores" required />
+        <input aria-label="Display name" placeholder="Display name" value={form.displayName} onChange={set('displayName')} maxLength={50} required />
         <input aria-label="Password" type="password" placeholder="Password (8+ characters)" value={form.password} onChange={set('password')} autoComplete="new-password" minLength={8} required />
         <label className="check">
           <input type="checkbox" checked={ageConfirmed} onChange={(e) => setAgeConfirmed(e.target.checked)} required />

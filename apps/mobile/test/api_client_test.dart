@@ -67,6 +67,16 @@ void main() {
             .having((e) => e.message, 'message', 'Nope')));
   });
 
+  test('joins a validation message list instead of printing brackets',
+      () async {
+    final api = _client((_) async =>
+        _json({'message': ['Username is bad', 'Display name is bad']}, 400));
+    await expectLater(
+        api.get('/x'),
+        throwsA(isA<ApiException>().having(
+            (e) => e.message, 'message', 'Username is bad\nDisplay name is bad')));
+  });
+
   test('falls back to a generic message when the error body has none',
       () async {
     final api = _client((_) async => http.Response('', 500));
