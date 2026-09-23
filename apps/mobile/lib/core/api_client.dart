@@ -90,9 +90,12 @@ class ApiClient {
 
     final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = decoded is Map && decoded['message'] != null
-          ? decoded['message'].toString()
-          : 'Request failed';
+      // Validation errors arrive as a LIST of messages; toString() on it showed
+      // the user "[Username must be …, Display name must be …]".
+      final raw = decoded is Map ? decoded['message'] : null;
+      final message = raw is List
+          ? raw.join('\n')
+          : raw?.toString() ?? 'Request failed';
       throw ApiException(response.statusCode, message);
     }
     return decoded;

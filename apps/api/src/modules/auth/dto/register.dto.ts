@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { DISPLAY_NAME, USERNAME } from '../../users/dto/profile-rules';
 
 export class RegisterDto {
   // Optional device label for the session list, e.g. "iPhone 13".
@@ -18,9 +19,12 @@ export class RegisterDto {
   password!: string;
 
   @IsString()
+  @Matches(USERNAME.pattern, { message: USERNAME.message })
   username!: string;
 
   @IsString()
+  @Matches(DISPLAY_NAME.pattern, { message: DISPLAY_NAME.message })
+  @MaxLength(DISPLAY_NAME.max, { message: DISPLAY_NAME.message })
   displayName!: string;
 
   @IsOptional()

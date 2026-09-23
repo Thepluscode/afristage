@@ -44,3 +44,35 @@ describe('DTOs instantiate and validate', () => {
     expect(Object.keys(ALLOWED_CONTENT_TYPES)).toContain('image/webp');
   });
 });
+
+// Public identity strings were unbounded: registration accepted "has space!" as a
+// username (observed on staging) and any length of display name, and both are
+// broadcast to every viewer in chat and gift events.
+describe('identity string bounds', () => {
+  const errs = (C: any, fields: Record<string, unknown>) =>
+    validateSync(Object.assign(new C(), fields)).map((e) => e.property);
+  const reg = (over: Record<string, unknown>) =>
+    errs(RegisterDto, { email: 'a@b.co', password: 'longenough', username: 'amaka_g', displayName: 'Amaka', ageConfirmed: true, ...over });
+
+  it('accepts ordinary registrations, including the validate:* script shapes', () => {
+    expect(reg({})).toEqual([]);
+    expect(reg({ username: `pre${Date.now()}` })).toEqual([]);
+    expect(reg({ username: 'dj.tunde_2' })).toEqual([]);
+  });
+
+  it.each(['has space!', 'ab', 'x'.repeat(33), 'emoji😀', 'a/b', ''])('rejects username %j', (username) => {
+    expect(reg({ username })).toContain('username');
+  });
+
+  it.each(['', '   ', 'x'.repeat(51)])('rejects display name %j', (displayName) => {
+    expect(reg({ displayName })).toContain('displayName');
+  });
+
+  it('bounds profile updates the same way', () => {
+    expect(errs(UpdateProfileDto, { displayName: 'Amaka', bio: 'hi' })).toEqual([]);
+    expect(errs(UpdateProfileDto, { displayName: ' ' })).toContain('displayName');
+    expect(errs(UpdateProfileDto, { displayName: 'x'.repeat(51) })).toContain('displayName');
+    expect(errs(UpdateProfileDto, { bio: 'x'.repeat(301) })).toContain('bio');
+    expect(errs(UpdateProfileDto, { city: 'x'.repeat(81) })).toContain('city');
+  });
+});
