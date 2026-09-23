@@ -49,8 +49,8 @@ money, gifts convert to creator earnings, and earnings are paid out in fiat.
   other files is how the copies drift.
 - **Must not claim CI is healthy from a green check on `main`.** Those are often
   the scheduled `synthetic-check` probe, a different workflow. Confirm you are
-  reading `API CI`. GitHub Actions is billing-blocked, so CI evidence is
-  currently unavailable and merges rest on local green.
+  reading `API CI` (or `Web & Mobile CI`), both of which run on every PR and
+  on `main`.
 - **Must not read a 401 on the deployed environment as a bug.** Staging's seeded
   passwords are rotated randoms, not the local compose ones. Read them from
   `railway variables --service api --kv | grep STAGING_`.

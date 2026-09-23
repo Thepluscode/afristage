@@ -43,6 +43,6 @@ every idempotency key is minted in one file, and a spend balance must never go
 negative. `AGENT_CONTEXT.md` tabulates the boundaries and where each lives.
 
 **A green check is not CI.** The checks that appear on `main` are often the
-scheduled `synthetic-check` probe, a different workflow. GitHub Actions is
-billing-blocked, so `API CI` evidence is currently unavailable and merges rest on
-local green. Never report CI as healthy without naming which workflow you read.
+scheduled `synthetic-check` probe, a different workflow. `API CI` and
+`Web & Mobile CI` run on every PR and on `main`; never report CI as healthy
+without naming which of them you read.
