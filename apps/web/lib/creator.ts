@@ -3,7 +3,7 @@
 // view. Diamonds (💎) are the creator earning unit (mirrors mobile #206) — a coin
 // count; fiat() renders the same balance's published cash-out value.
 
-import { api } from './api';
+import { api, ApiError } from './api';
 
 type Fetch = typeof fetch;
 
@@ -15,6 +15,7 @@ export interface TopSupporter {
 }
 
 export interface CreatorDashboard {
+  creator: { id: string } | null; // null = this user has no creator profile
   earnings: string; // EARNING balance = available 💎
   totalGiftTransactions: number;
   totalRooms: number;
@@ -67,6 +68,10 @@ export async function fetchEarnings(doFetch: Fetch = fetch): Promise<EarningsVie
     api<{ earningBalance: string; payoutHoldBalance: string }>('/wallet/me', {}, doFetch),
     api<Payout[]>('/payouts/me', {}, doFetch)
   ]);
+  // The API answers a plain viewer with 200 and `creator: null`, not a 404, so
+  // without this the page rendered a zeroed creator dashboard to someone who
+  // has never applied to host.
+  if (!dashboard.creator) throw new ApiError(404, 'Not a creator');
   return {
     dashboard,
     availableDiamonds: Number(wallet.earningBalance),
