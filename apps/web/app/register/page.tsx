@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { safeNext } from '../../lib/safe-next';
 
 export default function RegisterPage({ searchParams }: { searchParams: { next?: string } }) {
-  const next = searchParams.next || '/wallet';
+  const next = safeNext(searchParams.next);
   const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '' });
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [error, setError] = useState('');

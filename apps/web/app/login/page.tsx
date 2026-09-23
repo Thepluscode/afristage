@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { safeNext } from '../../lib/safe-next';
 
 // A gated page bounces here with ?next=… and the form then said only "Welcome
 // back". Someone who just clicked "Buy coins" is looking at a sign-in screen
@@ -12,7 +13,7 @@ const REDIRECT_REASON: Record<string, string> = {
 };
 
 export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
-  const next = searchParams.next || '/wallet';
+  const next = safeNext(searchParams.next);
   // Keyed on the SUPPLIED next, not the defaulted one — someone who typed
   // /login directly was not sent here by anything, and telling them to "sign
   // in to open your wallet" invents a journey they did not take. Only paths we
