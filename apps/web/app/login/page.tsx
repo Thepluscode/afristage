@@ -35,7 +35,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
     });
     setBusy(false);
     if (res.ok) window.location.assign(next);
-    else setError('Wrong email/username or password.');
+    else setError('Wrong email/phone or password.');
   }
 
   return (
@@ -43,7 +43,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
       <h1>Welcome back</h1>
       {reason ? <p className="alt">{reason}</p> : null}
       <form onSubmit={submit}>
-        <input aria-label="Email or username" placeholder="Email or username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
+        <input aria-label="Email or phone" placeholder="Email or phone" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
         <input aria-label="Password" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         {error ? <p className="err">{error}</p> : null}
         <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
