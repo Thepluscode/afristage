@@ -15,7 +15,7 @@ COPY apps/mobile/assets ./assets
 COPY apps/mobile/analysis_options.yaml ./
 RUN flutter build web --release --dart-define=API_BASE=$API_BASE
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30.5-alpine
 # Which commit this is. Railway's runtime service variable overrides this and is
 # what nginx's envsubst renders at container start; the ARG only keeps local
 # `docker build` honest ('unknown' rather than an empty string).
