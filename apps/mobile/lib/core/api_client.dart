@@ -73,8 +73,15 @@ class ApiClient {
     var response = await _raw(method, path, body);
 
     // Access token expired: try one silent refresh, then retry the original call.
-    if (response.statusCode == 401 && allowRefresh && refreshToken != null) {
-      if (await _refresh()) {
+    //
+    // No refresh token is a DEAD session, not a reason to skip the handling.
+    // Testing `refreshToken != null` in this condition meant such a 401 fell
+    // straight through: no refresh, and onAuthCleared never fired, so the app
+    // kept `isAuthenticated == true` and rendered a full signed-in UI in which
+    // every request failed, across reloads, with no way back to the login
+    // screen except clearing site data.
+    if (response.statusCode == 401 && allowRefresh) {
+      if (refreshToken != null && await _refresh()) {
         response = await _raw(method, path, body);
       } else {
         onAuthCleared?.call();

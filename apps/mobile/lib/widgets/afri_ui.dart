@@ -2325,25 +2325,30 @@ class AfriLiveTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-              // Purple Follow pill (per mockup).
-              GestureDetector(
-                onTap: onFollow,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: following ? Colors.transparent : AfriColors.purple,
-                    borderRadius: BorderRadius.circular(999),
-                    border:
-                        following ? Border.all(color: Colors.white38) : null,
+              // Purple Follow pill (per mockup). Hidden rather than inert when
+              // there is no handler: a host looking at their own stream was
+              // shown a live-looking Follow button that answered 400 "Cannot
+              // follow yourself", and a disabled-but-visible button is the same
+              // lie told more quietly.
+              if (onFollow != null)
+                GestureDetector(
+                  onTap: onFollow,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: following ? Colors.transparent : AfriColors.purple,
+                      borderRadius: BorderRadius.circular(999),
+                      border:
+                          following ? Border.all(color: Colors.white38) : null,
+                    ),
+                    child: Text(following ? 'Following' : 'Follow',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
                   ),
-                  child: Text(following ? 'Following' : 'Follow',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white)),
                 ),
-              ),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),

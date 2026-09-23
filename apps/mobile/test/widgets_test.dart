@@ -639,6 +639,35 @@ void main() {
     expect(find.byType(AfriLiveTopBar), findsOneWidget);
   });
 
+  // A host in their own room was shown the purple Follow pill. Tapping it sent
+  // POST /users/<self>/follow, which the API correctly answers 400 "Cannot
+  // follow yourself"; the optimistic toggle then rolled back and the button
+  // flickered. Passing null now hides the pill rather than leaving it inert,
+  // because a button that cannot work should not be offered.
+  testWidgets('AfriLiveTopBar hides the Follow pill when it cannot be used',
+      (tester) async {
+    await tester.pumpWidget(_host(AfriLiveTopBar(
+        creatorName: 'Z',
+        following: false,
+        onFollow: null,
+        viewerCount: 5,
+        onClose: () {})));
+    await tester.pumpAndSettle();
+    expect(find.text('Follow'), findsNothing);
+    expect(find.text('Following'), findsNothing);
+  });
+
+  testWidgets('AfriLiveTopBar still offers Follow to a viewer', (tester) async {
+    await tester.pumpWidget(_host(AfriLiveTopBar(
+        creatorName: 'Z',
+        following: false,
+        onFollow: () {},
+        viewerCount: 5,
+        onClose: () {})));
+    await tester.pumpAndSettle();
+    expect(find.text('Follow'), findsOneWidget);
+  });
+
   testWidgets('AfriRoomStateBanner renders several states', (tester) async {
     for (final s in AfriRoomState.values) {
       await tester
