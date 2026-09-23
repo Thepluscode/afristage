@@ -11,6 +11,7 @@ import TopSupporters from './TopSupporters';
 import HeartsOverlay from './HeartsOverlay';
 import ChatBar from './ChatBar';
 import { useRoomLive } from './useRoomLive';
+import { fetchSocketToken } from '../lib/socket';
 
 // Thin integration shell: resolve a live room → fetch a guest token → connect and
 // attach tracks. All decision logic lives in lib/live.ts (unit-tested); this wires
@@ -22,6 +23,14 @@ export default function Viewer({ room }: { room?: string }) {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [giftOpen, setGiftOpen] = useState(false);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
+  // Only the empty state reads this: it told a signed-in viewer to "Create an
+  // account". A failed lookup reads as a guest, which is the old behaviour.
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    fetchSocketToken()
+      .then((t) => setSignedIn(Boolean(t)))
+      .catch(() => setSignedIn(false));
+  }, []);
   // Live room layer — connects once roomId is known.
   const { viewerCount, messages, gifts, hearts, topGifters, canSend, sendChat, sendReaction } = useRoomLive(roomId);
 
@@ -97,10 +106,21 @@ export default function Viewer({ room }: { room?: string }) {
           <a className="wordmark" href="/">
             AFRISTAGE
           </a>
-          <p>Create an account and we can tell you when a stage opens.</p>
-          <a className="cta" href="/register">
-            Create an account
-          </a>
+          {signedIn ? (
+            <>
+              <p>Top up now so you are ready to gift when a stage opens.</p>
+              <a className="cta" href="/buy">
+                Buy coins
+              </a>
+            </>
+          ) : (
+            <>
+              <p>Create an account and we can tell you when a stage opens.</p>
+              <a className="cta" href="/register">
+                Create an account
+              </a>
+            </>
+          )}
           <a className="link" href="/">
             Back to home
           </a>

@@ -26,6 +26,9 @@ vi.mock('../lib/live', () => ({
   fetchRoom: () => Promise.resolve(null)
 }));
 
+const fetchSocketToken = vi.fn(() => Promise.resolve<string | null>(null));
+vi.mock('../lib/socket', () => ({ fetchSocketToken: () => fetchSocketToken() }));
+
 vi.mock('../components/useRoomLive', () => ({
   useRoomLive: () => ({
     viewerCount: 0,
@@ -64,6 +67,15 @@ describe('Viewer when no stage is live', () => {
     render(<Viewer />);
 
     expect(screen.getByText('Finding a live stage…')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Create an account' })).not.toBeInTheDocument();
+  });
+
+  it('does not tell a signed-in viewer to create an account', async () => {
+    resolveLiveRoomId.mockResolvedValue(null);
+    fetchSocketToken.mockResolvedValueOnce('token');
+    render(<Viewer />);
+
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Buy coins' })).toHaveAttribute('href', '/buy'));
     expect(screen.queryByRole('link', { name: 'Create an account' })).not.toBeInTheDocument();
   });
 });
