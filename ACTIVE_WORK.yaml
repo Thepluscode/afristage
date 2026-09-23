@@ -17,9 +17,10 @@ environments:
     against the deployed API, followed by a ledger-safe teardown leaving
     ledger_integrity_ok=1.
   ci: >
-    GitHub Actions is billing-blocked, so API CI evidence is unavailable and
-    merges rest on local green. The green checks visible on main are usually the
-    scheduled synthetic-check probe, a different workflow.
+    API CI (build-test, then deploy) and Web & Mobile CI run on every PR and on
+    main — confirmed 2026-09-23 on #273–#286. Name the workflow you read: the
+    scheduled synthetic-check probe also shows green on main and proves nothing
+    about a change.
 
 active:
   task: >
