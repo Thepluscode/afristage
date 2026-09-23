@@ -254,8 +254,11 @@ class _LiveScreenState extends State<LiveScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
                   sliver: SliverGrid.builder(
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                        // Max tile width, not a fixed column count: two columns on a
+                        // phone is right, two columns on a 2000px browser gives
+                        // 1000px-wide cards.
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 340,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
                       childAspectRatio: 0.76,

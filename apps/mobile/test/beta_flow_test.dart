@@ -470,4 +470,72 @@ void main() {
     expect(find.text('Keep Room Live'), findsOneWidget);
     expect(find.text('End Room'), findsOneWidget);
   });
+  // The web build is this same code at whatever width the browser gives it.
+  // With a FIXED 4-column grid, a 2000px viewport made each gift tile ~490px
+  // wide and ~680px tall — ribbons down the screen, with the "selected" badge
+  // stranded at the top of an apparently empty column. Found by the founder
+  // on a desktop browser, after the widget tests had passed for months at
+  // phone width.
+  testWidgets('gift tiles stay tile-shaped on a desktop-width viewport',
+      (tester) async {
+    tester.view.physicalSize = const Size(2000, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AfriGiftDrawer(
+            gifts: const [
+              Gift(id: 'g1', name: 'Rose', coinPrice: 10),
+              Gift(id: 'g2', name: 'Fire', coinPrice: 50),
+              Gift(id: 'g3', name: 'Golden Mic', coinPrice: 100),
+              Gift(id: 'g4', name: 'Drum', coinPrice: 200),
+            ],
+            coinBalance: 0,
+            onGiftSelected: (_, __) {},
+            onBuyCoins: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final tile = tester.getSize(find.byType(AfriGiftTile).first);
+    // A tile is portrait-ish by design (aspect 0.72), never a 490x680 ribbon.
+    expect(tile.width, lessThan(160),
+        reason: 'tile width must not scale with the viewport');
+    expect(tile.height / tile.width, closeTo(1 / 0.72, 0.35),
+        reason: 'tile must keep its aspect ratio at any width');
+  });
+
+  testWidgets('the sheet itself does not stretch across a wide browser',
+      (tester) async {
+    tester.view.physicalSize = const Size(2000, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AfriGiftDrawer(
+            gifts: const [Gift(id: 'g1', name: 'Rose', coinPrice: 10)],
+            coinBalance: 0,
+            onGiftSelected: (_, __) {},
+            onBuyCoins: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // "Send Gift" in one corner and "Buy coins" two feet away in the other is
+    // what unbounded width looks like.
+    final heading = tester.getTopLeft(find.text('Send Gift'));
+    final buy = tester.getTopRight(find.text('Buy coins'));
+    expect(buy.dx - heading.dx, lessThan(560),
+        reason: 'sheet content should be capped near phone width');
+  });
 }

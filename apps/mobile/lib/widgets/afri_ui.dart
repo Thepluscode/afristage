@@ -1059,213 +1059,235 @@ class _AfriGiftDrawerState extends State<AfriGiftDrawer> {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text('Send Gift',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900)),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AfriColors.gold.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                      color: AfriColors.gold.withValues(alpha: 0.24)),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(CupertinoIcons.money_dollar_circle_fill,
-                      color: AfriColors.gold, size: 15),
-                  const SizedBox(width: 5),
-                  Text(formatCount(widget.coinBalance),
-                      style: const TextStyle(
-                          color: AfriColors.gold, fontWeight: FontWeight.w800)),
-                ]),
-              ),
-            ]),
-            if (widget.onBuyCoins != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: widget.onBuyCoins,
-                  child: const Text('Buy coins'),
-                ),
-              ),
-            const SizedBox(height: 6),
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _catalogs.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, index) {
-                  final catalog = _catalogs[index];
-                  return _GiftCatalogChip(
-                    label: Text(catalog),
-                    selected: catalog == _catalog,
-                    onTap: () => _selectCatalog(catalog),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (widget.gifts.isEmpty)
-              const AfriEmptyState(
-                icon: CupertinoIcons.gift_fill,
-                title: 'No gifts configured',
-                body: 'Ask ops to enable gifts before viewers can send one.',
-              )
-            else
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 4,
-                childAspectRatio: 0.72,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                children: [
-                  for (final entry in visibleGifts.asMap().entries)
-                    Stack(
-                      children: [
-                        Positioned.fill(
-                          child: AfriGiftTile(
-                            gift: entry.value,
-                            accent: kGiftTints[entry.key % kGiftTints.length],
-                            selected: selected?.id == entry.value.id,
-                            onTap: () =>
-                                setState(() => _selected = entry.value),
-                          ),
-                        ),
-                        if (selected?.id == entry.value.id)
-                          Positioned(
-                            right: 8,
-                            top: 8,
-                            child: Container(
-                              width: 18,
-                              height: 18,
-                              decoration: const BoxDecoration(
-                                color: AfriColors.gold,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(CupertinoIcons.check_mark,
-                                  color: Color(0xFF170B02), size: 13),
-                            ),
-                          ),
-                        if (entry.value.isEventGift)
-                          Positioned(
-                            left: 6,
-                            top: 7,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AfriColors.purple,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: const Text(
-                                'EVENT',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 7,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                ],
-              ),
-            if (selected != null) ...[
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Text('Quantity',
+        // This app is laid out for a phone, and the web build is the same code
+        // on whatever width the browser gives it. Unbounded, the heading sits
+        // in one corner and "Buy coins" in the other, two feet apart. Centre
+        // the sheet in a phone-ish column and the desktop view matches what a
+        // viewer actually sees on a device.
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Text('Send Gift',
                       style: Theme.of(context)
                           .textTheme
-                          .labelLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final quantity in _presetQuantities) ...[
-                            _QuantityChip(
-                              quantity: quantity,
-                              selected: _quantity == quantity,
-                              onTap: () => setState(() => _quantity = quantity),
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AfriColors.gold.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                          color: AfriColors.gold.withValues(alpha: 0.24)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(CupertinoIcons.money_dollar_circle_fill,
+                          color: AfriColors.gold, size: 15),
+                      const SizedBox(width: 5),
+                      Text(formatCount(widget.coinBalance),
+                          style: const TextStyle(
+                              color: AfriColors.gold,
+                              fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                ]),
+                if (widget.onBuyCoins != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: widget.onBuyCoins,
+                      child: const Text('Buy coins'),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _catalogs.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, index) {
+                      final catalog = _catalogs[index];
+                      return _GiftCatalogChip(
+                        label: Text(catalog),
+                        selected: catalog == _catalog,
+                        onTap: () => _selectCatalog(catalog),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (widget.gifts.isEmpty)
+                  const AfriEmptyState(
+                    icon: CupertinoIcons.gift_fill,
+                    title: 'No gifts configured',
+                    body:
+                        'Ask ops to enable gifts before viewers can send one.',
+                  )
+                else
+                  // A FIXED column count sizes each tile by dividing the available
+                  // width, so the same 4 columns that look right on a 390px phone
+                  // become 490px-wide, 680px-tall ribbons in the web build on a
+                  // desktop — with the "selected" badge stranded at the top of an
+                  // empty column. Cap the tile WIDTH instead and let the column
+                  // count follow the viewport.
+                  GridView.extent(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    maxCrossAxisExtent: 110,
+                    childAspectRatio: 0.72,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    children: [
+                      for (final entry in visibleGifts.asMap().entries)
+                        Stack(
+                          children: [
+                            Positioned.fill(
+                              child: AfriGiftTile(
+                                gift: entry.value,
+                                accent:
+                                    kGiftTints[entry.key % kGiftTints.length],
+                                selected: selected?.id == entry.value.id,
+                                onTap: () =>
+                                    setState(() => _selected = entry.value),
+                              ),
                             ),
-                            const SizedBox(width: 5),
+                            if (selected?.id == entry.value.id)
+                              Positioned(
+                                right: 8,
+                                top: 8,
+                                child: Container(
+                                  width: 18,
+                                  height: 18,
+                                  decoration: const BoxDecoration(
+                                    color: AfriColors.gold,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(CupertinoIcons.check_mark,
+                                      color: Color(0xFF170B02), size: 13),
+                                ),
+                              ),
+                            if (entry.value.isEventGift)
+                              Positioned(
+                                left: 6,
+                                top: 7,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AfriColors.purple,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Text(
+                                    'EVENT',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 7,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
-                          _QuantityChip(
-                            label: _presetQuantities.contains(_quantity)
-                                ? '···'
-                                : '×$_quantity',
-                            selected: !_presetQuantities.contains(_quantity),
-                            onTap: _chooseCustomQuantity,
+                        ),
+                    ],
+                  ),
+                if (selected != null) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Text('Quantity',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (final quantity in _presetQuantities) ...[
+                                _QuantityChip(
+                                  quantity: quantity,
+                                  selected: _quantity == quantity,
+                                  onTap: () =>
+                                      setState(() => _quantity = quantity),
+                                ),
+                                const SizedBox(width: 5),
+                              ],
+                              _QuantityChip(
+                                label: _presetQuantities.contains(_quantity)
+                                    ? '···'
+                                    : '×$_quantity',
+                                selected:
+                                    !_presetQuantities.contains(_quantity),
+                                onTap: _chooseCustomQuantity,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AfriColors.elevated,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AfriColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(selected.name,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium),
+                              Text(
+                                '$_quantity × ${selected.coinPrice} = '
+                                '${formatCount(total)} coins',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              if (!canAfford)
+                                const Text(
+                                  'Not enough coins',
+                                  style: TextStyle(
+                                      color: AfriColors.danger,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800),
+                                ),
+                            ],
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: canAfford
+                              ? () => widget.onGiftSelected(selected, _quantity)
+                              : null,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(84, 42),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          icon: const Icon(CupertinoIcons.gift_fill, size: 17),
+                          label: const Text('Send'),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AfriColors.elevated,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AfriColors.border),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(selected.name,
-                              style: Theme.of(context).textTheme.titleMedium),
-                          Text(
-                            '$_quantity × ${selected.coinPrice} = '
-                            '${formatCount(total)} coins',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          if (!canAfford)
-                            const Text(
-                              'Not enough coins',
-                              style: TextStyle(
-                                  color: AfriColors.danger,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800),
-                            ),
-                        ],
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: canAfford
-                          ? () => widget.onGiftSelected(selected, _quantity)
-                          : null,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(84, 42),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      icon: const Icon(CupertinoIcons.gift_fill, size: 17),
-                      label: const Text('Send'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
