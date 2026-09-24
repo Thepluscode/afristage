@@ -10,6 +10,7 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/api ./apps/api
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY package*.json ./
 WORKDIR /app/apps/api
 RUN npm run prisma:generate
