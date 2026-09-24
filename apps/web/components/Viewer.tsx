@@ -37,6 +37,7 @@ export default function Viewer({ room }: { room?: string }) {
   useEffect(() => {
     let lkRoom: Room | null = null;
     let cancelled = false;
+    let videoSubscribed = false;
 
     (async () => {
       try {
@@ -57,8 +58,9 @@ export default function Viewer({ room }: { room?: string }) {
 
         lkRoom = new Room();
         lkRoom.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-          if (track.kind === 'video' && videoRef.current) {
-            track.attach(videoRef.current);
+          if (track.kind === 'video') {
+            videoSubscribed = true;
+            if (videoRef.current) track.attach(videoRef.current);
             setStatus('');
           }
           if (track.kind === 'audio') {
@@ -77,7 +79,7 @@ export default function Viewer({ room }: { room?: string }) {
 
         try {
           await lkRoom.connect(token.livekitUrl, token.viewerToken);
-          setStatus((s) => s || 'Waiting for the stage…');
+          if (!videoSubscribed) setStatus('Waiting for the stage…');
         } catch {
           if (!cancelled) setStatus('Could not join the stage.');
         }
