@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import LoginPage from '../app/login/page';
+import LoginPage from '../app/login/LoginForm';
 
 describe('login page redirect reason', () => {
   it('says why a gated page sent you here', () => {

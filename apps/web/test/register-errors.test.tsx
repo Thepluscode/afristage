@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import RegisterPage from '../app/register/page';
+import RegisterPage from '../app/register/RegisterForm';
 
 describe('register error display', () => {
   afterEach(() => vi.unstubAllGlobals());

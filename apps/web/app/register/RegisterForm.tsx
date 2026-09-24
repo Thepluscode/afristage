@@ -1,0 +1,65 @@
+'use client';
+
+import { useState } from 'react';
+import { safeNext } from '../../lib/safe-next';
+
+export default function RegisterPage({ searchParams }: { searchParams: { next?: string } }) {
+  const next = safeNext(searchParams.next);
+  const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '' });
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      // The browser knows its own zone; capture it once at sign-up because it
+      // cannot be recovered later. Guarded: a browser without Intl must still
+      // be able to register.
+      body: JSON.stringify({
+        ...form,
+        ageConfirmed,
+        timezone: (() => {
+          try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+          } catch {
+            return undefined;
+          }
+        })()
+      })
+    });
+    setBusy(false);
+    if (res.ok) window.location.assign(next);
+    else {
+      const body = await res.json().catch(() => null);
+      // Validation failures arrive as a list; rendered raw they ran together.
+      const m = body?.message;
+      setError((Array.isArray(m) ? m.join(' ') : m) || 'Could not create your account.');
+    }
+  }
+
+  return (
+    <main className="auth">
+      <h1>Join the audience</h1>
+      <form onSubmit={submit}>
+        <input aria-label="Email" type="email" placeholder="Email" value={form.email} onChange={set('email')} autoComplete="email" required />
+        <input aria-label="Username" placeholder="Username" value={form.username} onChange={set('username')} autoComplete="username" pattern="[A-Za-z0-9_.]{3,32}" title="3–32 letters, numbers, dots or underscores" required />
+        <input aria-label="Display name" placeholder="Display name" value={form.displayName} onChange={set('displayName')} maxLength={50} required />
+        <input aria-label="Password" type="password" placeholder="Password (8+ characters)" value={form.password} onChange={set('password')} autoComplete="new-password" minLength={8} required />
+        <label className="check">
+          <input type="checkbox" checked={ageConfirmed} onChange={(e) => setAgeConfirmed(e.target.checked)} required />
+          I confirm I am 18 or older.
+        </label>
+        {error ? <p className="err">{error}</p> : null}
+        <button type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
+      </form>
+      <p className="alt">Already have an account? <a href={`/login?next=${encodeURIComponent(next)}`}>Sign in</a></p>
+    </main>
+  );
+}

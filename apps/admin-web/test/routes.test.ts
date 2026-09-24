@@ -25,7 +25,7 @@ function loginReq(body: unknown, proto = 'http'): NextRequest {
 function proxyReq(method: string, search = '', body?: string): NextRequest {
   return new NextRequest(new URL(`http://localhost/api/admin-proxy/admin/x${search}`), { method, body });
 }
-const ctx = { params: { path: ['admin', 'x'] } };
+const ctx = { params: Promise.resolve({ path: ['admin', 'x'] }) };
 
 // A fetch mock that routes /auth/refresh to a configurable refresh response and
 // everything else to `api(url, opts)`.

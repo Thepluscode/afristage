@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../app/api/public-live/[...path]/route';
 
-const context = (path: string[]) => ({ params: { path } });
+const context = (path: string[]) => ({ params: Promise.resolve({ path }) });
 
 afterEach(() => vi.unstubAllGlobals());
 

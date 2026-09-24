@@ -23,6 +23,6 @@ export async function POST(req: NextRequest) {
   if (!data.accessToken) return NextResponse.json({ message: 'Missing access token' }, { status: 500 });
 
   const secure = req.nextUrl.protocol === 'https:' || process.env.WEB_COOKIE_SECURE === 'true';
-  setSessionCookies(cookies(), data.accessToken, data.refreshToken, secure);
+  setSessionCookies(await cookies(), data.accessToken, data.refreshToken, secure);
   return NextResponse.json({ ok: true });
 }
