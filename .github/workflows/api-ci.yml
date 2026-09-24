@@ -45,8 +45,8 @@ jobs:
       API_BASE: http://localhost:3000/api
       WS_BASE: http://localhost:3000/chat
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
       - run: npm install
@@ -135,7 +135,7 @@ jobs:
       # depth 2, not the default 1: the flutter-web gate diffs HEAD against its
       # first parent, and with a shallow clone that parent does not exist —
       # `git diff` would error and take a working deploy down with it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
