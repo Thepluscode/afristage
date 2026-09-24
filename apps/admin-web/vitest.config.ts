@@ -12,8 +12,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary', 'lcov'],
       include: ['app/**/*.{ts,tsx}', 'lib/**/*.ts', 'middleware.ts'],
-      exclude: ['**/*.d.ts'],
-      all: true
+      exclude: ['**/*.d.ts']
     }
   }
 });

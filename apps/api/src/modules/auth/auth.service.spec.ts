@@ -363,20 +363,13 @@ describe('AuthService.login (privileged + MFA enable)', () => {
     const { service, prisma } = buildAuth();
     const secret = authenticator.generateSecret();
     prisma.user.findUniqueOrThrow.mockResolvedValue({ id: 'u1', mfaSecret: secret });
-    // Stub the 8×cost-10 recovery-code hashing (the test asserts plaintext codes,
-    // not the hashes) — ~3s of real bcrypt was the timeout-under-load flake.
-    const hashSpy = jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed' as never);
-    try {
-      const res = await withFrozenTotp(() => service.enableMfa('u1', authenticator.generate(secret)));
-      expect(res.mfaEnabled).toBe(true);
-      expect(res.recoveryCodes).toHaveLength(8);
-      expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ mfaEnabled: true }) })
-      );
-    } finally {
-      hashSpy.mockRestore();
-    }
-  });
+    const res = await withFrozenTotp(() => service.enableMfa('u1', authenticator.generate(secret)));
+    expect(res.mfaEnabled).toBe(true);
+    expect(res.recoveryCodes).toHaveLength(8);
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ mfaEnabled: true }) })
+    );
+  }, 10_000);
 });
 
 describe('AuthService remaining branches', () => {

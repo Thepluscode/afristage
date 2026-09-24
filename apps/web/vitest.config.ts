@@ -16,8 +16,7 @@ export default defineConfig({
       // browser + a live publisher) — it's verified by `next build` + the Phase-1
       // browser check, not unit coverage.
       include: ['lib/**/*.ts'],
-      exclude: ['**/*.d.ts'],
-      all: true
+      exclude: ['**/*.d.ts']
     }
   }
 });

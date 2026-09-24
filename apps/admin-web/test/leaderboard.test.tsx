@@ -10,7 +10,9 @@ const rows = (over: Partial<Record<string, unknown>> = {}) => [
   { rank: 2, userId: 'c2', label: 'Dee', totalCoins: 400 }
 ];
 
-beforeEach(() => vi.mocked(adminGet).mockResolvedValue(rows()));
+beforeEach(() => {
+  vi.mocked(adminGet).mockResolvedValue(rows());
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe('LeaderboardPage', () => {

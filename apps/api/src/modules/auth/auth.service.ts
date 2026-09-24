@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
@@ -488,11 +488,11 @@ export class AuthService {
       role: user.role,
       accessToken: this.jwt.sign(payload, {
         secret: process.env.JWT_ACCESS_SECRET || 'dev',
-        expiresIn: process.env.JWT_ACCESS_TTL || '15m'
+        expiresIn: (process.env.JWT_ACCESS_TTL || '15m') as JwtSignOptions['expiresIn']
       }),
       refreshToken: this.jwt.sign(payload, {
         secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh',
-        expiresIn: process.env.JWT_REFRESH_TTL || '30d'
+        expiresIn: (process.env.JWT_REFRESH_TTL || '30d') as JwtSignOptions['expiresIn']
       })
     };
   }

@@ -1,6 +1,7 @@
-import { Controller, Headers, HttpCode, Post, RawBodyRequest, Req } from '@nestjs/common';
+import { Controller, Headers, HttpCode, Post, Req } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { PaymentsService } from './payments.service';
 
 // Public (no JWT): the processors call these directly. Auth is the per-provider
