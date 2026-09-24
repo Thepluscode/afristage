@@ -63,9 +63,6 @@ blocked:
       service-account JSON — accounts and keys an agent cannot create. iOS
       additionally needs a Mac and an Apple Developer account.
     interim: The hosted flutter-web service remains the distribution channel.
-  - what: Physical-device camera publish
-    detail: Still pending; an emulator cannot capture.
-    blocked_on: a physical device
   - what: Wave-1 beta-launch checks
     detail: Remaining items in the beta-launch operations playbook.
     blocked_on: owner action, including RESEND_API_KEY to light up email delivery
