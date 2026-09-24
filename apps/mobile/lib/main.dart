@@ -158,6 +158,8 @@ class _HomeShellState extends State<HomeShell> {
           selectedIcon: Icon(CupertinoIcons.person_fill),
           label: 'Profile'),
     ];
+    final navAccent = isCreator ? AfriColors.broadcast : AfriColors.action;
+    final navTheme = Theme.of(context).navigationBarTheme;
     final safeIndex = _index.clamp(0, pages.length - 1);
     return Scaffold(
       body: pages[safeIndex],
@@ -165,10 +167,34 @@ class _HomeShellState extends State<HomeShell> {
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AfriColors.border)),
         ),
-        child: NavigationBar(
-          selectedIndex: safeIndex,
-          onDestinationSelected: (value) => setState(() => _index = value),
-          destinations: destinations,
+        child: NavigationBarTheme(
+          data: navTheme.copyWith(
+            indicatorColor: navAccent.withValues(alpha: 0.14),
+            labelTextStyle: WidgetStateProperty.resolveWith(
+              (states) => TextStyle(
+                fontSize: 10,
+                fontWeight: states.contains(WidgetState.selected)
+                    ? FontWeight.w800
+                    : FontWeight.w600,
+                color: states.contains(WidgetState.selected)
+                    ? navAccent
+                    : AfriColors.mutedText,
+              ),
+            ),
+            iconTheme: WidgetStateProperty.resolveWith(
+              (states) => IconThemeData(
+                size: 21,
+                color: states.contains(WidgetState.selected)
+                    ? navAccent
+                    : AfriColors.mutedText,
+              ),
+            ),
+          ),
+          child: NavigationBar(
+            selectedIndex: safeIndex,
+            onDestinationSelected: (value) => setState(() => _index = value),
+            destinations: destinations,
+          ),
         ),
       ),
     );

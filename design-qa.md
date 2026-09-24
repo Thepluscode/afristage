@@ -37,7 +37,7 @@
 ## Current landing and mobile findings
 
 - No actionable P0/P1/P2 differences remain in the current landing exposure pass. The final render keeps the complete navigation, Join Beta control, performer, live panel, audience, and CTAs visible while carrying the reference's brighter gold spotlight, warmer subject exposure, larger editorial headline, and photographic creator avatars.
-- No actionable P0/P1/P2 differences remain in the current five-state mobile pass. Viewer Home now includes the top balance/top-up/Go Live utilities, real gift totals, standalone Send Gift row, recommendations, and Activity navigation. The live room includes verified/overflow controls, a correctly focused performer image, bundled gift icons, balance, selection, and Send action. Go Live, creator dashboard, and wallet retain their complete first-screen hierarchy.
+- No actionable P0/P1/P2 differences remain in the current five-state mobile pass. Viewer Home now opens on the featured performance, then live rooms, categories, and creator portraits; wallet and secondary utilities sit below discovery instead of displacing it. The live room includes verified/overflow controls, a correctly focused performer image, bundled gift icons, balance, selection, and Send action. Go Live, creator dashboard, and wallet retain their complete first-screen hierarchy.
 - Go Live uses a dedicated creator-control studio scene instead of recycling the viewer-home performer artwork.
 
 - [P3] The public brand mark is the closest library icon, not the final custom vector.
@@ -81,6 +81,7 @@
 16. The landing remained visibly flatter after the first exposure pass. A second image-backed screen layer, stronger gold spotlight, lighter directional scrim, larger display type, and brighter live-panel glow produced the final 1536×1024 CSS-viewport render while retaining readable contrast and all primary controls.
 17. The element inventory found eight remaining mobile gaps. The final pass added the verified badge, viewer overflow action, Activity tab, top balance/top-up and Go Live controls, standalone Send Gift row, recommendation rail, API-backed per-room gift totals, and creator Request Payout action.
 18. The last live-room capture placed the singer too far off-axis. The stage focal alignment was corrected and the regenerated capture now keeps the performer’s face, microphone, tags, playback control, and open gift drawer within the intended hierarchy.
+19. The final BIGO comparison exposed a remaining hierarchy mismatch: Home led with an account-utility card and placed recommendations ahead of creator discovery. Home now leads with the live hero, follows the reference order through live rooms, categories, and creators, then defers recommendations and wallet utilities. Creator navigation resolves selected states in broadcast purple, and Wallet uses a white primary balance plus a single purple menu accent system. The regenerated 1693×1662 comparison board contains the supplied five-screen source and the five final 390×844 renders in one image.
 
 ## Primary interactions and technical evidence
 
@@ -93,7 +94,7 @@
 - Browser console warnings/errors: no application warnings/errors in the final `/site` render.
 - Admin web: focused landing tests 7/7 passed; optimized Next.js build passed.
 - API feed engine: 14/14 focused tests passed, including real gift-total aggregation and the zero-total path.
-- Mobile: `flutter analyze` clean; 353 tests passed with one capture-only test skipped by default. The capture-only test passes separately and regenerates the five final 390×844 states.
+- Mobile: `flutter analyze` clean; 412 tests passed with one capture-only test skipped by default. The capture-only test passes separately and regenerates the five final 390×844 states; 25 focused UI tests cover the revised hierarchy and role-aware navigation.
 
 ## Current implementation checklist
 

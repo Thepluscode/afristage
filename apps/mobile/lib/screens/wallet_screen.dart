@@ -183,7 +183,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 icon: CupertinoIcons.creditcard,
                 title: 'Payout methods',
                 subtitle: 'Bank or mobile money',
-                accent: AfriColors.teal,
+                accent: AfriColors.purple,
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -199,14 +199,14 @@ class _WalletScreenState extends State<WalletScreen> {
                 icon: CupertinoIcons.question_circle,
                 title: 'Support',
                 subtitle: 'Help center & contact us',
-                accent: AfriColors.teal,
+                accent: AfriColors.purple,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const SupportScreen()))),
             AfriMenuRow(
                 icon: CupertinoIcons.exclamationmark_shield,
                 title: 'Safety Center',
                 subtitle: 'Report and content safety',
-                accent: AfriColors.warning,
+                accent: AfriColors.purple,
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                         content: Text(

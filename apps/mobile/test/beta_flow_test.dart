@@ -114,6 +114,15 @@ void main() {
     await tester.pumpWidget(wrapWithState(state, const FeedScreen()));
     await tester.pump();
     expect(find.text('Friday Afrobeats Live'), findsWidgets);
+    expect(
+      tester.getTopLeft(find.byType(AfriHeroLive)).dy,
+      lessThan(tester.getTopLeft(find.text('Live now').last).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Live now').last).dy,
+      lessThan(tester.getTopLeft(find.text('Browse by category')).dy),
+    );
+    expect(find.text('Gift balance'), findsNothing);
 
     await tester.scrollUntilVisible(
       find.text('More on AfriStage'),
@@ -130,9 +139,31 @@ void main() {
     expect(find.text('Gift Wallet'), findsOneWidget);
     expect(find.text('Gift Balance'), findsOneWidget);
     expect(find.text('128,450'), findsOneWidget);
-    expect(find.text('Send Gift'), findsOneWidget);
+    expect(find.text('Send Gift'), findsWidgets);
     expect(find.text('Top Up'), findsOneWidget);
     expect(find.text('Request payout'), findsOneWidget);
+  });
+
+  testWidgets('creator navigation uses the broadcast accent', (tester) async {
+    final state = AppState(api: _FeedApiClient())..role = 'CREATOR';
+
+    await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+      value: state,
+      child: MaterialApp(theme: AfriTheme.dark(), home: const HomeShell()),
+    ));
+    await tester.pump();
+
+    final navTheme = tester.widget<NavigationBarTheme>(
+      find.byType(NavigationBarTheme).last,
+    );
+    expect(
+      navTheme.data.iconTheme!.resolve({WidgetState.selected})!.color,
+      AfriColors.broadcast,
+    );
+    expect(
+      navTheme.data.labelTextStyle!.resolve({WidgetState.selected})!.color,
+      AfriColors.broadcast,
+    );
   });
 
   testWidgets('gift drawer shows balance, buy coins, prices, and send action',
