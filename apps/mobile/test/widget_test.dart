@@ -18,6 +18,12 @@ void main() {
     expect(find.byIcon(CupertinoIcons.antenna_radiowaves_left_right),
         findsOneWidget);
     expect(find.text('Welcome back to AfriStage'), findsOneWidget);
+    expect(
+      find.text(
+          'Use the email address or phone number linked to your account.'),
+      findsOneWidget,
+    );
+    expect(find.text('Enter your password'), findsOneWidget);
     expect(find.text('Log in to AfriStage'), findsOneWidget);
     expect(find.text('Seeded test accounts'), findsOneWidget);
     expect(find.text('Viewer'), findsOneWidget);
