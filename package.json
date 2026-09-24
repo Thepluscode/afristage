@@ -61,5 +61,10 @@
     "playwright": "1.63.0",
     "prettier": "^3.9.8",
     "socket.io-client": "^4.7.5"
+  },
+  "overrides": {
+    "multer": "^2.4.0",
+    "lodash": "^4.18.1",
+    "postcss": "^8.5.23"
   }
 }

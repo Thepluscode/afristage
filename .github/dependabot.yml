@@ -10,10 +10,24 @@ updates:
     directories: ["/apps/api", "/apps/web", "/apps/admin-web", "/apps/mobile"]
     schedule: { interval: monthly }
     groups: { base-images: { patterns: ["*"] } }
+    ignore:
+      # Node majors move only to an LTS line, by hand, together with CI and
+      # @types/node. nginx odd minors are mainline; stay on the stable branch.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+      - dependency-name: nginx
+        update-types: ["version-update:semver-minor"]
   - package-ecosystem: docker-compose
     directory: "/"
     schedule: { interval: monthly }
     groups: { local-stack: { patterns: ["*"] } }
+    ignore:
+      # A Postgres major strands existing local volumes (dump/restore, not a
+      # tag bump). Redis tracks the deployed 8.2 line.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: redis
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: monthly }
