@@ -8,6 +8,10 @@ on:
       - "apps/api/**"
       - "scripts/**"
       - ".github/workflows/api-ci.yml"
+      # One lockfile serves every workspace. A dependency-only PR (Dependabot,
+      # npm audit fix) touched no app path and ran no CI at all (#288, 2026-09-24).
+      - "package.json"
+      - "package-lock.json"
       - "FEATURE_TRACKER.md" # the tracker lint guards this file, so edits to it must run
   workflow_dispatch:
 
