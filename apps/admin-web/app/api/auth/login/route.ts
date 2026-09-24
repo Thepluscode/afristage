@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   const secure = req.nextUrl.protocol === 'https:' || process.env.ADMIN_COOKIE_SECURE === 'true';
-  setSessionCookies(cookies(), data.accessToken, data.refreshToken, secure);
+  setSessionCookies(await cookies(), data.accessToken, data.refreshToken, secure);
 
   return NextResponse.json({ ok: true, role: data.role });
 }

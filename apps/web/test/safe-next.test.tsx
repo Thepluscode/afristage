@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import LoginPage from '../app/login/page';
-import RegisterPage from '../app/register/page';
+import LoginPage from '../app/login/LoginForm';
+import RegisterPage from '../app/register/RegisterForm';
 import { safeNext } from '../lib/safe-next';
 
 describe('safeNext', () => {

@@ -1,0 +1,56 @@
+'use client';
+
+import { useState } from 'react';
+import { safeNext } from '../../lib/safe-next';
+
+// A gated page bounces here with ?next=… and the form then said only "Welcome
+// back". Someone who just clicked "Buy coins" is looking at a sign-in screen
+// with no stated connection to what they asked for.
+const REDIRECT_REASON: Record<string, string> = {
+  '/buy': 'Sign in to buy coins.',
+  '/wallet': 'Sign in to open your wallet.',
+  '/earnings': 'Sign in to see your earnings.'
+};
+
+export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+  const next = safeNext(searchParams.next);
+  // Keyed on the SUPPLIED next, not the defaulted one — someone who typed
+  // /login directly was not sent here by anything, and telling them to "sign
+  // in to open your wallet" invents a journey they did not take. Only paths we
+  // recognise: `next` is attacker-controlled, and echoing it back would put
+  // their text on our sign-in page.
+  const reason = searchParams.next ? REDIRECT_REASON[searchParams.next] : undefined;
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
+    setBusy(false);
+    if (res.ok) window.location.assign(next);
+    else setError('Wrong email/phone or password.');
+  }
+
+  return (
+    <main className="auth">
+      <h1>Welcome back</h1>
+      {reason ? <p className="alt">{reason}</p> : null}
+      <form onSubmit={submit}>
+        <input aria-label="Email or phone" placeholder="Email or phone" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
+        <input aria-label="Password" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        {error ? <p className="err">{error}</p> : null}
+        <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      </form>
+      <p className="alt"><a href="/forgot-password">Forgot password?</a></p>
+      <p className="alt">New here? <a href={`/register?next=${encodeURIComponent(next)}`}>Create an account</a></p>
+    </main>
+  );
+}

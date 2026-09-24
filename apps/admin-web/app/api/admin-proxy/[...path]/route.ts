@@ -12,7 +12,7 @@ const inflightRefresh = new Map<string, Promise<{ accessToken: string; refreshTo
 // Exchange the refresh cookie for a fresh token pair, persist both, and return
 // the new access token. Returns null if there's no refresh cookie or it's rejected.
 async function tryRefresh(secure: boolean): Promise<string | null> {
-  const refreshToken = cookies().get(REFRESH_COOKIE)?.value;
+  const refreshToken = (await cookies()).get(REFRESH_COOKIE)?.value;
   if (!refreshToken) return null;
   let flight = inflightRefresh.get(refreshToken);
   if (!flight) {
@@ -29,7 +29,7 @@ async function tryRefresh(secure: boolean): Promise<string | null> {
   }
   const data = await flight;
   if (!data) return null;
-  setSessionCookies(cookies(), data.accessToken, data.refreshToken, secure);
+  setSessionCookies(await cookies(), data.accessToken, data.refreshToken, secure);
   return data.accessToken;
 }
 
@@ -53,7 +53,7 @@ async function proxy(req: NextRequest, path: string[]) {
       cache: 'no-store'
     });
 
-  let token = cookies().get(ACCESS_COOKIE)?.value;
+  let token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) {
     token = (await tryRefresh(secure)) ?? undefined;
     if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -77,8 +77,8 @@ async function proxy(req: NextRequest, path: string[]) {
   });
 }
 
-type Ctx = { params: { path: string[] } };
-export const GET = (req: NextRequest, ctx: Ctx) => proxy(req, ctx.params.path);
-export const POST = (req: NextRequest, ctx: Ctx) => proxy(req, ctx.params.path);
-export const PATCH = (req: NextRequest, ctx: Ctx) => proxy(req, ctx.params.path);
-export const DELETE = (req: NextRequest, ctx: Ctx) => proxy(req, ctx.params.path);
+type Ctx = { params: Promise<{ path: string[] }> };
+export const GET = async (req: NextRequest, ctx: Ctx) => proxy(req, (await ctx.params).path);
+export const POST = async (req: NextRequest, ctx: Ctx) => proxy(req, (await ctx.params).path);
+export const PATCH = async (req: NextRequest, ctx: Ctx) => proxy(req, (await ctx.params).path);
+export const DELETE = async (req: NextRequest, ctx: Ctx) => proxy(req, (await ctx.params).path);

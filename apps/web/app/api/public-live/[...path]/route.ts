@@ -95,6 +95,6 @@ async function forward(req: NextRequest, path: string[]) {
   });
 }
 
-type Ctx = { params: { path: string[] } };
-export const GET = (req: NextRequest, ctx: Ctx) => forward(req, ctx.params.path);
-export const POST = (req: NextRequest, ctx: Ctx) => forward(req, ctx.params.path);
+type Ctx = { params: Promise<{ path: string[] }> };
+export const GET = async (req: NextRequest, ctx: Ctx) => forward(req, (await ctx.params).path);
+export const POST = async (req: NextRequest, ctx: Ctx) => forward(req, (await ctx.params).path);

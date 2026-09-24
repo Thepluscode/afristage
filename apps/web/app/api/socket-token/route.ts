@@ -12,7 +12,7 @@ import { ACCESS_COOKIE } from '../../../lib/session';
 // connects but the gateway degrades to guest (can't send) until the cookie
 // refreshes on the next proxy call; add refresh-on-expiry here if reconnect churn
 // ever shows up.
-export function GET() {
-  const token = cookies().get(ACCESS_COOKIE)?.value ?? null;
+export async function GET() {
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value ?? null;
   return NextResponse.json({ token });
 }

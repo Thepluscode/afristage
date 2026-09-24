@@ -12,7 +12,7 @@ describe('contentSecurityPolicy', () => {
   it('allows no external script origin — the attack this exists to stop', () => {
     const scriptSrc = contentSecurityPolicy(API)
       .split('; ')
-      .find((d) => d.startsWith('script-src'));
+      .find((d: string) => d.startsWith('script-src'));
     expect(scriptSrc).toBe("script-src 'self' 'unsafe-inline'");
     expect(scriptSrc).not.toMatch(/https?:\/\//);
   });
@@ -24,14 +24,14 @@ describe('contentSecurityPolicy', () => {
   it('lets the app reach its own API over https and wss, and nothing else', () => {
     const connect = contentSecurityPolicy(API)
       .split('; ')
-      .find((d) => d.startsWith('connect-src'));
+      .find((d: string) => d.startsWith('connect-src'));
     expect(connect).toBe(`connect-src 'self' ${API} wss://api.example.com`);
   });
 
   it('stays valid when the API base is unset — no empty or dangling source', () => {
     const connect = contentSecurityPolicy('')
       .split('; ')
-      .find((d) => d.startsWith('connect-src'));
+      .find((d: string) => d.startsWith('connect-src'));
     expect(connect).toBe("connect-src 'self'");
   });
 
