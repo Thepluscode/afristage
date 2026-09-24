@@ -1,10 +1,10 @@
-FROM node:22.23.2-alpine AS deps
+FROM node:24.21.0-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 COPY apps/admin-web/package.json apps/admin-web/package.json
 RUN npm install
 
-FROM node:22.23.2-alpine AS runner
+FROM node:24.21.0-alpine AS runner
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/admin-web ./apps/admin-web
