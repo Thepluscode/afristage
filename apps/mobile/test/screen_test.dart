@@ -528,9 +528,22 @@ void main() {
   });
 
   testWidgets('RegisterScreen renders the first step', (tester) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(_wrap(_FakeApi(), const RegisterScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Join AfriStage'), findsOneWidget);
+    expect(find.text('We will never show your email on your profile.'),
+        findsOneWidget);
+    expect(find.text('Use at least 8 characters.'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+
+    final passwordBottom =
+        tester.getBottomLeft(find.byType(TextField).at(1)).dy;
+    final continueTop = tester.getTopLeft(find.text('Continue')).dy;
+    expect(continueTop - passwordBottom, lessThanOrEqualTo(40));
   });
 
   testWidgets('GoLiveSetupScreen renders the stage preview and controls',
@@ -1893,7 +1906,8 @@ void main() {
     await tester.pumpWidget(_wrapState(
         AppState(api: api, storage: _MemStorage()), const RegisterScreen()));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'e@x.com');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Email address'), 'e@x.com');
     await tester.enterText(find.widgetWithText(TextField, 'Password'), 'pw');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
@@ -3037,7 +3051,8 @@ void main() {
     await tester.pumpWidget(_wrapState(
         AppState(api: api, storage: _MemStorage()), const RegisterScreen()));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'e@x.com');
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Email address'), 'e@x.com');
     await tester.enterText(find.widgetWithText(TextField, 'Password'), 'pw');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();

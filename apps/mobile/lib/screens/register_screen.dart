@@ -15,7 +15,6 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _page = PageController();
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _username = TextEditingController();
@@ -28,7 +27,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _page.dispose();
     _email.dispose();
     _password.dispose();
     _username.dispose();
@@ -39,8 +37,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _next() async {
     if (_step < 2) {
       setState(() => _step += 1);
-      await _page.animateToPage(_step,
-          duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
       return;
     }
     await _createAccount();
@@ -82,7 +78,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Create Account'),
         backgroundColor: Colors.transparent,
@@ -122,16 +117,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: 360,
-                child: PageView(
-                  controller: _page,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _AccountStep(email: _email, password: _password),
-                    _IdentityStep(
-                        username: _username, displayName: _displayName),
-                    _LocaleStep(
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: switch (_step) {
+                  0 => _AccountStep(
+                      key: const ValueKey('account-step'),
+                      email: _email,
+                      password: _password,
+                    ),
+                  1 => _IdentityStep(
+                      key: const ValueKey('identity-step'),
+                      username: _username,
+                      displayName: _displayName,
+                    ),
+                  _ => _LocaleStep(
+                      key: const ValueKey('locale-step'),
                       country: _country,
                       language: _language,
                       ageConfirmed: _ageConfirmed,
@@ -139,8 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onLanguage: (v) => setState(() => _language = v),
                       onAge: (v) => setState(() => _ageConfirmed = v),
                     ),
-                  ],
-                ),
+                },
               ),
               const SizedBox(height: 12),
               FilledButton(
@@ -166,7 +165,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 }
 
 class _AccountStep extends StatelessWidget {
-  const _AccountStep({required this.email, required this.password});
+  const _AccountStep({super.key, required this.email, required this.password});
 
   final TextEditingController email;
   final TextEditingController password;
@@ -177,19 +176,38 @@ class _AccountStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Step 1 · Account', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 6),
+        Text(
+          'Use details you can access later for sign-in and account recovery.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         const SizedBox(height: 14),
         TextField(
           controller: email,
           keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
-              labelText: 'Email', prefixIcon: Icon(Icons.alternate_email)),
+            labelText: 'Email address',
+            hintText: 'you@example.com',
+            helperText: 'We will never show your email on your profile.',
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(Icons.alternate_email),
+          ),
+          autofillHints: const [AutofillHints.email],
+          textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: 12),
         TextField(
           controller: password,
           obscureText: true,
           decoration: const InputDecoration(
-              labelText: 'Password', prefixIcon: Icon(Icons.lock_outline)),
+            labelText: 'Password',
+            hintText: 'Create a password',
+            helperText: 'Use at least 8 characters.',
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(Icons.lock_outline),
+          ),
+          autofillHints: const [AutofillHints.newPassword],
+          textInputAction: TextInputAction.done,
         ),
       ],
     );
@@ -197,7 +215,8 @@ class _AccountStep extends StatelessWidget {
 }
 
 class _IdentityStep extends StatelessWidget {
-  const _IdentityStep({required this.username, required this.displayName});
+  const _IdentityStep(
+      {super.key, required this.username, required this.displayName});
 
   final TextEditingController username;
   final TextEditingController displayName;
@@ -209,18 +228,29 @@ class _IdentityStep extends StatelessWidget {
       children: [
         Text('Step 2 · Public profile',
             style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 6),
+        Text('Choose how viewers and creators will see you.',
+            style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 14),
         TextField(
           controller: displayName,
           decoration: const InputDecoration(
               labelText: 'Display name',
+              helperText: 'Shown on your profile, chat, and gifts.',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               prefixIcon: Icon(Icons.badge_outlined)),
+          textInputAction: TextInputAction.next,
         ),
         const SizedBox(height: 12),
         TextField(
           controller: username,
           decoration: const InputDecoration(
-              labelText: 'Username', prefixIcon: Icon(Icons.person_outline)),
+              labelText: 'Username',
+              hintText: 'your.name',
+              helperText: '3–32 letters, numbers, dots, or underscores.',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+              prefixIcon: Icon(Icons.person_outline)),
+          textInputAction: TextInputAction.done,
         ),
       ],
     );
@@ -229,6 +259,7 @@ class _IdentityStep extends StatelessWidget {
 
 class _LocaleStep extends StatelessWidget {
   const _LocaleStep({
+    super.key,
     required this.country,
     required this.language,
     required this.ageConfirmed,
@@ -251,6 +282,9 @@ class _LocaleStep extends StatelessWidget {
       children: [
         Text('Step 3 · Country and language',
             style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 6),
+        Text('These choices personalise discovery and recommendations.',
+            style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
           initialValue: country,

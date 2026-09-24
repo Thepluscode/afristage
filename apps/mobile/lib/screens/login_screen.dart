@@ -105,14 +105,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 8),
                       Text('Go live, discover creators, and support talent.',
                           style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Use the email address or phone number linked to your account.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 24),
                       TextField(
                         controller: _identifier,
                         decoration: const InputDecoration(
                           labelText: 'Email or phone',
+                          hintText: 'you@example.com',
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
                           prefixIcon: Icon(Icons.alternate_email),
                         ),
                         keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [
+                          AutofillHints.username,
+                          AutofillHints.email,
+                          AutofillHints.telephoneNumber,
+                        ],
+                        textInputAction: TextInputAction.next,
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -120,8 +133,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'Password',
+                          hintText: 'Enter your password',
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
                           prefixIcon: Icon(Icons.lock_outline),
                         ),
+                        autofillHints: const [AutofillHints.password],
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) {
+                          if (!_busy) _login();
+                        },
                       ),
                       const SizedBox(height: 20),
                       FilledButton(
