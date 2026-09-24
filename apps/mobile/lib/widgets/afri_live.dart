@@ -666,7 +666,7 @@ class AfriBalanceCard extends StatelessWidget {
             style: const TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.w900,
-                color: AfriColors.gold)),
+                color: AfriColors.text)),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(
