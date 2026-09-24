@@ -36,6 +36,10 @@ updates:
     directory: "/"
     schedule: { interval: monthly }
     groups:
+      # NestJS packages must share a major; one at a time they cannot build
+      # (#292: @nestjs/common 12 alone failed build-test). Listed first so
+      # @nestjs/* majors land here, together, rather than one PR each.
+      nestjs: { patterns: ["@nestjs/*"] }
       npm-minor-patch: { update-types: ["minor", "patch"] }
     open-pull-requests-limit: 5
     ignore:
