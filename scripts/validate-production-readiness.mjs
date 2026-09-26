@@ -34,7 +34,14 @@ function containsAcross(files, needles, label) {
 
 console.log('\n=== PRODUCTION STATIC GATES ===');
 contains('apps/api/src/config/validate-env.ts', ['REQUIRE_ADMIN_MFA', 'ENABLE_MOCK_PAYMENTS', 'PAYSTACK_SECRET_KEY', 'LIVEKIT_API_SECRET'], 'API production env validator blocks unsafe launch config');
-contains('apps/api/src/modules/auth/auth.service.ts', ['SEEDED_PRODUCTION_IDENTIFIERS', 'ALLOW_SEEDED_PROD_LOGIN', 'Seeded test accounts are disabled in production'], 'seeded test accounts are blocked in production auth');
+// The identifier list moved to config/seeded-accounts.ts in a5c36db; the old
+// needle named a constant that no longer exists, so this read red while the
+// guard itself was intact.
+containsAcross(
+  ['apps/api/src/modules/auth/auth.service.ts', 'apps/api/src/config/seeded-accounts.ts'],
+  ['isSeededIdentifier(dto.identifier)', 'SEEDED_IDENTIFIERS', 'ALLOW_SEEDED_PROD_LOGIN', 'Seeded test accounts are disabled in production'],
+  'seeded test accounts are blocked in production auth'
+);
 containsAcross(
   ['apps/admin-web/app/api/auth/login/route.ts', 'apps/admin-web/lib/session.ts'],
   ['ADMIN_COOKIE_SECURE', "req.nextUrl.protocol === 'https:'", 'httpOnly: true'],
