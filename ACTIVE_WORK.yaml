@@ -66,6 +66,14 @@ blocked:
   - what: Wave-1 beta-launch checks
     detail: Remaining items in the beta-launch operations playbook.
     blocked_on: owner action, including RESEND_API_KEY to light up email delivery
+  - what: Paystack staging checkout rehearsal
+    detail: >
+      The deployed API reaches Paystack, but checkout initialization returns
+      401 Invalid key from Paystack and AfriStage correctly surfaces 502 without
+      crediting coins. Stripe is not configured. The overdraw guard was verified
+      separately with balanced promotional funding through MoneyService, so that
+      evidence does not claim provider checkout works.
+    blocked_on: Owner rotates the staging PAYSTACK_SECRET_KEY to a valid test key.
 
 parked:
   - id: SELF-SERVE-KYC
@@ -101,13 +109,15 @@ verification_debt:
   # cannot see it will mistake DEPLOYED for proven.
   retired: >
     The payments work, the whole web client and the diamonds/earnings work are
-    now staging-verified with live evidence from a real creator funnel.
+    now staging-verified with live evidence from a real creator funnel. The
+    coin-overdraw guard is also staging-verified: 20 simultaneous 50-coin gifts
+    against a 100-coin balance produced exactly 2 successes, 18 rejections and
+    a zero final balance while both ledger-integrity gauges stayed green.
   outstanding: >
     The older mobile and landing design passes remain local-only — host-GPU
-    emulator plus jest/flutter suites, no deployed evidence. The coin-overdraw
-    fix is covered by a real-DB concurrency test with verified teeth, but its
-    remaining gap to VERIFIED is the same as everything else: evidence from a
-    deployed environment rather than a local one.
+    emulator plus jest/flutter suites, no deployed evidence. Paystack's staging
+    test key is invalid, so the provider checkout rehearsal remains blocked even
+    though the ledger overdraw path itself is now verified on staging.
 
 uncommitted_in_working_tree:
   # Recorded as fact, not as authorisation. Not reviewed by this migration.
