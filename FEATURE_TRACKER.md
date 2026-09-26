@@ -765,8 +765,8 @@ Highlights:
 
 | Fix | Severity | Status | Evidence | PR |
 |-----|----------|--------|----------|----|
-| Coin **double-spend / overdraw race** — non-atomic balance check + debit; concurrent gifts/payouts (distinct idempotency keys) could mint coins / over-reserve payouts. Fixed with `FOR UPDATE` lock + in-transaction balance assertion (`guardNonNegative`). Gift `quantity` bounded `@Max(10000)`. | CRITICAL | DEPLOYED | new overdraw/covered-debit tests; API 152/152 | #29 |
-| Coin overdraw fix — **real-DB concurrency test**: 20 parallel gifts on a 1000-coin wallet → exactly 10 win, balance lands at 0, never negative. Proven to have teeth (removing the guard → 20 win, −1000). | — | DEPLOYED | `npm run test:concurrency` 1/1; excluded from default suite | #34 |
+| Coin **double-spend / overdraw race** — non-atomic balance check + debit; concurrent gifts/payouts (distinct idempotency keys) could mint coins / over-reserve payouts. Fixed with `FOR UPDATE` lock + in-transaction balance assertion (`guardNonNegative`). Gift `quantity` bounded `@Max(10000)`. | CRITICAL | VERIFIED (staging) | Local negative control: removing the guard let 20/20 gifts win and drove the wallet to −1000. Staging drill on deployed commit `8de370e`: a clean 100-coin viewer sent twenty concurrent 50-coin gifts through the public API; exactly **2 returned 201**, **18 returned 400**, final balance **0**, two gift rows persisted, `afristage_ledger_integrity_ok 1`, `afristage_ledger_unbalanced_transactions 0`. Funding used the balanced `PLATFORM_REVENUE → PROMO → COIN` MoneyService path because the configured Paystack test key returned `401 Invalid key`; this verifies the overdraw guard, not provider checkout. | #29 |
+| Coin overdraw fix — **real-DB concurrency test**: 20 parallel gifts on a 1000-coin wallet → exactly 10 win, balance lands at 0, never negative. Proven to have teeth (removing the guard → 20 win, −1000). | — | VERIFIED (staging) | `npm run test:concurrency` 1/1 locally with negative-control teeth. Staging room `b601a374-a7d1-4eca-884a-9f411329d79e`: 20 simultaneous API gift requests against 100 coins produced `{201:2, 400:18}`; wallet 0, gift rows 2, room ended, both integrity gauges green. | #34 |
 | API **silent failures** — `.catch(()=>{})` dropped watch-time + peak-viewer writes; cron with no try/catch leaked zombie LIVE rooms. Now logged. | HIGH | DEPLOYED | tsc clean, chat+live-rooms 27/27 | #30 |
 | Mobile **reconnect-banner bug** ("Chat rejoined" on first connect) + swallowed auth-refresh / wallet-load errors now logged. | HIGH/MED | DEPLOYED | analyze clean, mobile 18/18 | #31 |
 | Schema note: `GiftTransaction.*Minor` fields hold **COINS** not fiat (immunize against a future wrong `/100` "fix"). | DOC | DEPLOYED | comment-only; `migrate diff` empty | #32 |
@@ -918,8 +918,8 @@ imagery provenance for the `/site` marketing photos before any marketing push
 
 ## Verification debt
 
-These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
-(no prod logs / live evidence):
+This section records both retired and outstanding verification debt. Staging is
+the current deployed verification bar; production evidence does not exist yet:
 
 - **Now staging-verified with live evidence (debt retired):** the payments work
   (#183 disputes, #185 revenue-alert), the whole web client (#192–#207), and the
@@ -940,10 +940,11 @@ These are `DEPLOYED` (tests/build pass) but **not yet `VERIFIED`** in production
   Apple Developer. The hosted `flutter-web` service remains the interim channel.
   Physical-device camera publish (#172) also still pending (emulator can't capture).
 - The coin-overdraw fix (#29) relies on Postgres row locks under real concurrency.
-  ✅ Now covered by a real-DB concurrency test (#34) — proven under 20 parallel
-  gifts on a local Postgres, with teeth verified (guard removed → overdraw). The
-  remaining gap to `VERIFIED` is the same as everything else: evidence from a
-  deployed prod/staging environment, not just local.
+  ✅ Verified on staging under 20 simultaneous public-API gifts against a
+  100-coin wallet: exactly 2 × 50-coin gifts posted, 18 were rejected, the
+  balance stopped at 0, and the ledger stayed balanced. The earlier local
+  real-DB suite (#34) still supplies the negative control (guard removed →
+  overdraw); the staging drill supplies deployed-runtime evidence.
 
 ## Notes
 
