@@ -60,6 +60,7 @@ jobs:
       # PRODUCTION-READY claim with no evidence behind it.
       - run: npm run test:tracker-lint
       - run: npm run validate:tracker
+      - run: npm run validate:production-readiness
       # The deploy job's verification is CI-only shell, so this is the only thing
       # that ever proves it rejects a stale deployment. Runs on every PR, not just
       # main, so the guard cannot quietly break between deploys.
@@ -101,6 +102,9 @@ jobs:
           npm run validate:ux-readiness
           npm run smoke:closed-beta
           npm run validate:ux-timing
+          npm run validate:viewers
+          npm run validate:blocks
+          npm run validate:error-paths
           kill "$(cat /tmp/api.pid)" || true
 
       - name: E2E — hardening suite (rate limiting on)
