@@ -292,6 +292,123 @@ void main() {
     });
   });
 
+  group('the shelf composition', () {
+    // The most recently pinned product is what the host is holding up now, so
+    // it gets the cover treatment; earlier pins sit under "Also pinned".
+    testWidgets('features the first pin and demotes the rest', (tester) async {
+      await _openRoom(
+          tester,
+          _ShopApi(pins: [
+            _pin(id: 'p1', title: 'Featured Tee'),
+            _pin(id: 'p2', title: 'Older Wrap'),
+          ]));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Featured Tee'), findsOneWidget);
+      expect(find.text('Older Wrap'), findsOneWidget);
+      expect(find.text('Also pinned'), findsOneWidget);
+      // The feature gets the cover; the demoted row does not.
+      expect(find.byType(AspectRatio), findsOneWidget);
+    });
+
+    testWidgets('a single pin needs no "Also pinned" section', (tester) async {
+      await _openRoom(tester, _ShopApi(pins: [_pin()]));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Also pinned'), findsNothing);
+    });
+
+    // Scarcity stated twice on one card reads as a rendering fault.
+    testWidgets('never states the same status twice on the feature',
+        (tester) async {
+      await _openRoom(tester, _ShopApi(pins: [_pin(stock: 2)]));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Only 2 left'), findsOneWidget);
+    });
+  });
+
+  group('accessibility', () {
+    // A sheet of identically-labelled "Buy" buttons is unusable, and these
+    // spend money. Each action names its product and its price.
+    testWidgets('labels every buy action with its product and price',
+        (tester) async {
+      await _openRoom(
+          tester,
+          _ShopApi(pins: [
+            _pin(id: 'p1', title: 'Featured Tee', priceCoins: 1200),
+            _pin(id: 'p2', title: 'Older Wrap', priceCoins: 800),
+          ]));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Buy Featured Tee for 1.2K coins'),
+          findsOneWidget);
+      expect(find.bySemanticsLabel('Buy Older Wrap for 800 coins'),
+          findsOneWidget);
+    });
+
+    testWidgets('says why an action is unavailable rather than just disabling it',
+        (tester) async {
+      await _openRoom(tester,
+          _ShopApi(pins: [_pin(title: 'Gone', stock: 0)], coinBalance: 5000));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Gone, sold out'), findsOneWidget);
+    });
+
+    testWidgets('warns that a link-out action leaves the app', (tester) async {
+      await _openRoom(
+          tester,
+          _ShopApi(pins: [
+            _pin(title: 'Shea Butter', externalUrl: 'https://b.example/p1', shopName: 'Bronzea')
+          ]));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+      expect(
+          find.bySemanticsLabel(
+              'View Shea Butter on Bronzea, opens outside the app'),
+          findsOneWidget);
+    });
+
+    testWidgets('announces the coin balance as a balance, not a bare number',
+        (tester) async {
+      await _openRoom(tester, _ShopApi(pins: [_pin()], coinBalance: 3400));
+      await tester.tap(find.byType(AfriShopButton));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Your balance: 3.4K coins'), findsOneWidget);
+    });
+  });
+
+  group('image decoding', () {
+    // The audience is assumed to be on constrained data; a seller's full-size
+    // upload must not be decoded at original resolution.
+    testWidgets('bounds decode width for both the feature and the rows',
+        (tester) async {
+      await provideMockNetworkImages(() async {
+        await _openRoom(
+            tester,
+            _ShopApi(pins: [
+              _pin(id: 'p1', imageUrl: 'https://cdn.example/a.png'),
+              _pin(id: 'p2', imageUrl: 'https://cdn.example/b.png'),
+            ]));
+        await tester.tap(find.byType(AfriShopButton));
+        await tester.pumpAndSettle();
+
+        final images = tester
+            .widgetList<Image>(find.byType(Image))
+            .where((i) => i.image is ResizeImage)
+            .map((i) => (i.image as ResizeImage).width)
+            .toList();
+        expect(images, isNotEmpty);
+        // Every network image is bounded, and none at the original size.
+        expect(images.every((w) => w != null && w <= 720), isTrue);
+        expect(images, contains(160)); // the demoted row's thumbnail
+      });
+    });
+  });
+
   group('buying', () {
     testWidgets('places an order attributed to the room, then reloads the shelf',
         (tester) async {
