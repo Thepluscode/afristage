@@ -114,7 +114,7 @@ export default function EarningsPage() {
         </div>
       </div>
 
-      {bonus && bonus.tiers.length > 0 ? <TargetCard bonus={bonus} /> : null}
+      {bonus && (bonus.tiers.length > 0 || bonus.history.length > 0) ? <TargetCard bonus={bonus} /> : null}
 
       <TopSupporters gifters={supporters} />
 
@@ -141,17 +141,22 @@ export default function EarningsPage() {
 // already paid. Paid in 💎 on top of normal gift earnings after the month closes.
 function TargetCard({ bonus }: { bonus: TargetBonusView }) {
   const { headline, percent } = targetProgress(bonus);
-  const ends = new Date(bonus.monthEndsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  // monthEndsAt is the exclusive UTC cutoff, so the last day that counts is the day before it.
+  const lastDay = new Date(new Date(bonus.monthEndsAt).getTime() - 1).toLocaleDateString(undefined, { day: 'numeric', month: 'long', timeZone: 'UTC' });
   return (
     <div className="target">
       <h2>Monthly target</h2>
-      <p>{headline}</p>
-      <div className="target-bar" role="progressbar" aria-label="Monthly target progress" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
-        <span style={{ width: `${percent}%` }} />
-      </div>
-      <p className="alt">
-        {diamonds(bonus.giftCoins)} gift coins received this month · month ends {ends}
-      </p>
+      {bonus.tiers.length > 0 ? (
+        <>
+          <p>{headline}</p>
+          <div className="target-bar" role="progressbar" aria-label="Monthly target progress" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+            <span style={{ width: `${percent}%` }} />
+          </div>
+          <p className="alt">
+            {diamonds(bonus.giftCoins)} gift coins received this month · gifts count until the end of {lastDay} (UTC)
+          </p>
+        </>
+      ) : null}
       {bonus.history.length > 0 ? (
         <div className="payouts">
           {bonus.history.map((h) => (

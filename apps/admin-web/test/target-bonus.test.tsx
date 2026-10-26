@@ -52,8 +52,18 @@ describe('TargetBonusPage', () => {
     expect(adminPost).not.toHaveBeenCalled(); // the trigger only opens the dialog
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Pay 2026-09' }));
-    await waitFor(() => expect(adminPost).toHaveBeenCalledWith(expect.stringMatching(/\/admin\/target-bonus\/months\/\d{4}-\d{2}\/pay$/)));
-    expect(await screen.findByText('Paid 3,000 bonus coins to 1 host(s) for ' + vi.mocked(adminPost).mock.calls[0][0].split('/')[4] + '.')).toBeInTheDocument();
+    await waitFor(() => expect(adminPost).toHaveBeenCalledWith('/admin/target-bonus/months/2026-09/pay'));
+    expect(await screen.findByText('Paid 3,000 bonus coins to 1 host(s) for 2026-09.')).toBeInTheDocument();
+  });
+
+  it('changing the month hides the old preview so a different month cannot be paid from it', async () => {
+    mockGets(month());
+    render(<TargetBonusPage />);
+    await screen.findByRole('button', { name: /^Pay 2026-09$/ });
+    fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-08' } });
+    expect(screen.queryByRole('button', { name: /^Pay / })).toBeNull();
+    expect(screen.queryByText('Ada Stage')).toBeNull();
+    expect(adminPost).not.toHaveBeenCalled();
   });
 
   it('a paid month offers no pay button', async () => {

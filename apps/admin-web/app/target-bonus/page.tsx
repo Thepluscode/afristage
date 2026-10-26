@@ -84,16 +84,17 @@ export default function TargetBonusPage() {
     });
   };
 
-  const pay = () =>
+  // Pays the month the admin previewed and confirmed (view.month), never the raw input.
+  const pay = (confirmed: string) =>
     act(async () => {
-      const res = await adminPost<MonthView>(`/admin/target-bonus/months/${month}/pay`);
+      const res = await adminPost<MonthView>(`/admin/target-bonus/months/${confirmed}/pay`);
       setView(res);
       setNotice(
         res.alreadyPaid
-          ? `${month} was already paid — nothing was paid twice.`
+          ? `${confirmed} was already paid — nothing was paid twice.`
           : res.paid
-            ? `Paid ${n(res.totalBonusCoins)} bonus coins to ${res.awards.length} host(s) for ${month}.`
-            : `No host reached a tier in ${month}; nothing was paid.`,
+            ? `Paid ${n(res.totalBonusCoins)} bonus coins to ${res.awards.length} host(s) for ${confirmed}.`
+            : `No host reached a tier in ${confirmed}; nothing was paid.`,
       );
     });
 
@@ -149,7 +150,10 @@ export default function TargetBonusPage() {
           loadMonth();
         }}
       >
-        <input aria-label="Month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        <input aria-label="Month" type="month" value={month} onChange={(e) => {
+            setMonth(e.target.value);
+            setView(null); // a stale preview must not stay payable
+          }} />
         <button className="button secondary">Load month</button>
         {status && <StatusBadge status={status} />}
       </FilterBar>
@@ -175,7 +179,7 @@ export default function TargetBonusPage() {
               title={`Pay ${view.month} bonuses`}
               body={`Pay ${n(view.totalBonusCoins)} coins from the promo budget (${n(view.promoBalanceCoins)} available) to ${view.awards.length} host(s)? A month can only be paid once.`}
               confirmLabel={`Pay ${view.month}`}
-              onConfirm={pay}
+              onConfirm={() => pay(view.month)}
             />
           )}
         </>
