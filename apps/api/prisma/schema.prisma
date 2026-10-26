@@ -93,6 +93,9 @@ enum LedgerTransactionType {
   EVENT_PRIZE
   // Marketplace sale: buyer COIN -> seller EARNING + PLATFORM_REVENUE.
   PURCHASE
+  // Monthly host target bonus: PROMO -> qualifying hosts' EARNING, one fan-out
+  // per calendar month.
+  TARGET_BONUS
 }
 
 enum LedgerTransactionStatus {
@@ -989,4 +992,18 @@ model Order {
   @@index([buyerUserId, createdAt])
   @@index([shopId, createdAt])
   @@map("orders")
+}
+
+// Monthly host target ladder (founder decision 2026-10-26): one ladder for all
+// hosts. A host whose gift coins received in a calendar month (UTC) reach
+// minGiftCoins earns bonusCoins; only the highest tier reached pays. Paid by an
+// admin from PROMO after the month closes — the ladder is read at pay time and
+// snapshotted into the ledger transaction's metadata.
+model TargetBonusTier {
+  id           String   @id @default(uuid())
+  minGiftCoins Int      @unique @map("min_gift_coins")
+  bonusCoins   Int      @map("bonus_coins")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("target_bonus_tiers")
 }
