@@ -240,6 +240,45 @@ export class MoneyService {
     return { transaction, replayed: false };
   }
 
+  // PROMO -> qualifying hosts' EARNING, one balanced fan-out per month. Same
+  // guard as prizeSettle: an underfunded PROMO fails the whole month (nobody is
+  // part-paid) instead of minting. Replay probe first so a retried pay returns
+  // the month's original awards (from metadata), not a recomputation.
+  targetBonus(input: { month: string; awards: { userId: string; giftCoins: number; bonusCoins: number }[] }): Promise<MoveResult> {
+    return this.metrics.trackMove('targetBonus', () => input.awards.reduce((s, a) => s + a.bonusCoins, 0), () => this.targetBonusImpl(input));
+  }
+
+  private async targetBonusImpl(input: { month: string; awards: { userId: string; giftCoins: number; bonusCoins: number }[] }): Promise<MoveResult> {
+    const key = MoneyKey.targetBonus(input.month);
+    const prior = await this.prisma.ledgerTransaction.findUnique({ where: { idempotencyKey: key } });
+    if (prior) return { transaction: prior as any, replayed: true };
+
+    const promo = await this.wallet.ensureSystemAccount(WalletAccountType.PROMO, CURRENCY);
+    const sinks: Sink[] = [];
+    for (const award of input.awards) {
+      await this.wallet.ensureUserWallets(award.userId, CURRENCY);
+      const earning = await this.wallet.account(award.userId, WalletAccountType.EARNING, CURRENCY);
+      sinks.push({ accountId: earning.id, amountMinor: award.bonusCoins });
+    }
+    try {
+      const transaction = await this.postMove({
+        type: LedgerTransactionType.TARGET_BONUS,
+        key,
+        source: { kind: 'spend', accountId: promo.id },
+        sinks,
+        metadata: { month: input.month, awards: input.awards }
+      });
+      return { transaction, replayed: false };
+    } catch (err) {
+      // A concurrent pay of the same month that committed first leaves PROMO
+      // short for this one, so the guard fires before the duplicate key would.
+      // The month IS paid — answer as a replay, not "insufficient balance".
+      const winner = await this.prisma.ledgerTransaction.findUnique({ where: { idempotencyKey: key } });
+      if (winner) return { transaction: winner as any, replayed: true };
+      throw err;
+    }
+  }
+
   // EARNING -> PAYOUT_HOLD, guarded: two concurrent requests can't both reserve
   // the same earnings.
   payoutHold(input: {

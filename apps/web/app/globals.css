@@ -196,6 +196,10 @@ html, body {
 .earnings .payouts { width: 100%; margin-top: 0.5rem; }
 .earnings .payouts h2 { font-size: 1rem; font-weight: 400; opacity: 0.8; margin: 0 0 0.5rem; }
 .earnings .payout { display: flex; justify-content: space-between; padding: 0.5rem 0; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 0.9rem; }
+.earnings .target { width: 100%; margin: 0.5rem 0; }
+.earnings .target h2 { font-size: 1rem; font-weight: 400; opacity: 0.8; margin: 0 0 0.5rem; }
+.earnings .target-bar { height: 0.5rem; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; margin: 0.5rem 0; }
+.earnings .target-bar span { display: block; height: 100%; background: currentColor; border-radius: 999px; }
 .earnings .payout-status { opacity: 0.6; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
 
 /* Floating hearts (rise from the bottom-right) */

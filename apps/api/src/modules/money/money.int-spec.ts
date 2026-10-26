@@ -137,6 +137,66 @@ describe('MoneyService boundary (integration, real Postgres)', () => {
     expect(retry.transaction.id).toBe(drainAll.transaction.id);
   });
 
+  it('target bonus: an underfunded PROMO pays nobody; concurrent pays of one month post exactly once', async () => {
+    if (!dbReady) return console.warn('skipping: no DATABASE_URL');
+    const host = (await prisma.user.create({ data: {} })).id;
+    const funder = (await prisma.user.create({ data: {} })).id;
+    const ledger = new LedgerService(prisma as any);
+    const wallet = new WalletService(prisma as any, ledger as any);
+    await wallet.ensureUserWallets(host, 'COIN');
+    await wallet.ensureUserWallets(funder, 'COIN');
+    const promo = await wallet.ensureSystemAccount(WalletAccountType.PROMO, 'COIN');
+    const promoBalance = async () => BigInt((await prisma.walletAccount.findUniqueOrThrow({ where: { id: promo.id } })).balanceMinor);
+    const month = `${PREFIX}-${host}`; // unique key per run; the shared PROMO is compared by delta
+
+    // Underfunded: ask for one coin more than PROMO holds.
+    const short = Number(await promoBalance()) + 1;
+    await expect(
+      money.targetBonus({ month: `${month}-short`, awards: [{ userId: host, giftCoins: 1, bonusCoins: short }] })
+    ).rejects.toThrow('Insufficient balance');
+    expect(await balanceOf(host, WalletAccountType.EARNING)).toBe(0n);
+    expect(await prisma.ledgerTransaction.findUnique({ where: { idempotencyKey: `target-bonus:${month}-short` } })).toBeNull();
+
+    // Fund PROMO by 300 (ADJUSTMENT seed from a throwaway account), then race 10 pays.
+    const funderEarning = await prisma.walletAccount.findFirstOrThrow({
+      where: { userId: funder, accountType: WalletAccountType.EARNING, currency: 'COIN' }
+    });
+    await ledger.postTransaction({
+      type: LedgerTransactionType.ADJUSTMENT,
+      idempotencyKey: `${PREFIX}:promo-seed:${host}`,
+      entries: [
+        { accountId: funderEarning.id, direction: LedgerDirection.DEBIT, amountMinor: 300n, currency: 'COIN' },
+        { accountId: promo.id, direction: LedgerDirection.CREDIT, amountMinor: 300n, currency: 'COIN' }
+      ]
+    });
+    const promoBefore = await promoBalance();
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => money.targetBonus({ month, awards: [{ userId: host, giftCoins: 50_000, bonusCoins: 300 }] }))
+    );
+    expect(new Set(results.map((r) => r.transaction.id)).size).toBe(1);
+    expect(await balanceOf(host, WalletAccountType.EARNING)).toBe(300n); // credited ONCE
+    expect(await promoBalance()).toBe(promoBefore - 300n); // debited ONCE
+
+    // Same race with PROMO able to cover all 10: the duplicate-key path, not the guard, must stop it.
+    await ledger.postTransaction({
+      type: LedgerTransactionType.ADJUSTMENT,
+      idempotencyKey: `${PREFIX}:promo-seed-rich:${host}`,
+      entries: [
+        { accountId: funderEarning.id, direction: LedgerDirection.DEBIT, amountMinor: 3000n, currency: 'COIN' },
+        { accountId: promo.id, direction: LedgerDirection.CREDIT, amountMinor: 3000n, currency: 'COIN' }
+      ]
+    });
+    const richBefore = await promoBalance();
+    const rich = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        money.targetBonus({ month: `${month}-rich`, awards: [{ userId: host, giftCoins: 50_000, bonusCoins: 300 }] })
+      )
+    );
+    expect(new Set(rich.map((r) => r.transaction.id)).size).toBe(1);
+    expect(await balanceOf(host, WalletAccountType.EARNING)).toBe(600n);
+    expect(await promoBalance()).toBe(richBefore - 300n);
+  }, 60_000);
+
   it('spend is guarded, drain passes through zero (guard-by-role semantics)', async () => {
     if (!dbReady) return console.warn('skipping: no DATABASE_URL');
     // Spend: a mission reward from an unfunded PROMO must fail and write nothing.

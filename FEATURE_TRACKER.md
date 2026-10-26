@@ -40,6 +40,19 @@ Flutter mobile (`apps/mobile`).
 
 ---
 
+## Session 2026-10-26 — monthly host target bonus (founder override)
+
+Switched from the `ACTIVE_WORK.yaml` task (Apple Pay / Google Pay, `blocked_on_owner`)
+on a founder instruction: "add target bonus for hosts on AfriStage", after the BIGO
+teardown (`docs/reverse-engineering/R7-bigo-web-client-teardown.md` §7) found BIGO pays
+hosts against monthly targets. Founder decisions, 2026-10-26: one ladder for every host;
+metric = gift coins received in a calendar month (UTC); paid from the PROMO budget; an
+admin clicks "Pay month". The bonus is on top of normal earnings and never withholds them.
+
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| An admin sets one bonus ladder, previews a closed month, and pays it from PROMO once; the host sees progress and paid bonuses on `/earnings`. | IMPLEMENTED | Local only (throwaway Postgres 16, CI-equivalent API env), not yet on staging. `npm run validate:target-bonus` **25/25** through the real API: running month refused (400), viewer refused (403), malformed month 400, duplicate tiers 400; a host gifted exactly at a tier gets it and misses the tier one coin higher; pay moves host EARNING +7 and PROMO −7, is audited once, a second pay reports `alreadyPaid` and moves nothing, one ledger transaction for the month, ledger integrity ok. Real-Postgres `money.int-spec`: an underfunded PROMO pays nobody; 10 concurrent pays of one month post once (both the guard path and the duplicate-key path). Before the fix that test caught concurrent pays answering "Insufficient balance" for an already-paid month. Unit: API **96 suites / 1,139 tests**, admin **43 files / 471 tests**, web **15 files / 81 tests**; mutation: removing the closed-month check, the inclusive tier boundary, or the exclusive month end each turns a test red. Admin and web production builds pass; both screens viewed in a browser against the local API (pay through the confirm dialog: PROMO 2,693 → 2,643, month shows PAID). |
+
 ## Session 2026-09-23 — a script-running redirect, unbounded identities, and an end-of-life runtime
 
 | Feature | Status | Evidence |
