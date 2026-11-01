@@ -58,12 +58,12 @@
     "audit:mock-payments": "node scripts/audit-mock-payments.mjs"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "5.0.1",
-    "playwright": "1.63.0",
-    "prettier": "^3.9.8",
-    "railway": "3.11.0",
-    "socket.io-client": "^4.7.5",
-    "vitest": "5.0.1"
+    "@vitest/coverage-v8": "5.0.5",
+    "playwright": "1.64.1",
+    "prettier": "^3.9.10",
+    "railway": "3.16.0",
+    "socket.io-client": "^4.8.4",
+    "vitest": "5.0.5"
   },
   "overrides": {
     "multer": "^2.4.0",
