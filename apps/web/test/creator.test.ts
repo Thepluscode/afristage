@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { diamonds, fiat, watchHours, fetchEarnings } from '../lib/creator';
+import { diamonds, fiat, watchHours, fetchEarnings, fetchTargetBonus, targetProgress } from '../lib/creator';
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 
@@ -64,5 +64,39 @@ describe('fetchEarnings', () => {
       return ok([]);
     });
     await expect(fetchEarnings(doFetch as never)).rejects.toMatchObject({ name: 'ApiError', status: 404 });
+  });
+});
+
+describe('targetProgress', () => {
+  const base = {
+    month: '2026-10',
+    monthEndsAt: '2026-11-01T00:00:00.000Z',
+    tiers: [
+      { minGiftCoins: 10000, bonusCoins: 500 },
+      { minGiftCoins: 50000, bonusCoins: 3000 }
+    ],
+    history: []
+  };
+
+  it('below the first tier: coins to go and the bonus it unlocks', () => {
+    const p = targetProgress({ ...base, giftCoins: 2500, reachedTier: null, nextTier: base.tiers[0], coinsToNextTier: 7500 });
+    expect(p).toEqual({ headline: '7,500 more gift coins this month earns a +500 💎 bonus.', percent: 25 });
+  });
+
+  it('between tiers: progress is toward the NEXT tier', () => {
+    const p = targetProgress({ ...base, giftCoins: 12000, reachedTier: base.tiers[0], nextTier: base.tiers[1], coinsToNextTier: 38000 });
+    expect(p.percent).toBe(24);
+    expect(p.headline).toContain('+3,000 💎');
+  });
+
+  it('top tier reached: full bar, says when it pays', () => {
+    const p = targetProgress({ ...base, giftCoins: 90000, reachedTier: base.tiers[1], nextTier: null, coinsToNextTier: 0 });
+    expect(p).toEqual({ headline: 'Top tier reached: +3,000 💎 bonus, paid after the month closes.', percent: 100 });
+  });
+
+  it('fetchTargetBonus reads the host endpoint', async () => {
+    const doFetch = vi.fn(async () => ok({ ...base, giftCoins: 0, reachedTier: null, nextTier: null, coinsToNextTier: 0 }));
+    await fetchTargetBonus(doFetch as any);
+    expect(String((doFetch.mock.calls[0] as any[])[0])).toMatch(/\/target-bonus\/me$/);
   });
 });

@@ -12,6 +12,8 @@ export const MoneyKey = {
   missionReward: (userId: string, missionKey: string, day: string) => key(`mission:${userId}:${missionKey}:${day}`),
   promoFund: (adminUserId: string, nonce: number) => key(`promo-fund:${adminUserId}:${nonce}`),
   prizeSettle: (eventId: string) => key(`event-prize:${eventId}`),
+  // One key per calendar month ('YYYY-MM'): a month's bonuses can post once.
+  targetBonus: (month: string) => key(`target-bonus:${month}`),
   payoutHold: (requestKey: string) => key(`payout_request:${requestKey}`),
   payoutReject: (payoutId: string) => key(`payout_reject:${payoutId}`),
   payoutPaid: (payoutId: string) => key(`payout_paid:${payoutId}`),

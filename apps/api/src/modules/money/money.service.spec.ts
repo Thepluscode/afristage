@@ -32,6 +32,34 @@ describe('MoneyKey factories (the on-disk migration contract)', () => {
     expect(MoneyKey.payoutPaid('p1')).toBe('payout_paid:p1');
     expect(MoneyKey.coinPurchase('i1')).toBe('coin_purchase:i1');
     expect(MoneyKey.chargeback('i1')).toBe('chargeback:i1');
+    expect(MoneyKey.targetBonus('2026-10')).toBe('target-bonus:2026-10');
+  });
+});
+
+describe('MoneyService.targetBonus (PROMO -> hosts EARNING, once per month)', () => {
+  const awards = [
+    { userId: 'h1', giftCoins: 50_000, bonusCoins: 3_000 },
+    { userId: 'h2', giftCoins: 10_000, bonusCoins: 500 }
+  ];
+
+  it('posts one guarded PROMO fan-out keyed on the month, awards snapshotted', async () => {
+    const { money, ledger } = build();
+    await money.targetBonus({ month: '2026-10', awards });
+    const post = ledger.postTransaction.mock.calls[0][0];
+    expect(post.type).toBe('TARGET_BONUS');
+    expect(post.idempotencyKey).toBe('target-bonus:2026-10');
+    expect(post.entries[0]).toMatchObject({ accountId: 'sys', direction: 'DEBIT', amountMinor: 3_500 });
+    expect(post.entries.slice(1).map((e: any) => e.amountMinor)).toEqual([3_000, 500]);
+    expect(post.guardNonNegative).toEqual(['sys']); // spend: an empty PROMO fails, never mints
+    expect(post.metadata).toEqual({ month: '2026-10', awards });
+  });
+
+  it('a second pay of the same month replays the first and posts nothing', async () => {
+    const { money, ledger, prisma } = build();
+    prisma.ledgerTransaction.findUnique.mockResolvedValueOnce({ id: 'txPrior' });
+    const r = await money.targetBonus({ month: '2026-10', awards });
+    expect(r).toEqual({ transaction: { id: 'txPrior' }, replayed: true });
+    expect(ledger.postTransaction).not.toHaveBeenCalled();
   });
 });
 

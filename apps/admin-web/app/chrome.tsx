@@ -75,6 +75,7 @@ const navGroups: { heading: string; links: [string, string, React.ReactNode][] }
       ['Ledger', '/ledger', <CalendarClock key="ledger" size={iconSize} />],
       ['Ledger Integrity', '/ledger-integrity', <ShieldCheck key="ledger-integrity" size={iconSize} />],
       ['Gifts', '/gifts', <Gift key="gifts" size={iconSize} />],
+      ['Host Bonuses', '/target-bonus', <Trophy key="target-bonus" size={iconSize} />],
       ['Shops', '/shops', <ShoppingBag key="shops" size={iconSize} />]
     ]
   },

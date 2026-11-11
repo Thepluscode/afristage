@@ -79,3 +79,38 @@ export async function fetchEarnings(doFetch: Fetch = fetch): Promise<EarningsVie
     payouts
   };
 }
+
+export interface BonusTier {
+  minGiftCoins: number;
+  bonusCoins: number;
+}
+
+export interface TargetBonusView {
+  month: string; // YYYY-MM, UTC
+  monthEndsAt: string;
+  giftCoins: number; // gift coins received this month (gross, before the split)
+  tiers: BonusTier[];
+  reachedTier: BonusTier | null;
+  nextTier: BonusTier | null;
+  coinsToNextTier: number;
+  history: { month: string | null; bonusCoins: number; giftCoins: number | null; paidAt: string }[];
+}
+
+export function fetchTargetBonus(doFetch: Fetch = fetch): Promise<TargetBonusView> {
+  return api<TargetBonusView>('/target-bonus/me', {}, doFetch);
+}
+
+/** The host-facing summary of this month's target: what to say and how full the bar is. */
+export function targetProgress(v: TargetBonusView): { headline: string; percent: number } {
+  if (v.nextTier) {
+    const percent = Math.min(100, Math.floor((v.giftCoins / v.nextTier.minGiftCoins) * 100));
+    return {
+      headline: `${diamonds(v.coinsToNextTier)} more gift coins this month earns a +${diamonds(v.nextTier.bonusCoins)} 💎 bonus.`,
+      percent
+    };
+  }
+  return {
+    headline: `Top tier reached: +${diamonds(v.reachedTier?.bonusCoins ?? 0)} 💎 bonus, paid after the month closes.`,
+    percent: 100
+  };
+}

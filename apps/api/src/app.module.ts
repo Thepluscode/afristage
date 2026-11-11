@@ -30,6 +30,7 @@ import { BetaModule } from './modules/beta/beta.module';
 import { SupportModule } from './modules/support/support.module';
 import { SupportersModule } from './modules/supporters/supporters.module';
 import { EventsModule } from './modules/events/events.module';
+import { TargetBonusModule } from './modules/target-bonus/target-bonus.module';
 import { FraudModule } from './modules/fraud/fraud.module';
 import { MissionsModule } from './modules/missions/missions.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
@@ -68,6 +69,7 @@ import { AccountModule } from './modules/account/account.module';
     SupportModule,
     SupportersModule,
     EventsModule,
+    TargetBonusModule,
     FraudModule,
     MissionsModule,
     UploadsModule,
